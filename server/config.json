@@ -1,0 +1,8 @@
+{
+    "welcome message": "Large Rat Testicles",
+    "slowMode": 0,
+    "maxMsgLen": 255,
+    "maxNickLen": 16,
+    "msgArrayLen": 25,
+    "PORT": 3000
+}

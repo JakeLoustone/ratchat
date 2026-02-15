@@ -18,8 +18,8 @@ export interface ChatMessage {
 export interface ServerConfig {
     welcomeMessage: string;
     slowMode: number;
-    maxMsgLength: number;
-    maxNickLength: number;
+    maxMsgLen: number;
+    maxNickLen: number;
 
 }
 

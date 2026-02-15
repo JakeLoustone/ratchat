@@ -1,12 +1,13 @@
 import { Server } from 'socket.io';
 import express from 'express';
-//import { Identity } from './services/identity';
+//import type { Identity } from './shared/types';
 import { createServer } from 'http';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'node:url';
 import { writeFileSync, readFileSync } from 'fs';
+import type { ChatMessage } from '../shared/types.ts';
 
-const config = JSON.parse(readFileSync('./config.json'))
+const config = JSON.parse(readFileSync('./config.json'));
 const app = express();
 const httpserver = createServer(app);
 const io = new Server(httpserver, {
@@ -19,11 +20,25 @@ app.get('/ratchat', (req, res) => {
     res.sendFile('www/ratchat.html', { root : __dirname });
 });
 
+let messageCounter = 0;
+
 io.on('connection', (socket) => {
     console.log('a user connected');
     socket.on('chat message', (msg) => {
+	if (msg.length > config.maxMsgLen) {
+	    socket.emit("toClientMsg", 'system: sorry your message is too long lmao');
+	    return;
+	}
 	console.log('message: ' + msg);
-	io.emit('chat message', msg)
+	const chatmsg: ChatMessage = {
+	    id: messageCounter++,
+	    author: "#fc03baph",
+	    content: msg,
+	    timestamp: Date.now(),
+	    type: "chat message"
+	};
+
+	io.emit('chat message', chatmsg);
     });
     socket.on('disconnect', () => {
 	console.log('a user disconnected');
@@ -32,5 +47,6 @@ io.on('connection', (socket) => {
 
 
 httpserver.listen(config.PORT, () => {
+    console.log(JSON.stringify(config));
     console.log(`server running at http://localhost:${config.PORT}`);
 });

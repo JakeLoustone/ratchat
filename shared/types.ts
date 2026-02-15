@@ -9,7 +9,7 @@ export interface Identity {
 
 export interface ChatMessage {
     id: number;
-    author: Identity.nick;
+    author: Identity['nick'];
     content: string;
     timestamp: Date;
     type: enum;

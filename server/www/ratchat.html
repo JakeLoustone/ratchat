@@ -101,6 +101,7 @@
 		const input = document.getElementById('input');
 		const messages = document.getElementById('messages');
 
+
 		//Helper function for non user messages
 		const systemMessage = (msg, className) => {
 			const item = document.createElement('li');
@@ -109,7 +110,7 @@
 			messages.appendChild(item);
 			window.scrollTo(0, document.body.scrollHeight);
 		};
-		
+	
 		//GUID check
 		const ratGUID = localStorage.getItem("ratGUID")	
 		if(ratGUID == null){

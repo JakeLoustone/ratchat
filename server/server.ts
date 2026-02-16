@@ -28,9 +28,15 @@ io.on('connection', (socket) => {
 
 	//When a message is recieved from a client
 	socket.on('chat message', (msg, callback) => {
-		
+
+
 		// Check if it's a command
 		if (msg.startsWith('/')) {
+		    
+
+
+
+
 			// Split into command
 			const args = msg.slice(1).trim().split(/ +/);
 			const command = args.shift().toLowerCase(); // Get the first word and remove from args array
@@ -40,31 +46,37 @@ io.on('connection', (socket) => {
 				case 'nick':
 				case 'chrat':
 					socket.emit("toClientMsg", "system: changing your nickname huh?");
+					if (typeof callback === 'function') callback();
 					break;
 
 				case 'color':
 					socket.emit("toClientMsg", "system: rainbow mode");
+					if (typeof callback === 'function') callback();
 					break;
 				case 'ban':
 					if (args.length === 0) return socket.emit("toClientMsg", "missing target");
 					// TODO: Mod verification
 					io.emit("toClientMsg", `system: ${fullArgs} has been banned.`);
+					if (typeof callback === 'function') callback();
 					break;
 				case 'timeout':
 					if (args.length === 0) return socket.emit("toClientMsg", "missing target");
 					// TODO: Mod verification
 					io.emit("toClientMsg", `system: ${fullArgs} has been timed out.`);
+					if (typeof callback === 'function') callback();
 					break;
 
 				case 'delete':
-					if (args.length === 0) return socket.emit("toClientMsg", "missing target");
+					if (args.length === 0 || isNaN(Number(args[0]))) return socket.emit("toClientMsg", "please provide message id");
 					// TODO: Mod verification
 					socket.emit("toClientMsg", `system: deleting message ${fullArgs}`);
+					if (typeof callback === 'function') callback();
 					break;
 
 				case 'announce':
 					// TODO: Mod verification
 					io.emit("toClientAnnouncement", `announcement: ${fullArgs}`);
+					if (typeof callback === 'function') callback();
 					break;
 
 				default:

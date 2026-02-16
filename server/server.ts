@@ -61,6 +61,20 @@ io.on('connection', (socket) => {
 			const fullArgs = args.join(' '); // Rejoin the rest for messages/targets
 
 			switch (command) {
+				case 'help':
+				case 'commands':
+				case 'h':
+					socket.emit("toClientWelcome", '/help /h or /commands : View this list.')
+					socket.emit("toClientWelcome", '/chrat or /nick : Change your nickname.')
+					socket.emit("toClientWelcome", "/color or colour #123456 : Change your nickname's color to hex value 123456")
+					//TODO add IF MOD check
+					socket.emit("toClientWelcome", '/ban  $user : Permanently bans a user with nickname $user.')
+					socket.emit("toClientWelcome", '/timeout or /to $user : Deletes all messages recently sent by a $user and prevents them from posting for the timeout timer (default 5 min).')
+					socket.emit("toClientWelcome", '/delete # : Delete a message with message ID of #. Hover over the message to get the message ID.')
+					socket.emit("toClientWelcome", '/announcement $announcement : Send an announcement to all users and all users who will join in the future with text $announce.')
+					if (typeof callback === 'function') callback();
+					return;
+
 				case 'nick':
 				case 'chrat':
 					if (args[0].length < 2 || args[0].length > 15) {
@@ -88,33 +102,38 @@ io.on('connection', (socket) => {
 				case 'color':
 					socket.emit("toClientMsg", "system: rainbow mode");
 					if (typeof callback === 'function') callback();
-					break;
+					return;
+
+				case 'colour':
+					socket.emit("toClientMsg", "system: lern to speak american")
+					return;
 				case 'ban':
 					if (args.length === 0) return socket.emit("toClientMsg", "missing target");
 					// TODO: Mod verification
 					io.emit("toClientMsg", `system: ${fullArgs} has been banned.`);
 					if (typeof callback === 'function') callback();
-					break;
+					return;
 				case 'timeout':
+				case 'to':
 					if (args.length === 0) return socket.emit("toClientMsg", "missing target");
 					// TODO: Mod verification
 					io.emit("toClientMsg", `system: ${fullArgs} has been timed out.`);
 					if (typeof callback === 'function') callback();
-					break;
+					return;
 
 				case 'delete':
 					if (args.length === 0 || isNaN(Number(args[0]))) return socket.emit("toClientMsg", "please provide message id");
 					// TODO: Mod verification
 					socket.emit("toClientMsg", `system: deleting message ${fullArgs}`);
 					if (typeof callback === 'function') callback();
-					break;
+					return;
 
 				case 'announce':
 					// TODO: Mod verification
 					io.emit("toClientAnnouncement", `announcement: ${fullArgs}`);
 					if (typeof callback === 'function') callback();
-					break;
-
+					return;
+				
 				default:
 					socket.emit("toClientMsg", "system: that's not a command lol");
 			}

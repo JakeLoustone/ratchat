@@ -26,31 +26,46 @@ io.on('connection', (socket) => {
 	console.log('a user connected');
 	socket.emit("toClientWelcome", `Welcome: ${config.welcomeMsg}`)
 
-
 	//When a message is recieved from a client
 	socket.on('chat message', (msg, callback) => {
-	//Check message length	
-	if (msg.length > config.maxMsgLen) {
-	    socket.emit("toClientMsg", 'system: sorry your message is too long lmao');
-	    return;
-	}
-	
-	console.log('message: ' + msg);
-	
-	//Build message JSON Object
-	const chatmsg: ChatMessage = {
-	    id: messageCounter++,
-	    author: "#fc03baph",
-	    content: msg,
-	    timestamp: Date.now(),
-	    type: "chat message"
-	};
-	//Send message JSON object to all connected sockets
-	io.emit('chat message', chatmsg);
+		
+		//Check to see if it's a user initated command
+		if (Array.from(msg)[0] === '/'){
+			
+			//Nick command
+			if(msg.slice(1,5) === 'nick' && msg.length === 5){
+				socket.emit("toClientMsg", "system: changing your nickname huh?");
+				return
+			}
 
-	if (typeof callback === 'function') {
-	    callback();
-	}
+			//Not a command
+			socket.emit("toClientMsg", "system: that's not a command lol");
+			return
+		}		
+
+		//Check message length	
+		if (msg.length > config.maxMsgLen) {
+	    	socket.emit("toClientMsg", 'system: sorry your message is too long lmao');
+	    	return;
+		}
+	
+		console.log('message: ' + msg);
+		
+		//Build message JSON Object
+		const chatmsg: ChatMessage = {
+			id: messageCounter++,
+			author: "#fc03baph",
+			content: msg,
+			timestamp: Date.now(),
+			type: "chat message"
+		};
+		//Send message JSON object to all connected sockets
+		io.emit('chat message', chatmsg);
+
+		//Send callback for input clearing
+		if (typeof callback === 'function') {
+			callback();
+		}
     });
 
 

@@ -89,13 +89,12 @@
 	</form>
    
 	<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script> 
-   
+
 	<script>
 		const socket = io();
 		const form = document.getElementById('form');
 		const input = document.getElementById('input');
 		const messages = document.getElementById('messages');
-
 
 		//Helper function for non user messages
 		const systemMessage = (msg, className) => {
@@ -118,6 +117,7 @@
 
 		//Message recieved
 		socket.on('chat message', (msg) => {
+			
 			const item = document.createElement('li');
 		
 			//Date constructor

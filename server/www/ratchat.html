@@ -79,6 +79,7 @@
 		}
 		</style>
 	</head>
+
 	<body>
 		<div style="position: fixed; bottom: 3.1rem; left: 1rem; width: 100%; max-width:98vw; max-height:95vh; overflow-y: scroll">
 			<ul id="messages"></ul>
@@ -105,6 +106,7 @@
 			window.scrollTo(0, document.body.scrollHeight);
 		};
 
+		//Clears input field after submission
 		form.addEventListener('submit', (e) => {
 		e.preventDefault();
 			if (input.value) {
@@ -151,4 +153,5 @@
 
 	</script>
 	</body>
+
 </html>

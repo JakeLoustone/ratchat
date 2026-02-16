@@ -119,13 +119,9 @@ io.on('connection', (socket) => {
 					}
 					if (typeof callback === 'function') callback();
 					return;
-<<<<<<< Updated upstream
-
 				case 'colour':
 					socket.emit("toClientMsg", "system: lern to speak american")
 					return;
-=======
->>>>>>> Stashed changes
 				case 'ban':
 					if (args.length === 0) return socket.emit("toClientMsg", "missing target");
 					// TODO: Mod verification

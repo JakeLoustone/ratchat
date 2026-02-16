@@ -10,6 +10,10 @@ export class IdentityService {
 
 	const validColor = ( color && /^#[0-9A-F]{6}$/i.test(color));
 
+	if (color && !validColor) {
+	    throw new Error('invalid hex code. please use format #RRGGBB');
+	}
+
 	if (sanitizeNick.length < 2 || sanitizeNick.length > 15) {
 	    throw new Error('nickname must be between 2 and 15 characters')
 	}
@@ -28,7 +32,7 @@ export class IdentityService {
 		this.registeredNicks.delete(oldNick);
 		this.registeredNicks.set(sanitizeNick, guid);
 		}
-		const oldColor = user.nick.substring(0.7)
+		const oldColor = user.nick.substring(0,7)
 
 		const newColor = validColor ? color! : oldColor;
 		user.nick = newColor + sanitizeNick;
@@ -41,7 +45,7 @@ export class IdentityService {
 	const newGuid = guid || uuidv4();
 	const newIdentity: Identity = {
 	    guid: newGuid,
-	    nick: (validColor ? color! : '#000000') + sanitizeNick,
+	    nick: (color || '#000000') + sanitizeNick,
 	    status: 'online',
 	    isMod: false,
 	    lastMessage: new Date(0)

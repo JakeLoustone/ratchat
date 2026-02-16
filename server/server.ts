@@ -64,14 +64,22 @@ io.on('connection', (socket) => {
 				case 'help':
 				case 'commands':
 				case 'h':
-					socket.emit("toClientWelcome", '/help /h or /commands : View this list.')
-					socket.emit("toClientWelcome", '/chrat or /nick : Change your nickname.')
-					socket.emit("toClientWelcome", "/color or colour #123456 : Change your nickname's color to hex value 123456")
-					//TODO add IF MOD check
-					socket.emit("toClientWelcome", '/ban  $user : Permanently bans a user with nickname $user.')
-					socket.emit("toClientWelcome", '/timeout or /to $user : Deletes all messages recently sent by a $user and prevents them from posting for the timeout timer (default 5 min).')
-					socket.emit("toClientWelcome", '/delete # : Delete a message with message ID of #. Hover over the message to get the message ID.')
-					socket.emit("toClientWelcome", '/announcement $announcement : Send an announcement to all users and all users who will join in the future with text $announce.')
+					const helpMessages = [
+						'/help, /h, or /commands : View this list.',
+						'/chat or /nick <nickname> : Change your nickname to <nickname>.',
+						"/color <#RRGGBB> : Change your nickname's color to hex #RRGGBB."
+					];
+
+					// TODO Check if user has moderator privileges
+					helpMessages.push(
+							'',
+							'--- Moderator Commands ---',
+							'/ban <user> : Permanently bans a user with nickname "user"',
+							'/timeout <user> : Deletes recent messages from nickname "user" and mutes them for the timeout period. (default 5 min)',
+							'/delete <1> : Delete a message with ID 1. Find message IDs by hovering the relevant message.',
+							'/announcement <text> : Send an announcement to all users. New users who join will see the most recent announcement.')
+					helpMessages.forEach(helpMsg => socket.emit("toClientWelcome", helpMsg));
+
 					if (typeof callback === 'function') callback();
 					return;
 
@@ -119,15 +127,18 @@ io.on('connection', (socket) => {
 					}
 					if (typeof callback === 'function') callback();
 					return;
+
 				case 'colour':
 					socket.emit("toClientMsg", "system: lern to speak american")
 					return;
+
 				case 'ban':
 					if (args.length === 0) return socket.emit("toClientMsg", "missing target");
 					// TODO: Mod verification
 					io.emit("toClientMsg", `system: ${fullArgs} has been banned.`);
 					if (typeof callback === 'function') callback();
 					return;
+
 				case 'timeout':
 				case 'to':
 					if (args.length === 0) return socket.emit("toClientMsg", "missing target");

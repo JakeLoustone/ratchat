@@ -29,18 +29,48 @@ io.on('connection', (socket) => {
 	//When a message is recieved from a client
 	socket.on('chat message', (msg, callback) => {
 		
-		//Check to see if it's a user initated command
-		if (Array.from(msg)[0] === '/'){
-			
-			//Nick command
-			if(msg.slice(1,5) === 'nick' && msg.length === 5){
-				socket.emit("toClientMsg", "system: changing your nickname huh?");
-				return
-			}
+		// Check if it's a command
+		if (msg.startsWith('/')) {
+			// Split into command (e.g., "ban") and arguments (e.g., "user123")
+			const args = msg.slice(1).trim().split(/ +/);
+			const command = args.shift().toLowerCase(); // Get the first word and remove from args array
+			const fullArgs = args.join(' '); // Rejoin the rest for messages/targets
 
-			//Not a command
-			socket.emit("toClientMsg", "system: that's not a command lol");
-			return
+			switch (command) {
+				case 'nick':
+				case 'chrat':
+					socket.emit("toClientMsg", "system: changing your nickname huh?");
+					break;
+
+				case 'color':
+					socket.emit("toClientMsg", "system: rainbow mode");
+					break;
+
+				case 'ban':
+					if (args.length === 0) return socket.emit("toClientMsg", "system: who are we banning?");
+					// TODO: Mod verification
+					socket.emit("toClientMsg", `system: banning ${fullArgs}`);
+					break;
+
+				case 'announce':
+					// TODO: Mod verification
+					socket.emit("toClientMsg", `system: announcement is now "${fullArgs}"`);
+					break;
+
+				case 'timeout':
+					// TODO: Mod verification
+					socket.emit("toClientMsg", `system: timing out ${fullArgs}`);
+					break;
+
+				case 'delete':
+					// TODO: Mod verification
+					socket.emit("toClientMsg", `system: deleting message ${fullArgs}`);
+					break;
+
+				default:
+					socket.emit("toClientMsg", "system: that's not a command lol");
+			}
+			return; // Exit the function since we handled a command
 		}		
 
 		//Check message length	

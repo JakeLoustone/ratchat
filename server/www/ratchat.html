@@ -104,7 +104,13 @@
 			messages.appendChild(item);
 			window.scrollTo(0, document.body.scrollHeight);
 		};
-
+		
+		//GUID check
+		const ratGUID = localStorage.getItem("ratGUID")	
+		if(ratGUID == null){
+			console.log('no GUID')
+		}
+	
 		//Clears input field after submission
 		form.addEventListener('submit', (e) => {
 		e.preventDefault();

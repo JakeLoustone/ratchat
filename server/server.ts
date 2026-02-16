@@ -67,7 +67,8 @@ io.on('connection', (socket) => {
 					const helpMessages = [
 						'/help, /h, or /commands : View this list.',
 						'/chat or /nick <nickname> : Change your nickname to <nickname>.',
-						"/color <#RRGGBB> : Change your nickname's color to hex #RRGGBB."
+						"/color <#RRGGBB> : Change your nickname's color to hex #RRGGBB.",
+						"/export : returns your GUID for later importing on other devices. if you like your name don't share it :)"
 					];
 
 					// TODO Check if user has moderator privileges

@@ -10,7 +10,6 @@
 		body {
 			margin: 0;
 			padding-bottom: 3rem;
-			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
 		}
 
 		#form { 
@@ -116,14 +115,28 @@
 			window.scrollTo(0, document.body.scrollHeight);
 		};
 	
-		//Clears input field after submission
+		//Client submission
 		form.addEventListener('submit', (e) => {
-		e.preventDefault();
-			if (input.value) {
-				socket.emit('chat message', input.value, () => {
-				input.value = '';	
-				});
+			e.preventDefault();
+			
+			const val = input.value.trim()
+			if (!val) return;
+
+			//Export command
+			if (val.startsWith('/export') && val.length === 7) {
+				const oldGUID = localStorage.getItem('ratGUID');
+				if (!oldGUID) {
+       				systemMessage("you ain't got no ID, you ain't gettin in this bar.", 's-li');
+       				return;
+				}
+				systemMessage(`Your GUID is: ${oldGUID}`, 'w-li')
+				input.value = '';
+				return;
 			}
+			//Send message
+			socket.emit('chat message', val, () => {
+				input.value = '';
+			});
 		});
 
 		//Identity events

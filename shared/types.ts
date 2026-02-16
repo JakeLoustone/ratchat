@@ -1,7 +1,6 @@
 export interface Identity {
     guid: string;
     nick: string;
-    color: string;
     status: string;
     isMod: boolean;
     lastMessage: Date;

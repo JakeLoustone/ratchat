@@ -96,7 +96,12 @@
 	<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script> 
 
 	<script>
-		const socket = io();
+		const localGUID = localStorage.getItem('ratGUID');
+		const socket = io({
+		    auth: {
+			token: localGUID
+		    }
+		});
 		const form = document.getElementById('form');
 		const input = document.getElementById('input');
 		const messages = document.getElementById('messages');
@@ -111,12 +116,6 @@
 			window.scrollTo(0, document.body.scrollHeight);
 		};
 	
-		//GUID check
-		const ratGUID = localStorage.getItem("ratGUID")	
-		if(ratGUID == null){
-			console.log('no GUID')
-		}
-	
 		//Clears input field after submission
 		form.addEventListener('submit', (e) => {
 		e.preventDefault();
@@ -125,6 +124,12 @@
 				input.value = '';	
 				});
 			}
+		});
+
+		//Identity events
+		socket.on('identity', (identity) => {
+		    console.log('Identity synced:', identity);
+		    localStorage.setItem('ratGUID', identity.guid);
 		});
 
 		//Message recieved

@@ -8,9 +8,7 @@ export class IdentityService {
     public userResolve(guid: string | null, nick: string, color?: string): Identity{
 	const sanitizeNick = nick.replace(/[^\w\s]/gi,  '').trim();
 
-	const colorSelect = (color && /^#[0-9A-F]{6}$/i.test(color))
-            ? color
-            : '#000000';
+	const validColor = ( color && /^#[0-9A-F]{6}$/i.test(color));
 
 	if (sanitizeNick.length < 2 || sanitizeNick.length > 15) {
 	    throw new Error('nickname must be between 2 and 15 characters')
@@ -21,7 +19,6 @@ export class IdentityService {
 	if (guid && this.users.has(guid)) {
 	    const user = this.users.get(guid)!;
 	    const oldNick = user.nick.substring(7);
-
 	    // Changing nickname check
 	    if(sanitizeNick !== oldNick) {
 		if (this.registeredNicks.has(sanitizeNick)) {
@@ -31,9 +28,10 @@ export class IdentityService {
 		this.registeredNicks.delete(oldNick);
 		this.registeredNicks.set(sanitizeNick, guid);
 		}
+		const oldColor = user.nick.substring(0.7)
 
-		const color = user.nick.substring(0,7);
-		user.nick = color + sanitizeNick;
+		const newColor = validColor ? color! : oldColor;
+		user.nick = newColor + sanitizeNick;
 		return user;
 	}
 	if (this.registeredNicks.has(sanitizeNick)) {
@@ -43,7 +41,7 @@ export class IdentityService {
 	const newGuid = guid || uuidv4();
 	const newIdentity: Identity = {
 	    guid: newGuid,
-	    nick: colorSelect + sanitizeNick,
+	    nick: (validColor ? color! : '#000000') + sanitizeNick,
 	    status: 'online',
 	    isMod: false,
 	    lastMessage: new Date(0)

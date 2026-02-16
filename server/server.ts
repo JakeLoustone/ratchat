@@ -31,7 +31,7 @@ io.on('connection', (socket) => {
 		
 		// Check if it's a command
 		if (msg.startsWith('/')) {
-			// Split into command (e.g., "ban") and arguments (e.g., "user123")
+			// Split into command
 			const args = msg.slice(1).trim().split(/ +/);
 			const command = args.shift().toLowerCase(); // Get the first word and remove from args array
 			const fullArgs = args.join(' '); // Rejoin the rest for messages/targets
@@ -45,26 +45,26 @@ io.on('connection', (socket) => {
 				case 'color':
 					socket.emit("toClientMsg", "system: rainbow mode");
 					break;
-
 				case 'ban':
-					if (args.length === 0) return socket.emit("toClientMsg", "system: who are we banning?");
+					if (args.length === 0) return socket.emit("toClientMsg", "missing target");
 					// TODO: Mod verification
-					socket.emit("toClientMsg", `system: banning ${fullArgs}`);
+					io.emit("toClientMsg", `system: ${fullArgs} has been banned.`);
+					break;
+				case 'timeout':
+					if (args.length === 0) return socket.emit("toClientMsg", "missing target");
+					// TODO: Mod verification
+					io.emit("toClientMsg", `system: ${fullArgs} has been timed out.`);
+					break;
+
+				case 'delete':
+					if (args.length === 0) return socket.emit("toClientMsg", "missing target");
+					// TODO: Mod verification
+					socket.emit("toClientMsg", `system: deleting message ${fullArgs}`);
 					break;
 
 				case 'announce':
 					// TODO: Mod verification
-					socket.emit("toClientMsg", `system: announcement is now "${fullArgs}"`);
-					break;
-
-				case 'timeout':
-					// TODO: Mod verification
-					socket.emit("toClientMsg", `system: timing out ${fullArgs}`);
-					break;
-
-				case 'delete':
-					// TODO: Mod verification
-					socket.emit("toClientMsg", `system: deleting message ${fullArgs}`);
+					io.emit("toClientAnnouncement", `announcement: ${fullArgs}`);
 					break;
 
 				default:

@@ -66,6 +66,11 @@
 			color: darkslategrey;
 		}
 
+		#messages > .a-li {
+			padding: 0.5rem 1rem;
+			color: #6eab6e;
+		}
+
 		#messages .user-name {
 			font-weight: bold;
 			margin-right: 2px;
@@ -156,6 +161,9 @@
 
 		//Server Welcome Message
 		socket.on('toClientWelcome', (msg) => systemMessage(msg, 'w-li'));
+
+		//Server Announcement
+		socket.on('toClientAnnouncement', (msg) => systemMessage(msg, 'a-li'));
 
 	</script>
 	</body>

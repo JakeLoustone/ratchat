@@ -1,11 +1,10 @@
 import { Server } from 'socket.io';
 import express from 'express';
-//import type { Identity } from './shared/types';
 import { createServer } from 'http';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'node:url';
 import { writeFileSync, readFileSync } from 'fs';
-import type { ChatMessage } from '../shared/types.ts';
+import type { Identity, ChatMessage } from '../shared/types.ts';
 
 const config = JSON.parse(readFileSync('./config.json'));
 const app = express();

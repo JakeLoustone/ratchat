@@ -34,3 +34,7 @@
 - welcome message
 - slowmode
 - max message length
+
+
+### Mermaid Graphs
+

@@ -25,9 +25,9 @@ let messageCounter = 0;
 io.on('connection', (socket) => {
     //A new user has connected	
 	console.log('a user connected');
-	// socket.emit(JSON.stringify(config.welcomeMsg))
-    
-	
+	socket.emit("toClientWelcome", `Welcome: ${config.welcomeMsg}`)
+
+
 	//When a message is recieved from a client
 	socket.on('chat message', (msg) => {
 	//Check message length	

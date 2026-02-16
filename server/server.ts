@@ -23,13 +23,22 @@ app.get('/ratchat', (req, res) => {
 let messageCounter = 0;
 
 io.on('connection', (socket) => {
-    console.log('a user connected');
-    socket.on('chat message', (msg) => {
+    //A new user has connected	
+	console.log('a user connected');
+	// socket.emit(JSON.stringify(config.welcomeMsg))
+    
+	
+	//When a message is recieved from a client
+	socket.on('chat message', (msg) => {
+	//Check message length	
 	if (msg.length > config.maxMsgLen) {
 	    socket.emit("toClientMsg", 'system: sorry your message is too long lmao');
 	    return;
 	}
+	
 	console.log('message: ' + msg);
+	
+	//Build message JSON Object
 	const chatmsg: ChatMessage = {
 	    id: messageCounter++,
 	    author: "#fc03baph",
@@ -37,9 +46,11 @@ io.on('connection', (socket) => {
 	    timestamp: Date.now(),
 	    type: "chat message"
 	};
-
+	//Send message JSON object to all connected sockets
 	io.emit('chat message', chatmsg);
     });
+
+
     socket.on('disconnect', () => {
 	console.log('a user disconnected');
     });

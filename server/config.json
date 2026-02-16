@@ -1,5 +1,5 @@
 {
-    "welcome message": "Large Rat Testicles",
+    "welcomeMsg": "Large Rat Testicles",
     "slowMode": 0,
     "maxMsgLen": 255,
     "maxNickLen": 16,

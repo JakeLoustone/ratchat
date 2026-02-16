@@ -11,7 +11,7 @@ export interface ChatMessage {
     id: number;
     author: Identity['nick'];
     content: string;
-    timestamp: Date;
+    timestamp: number;
     type: enum;
 }
 

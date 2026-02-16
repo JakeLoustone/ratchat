@@ -49,11 +49,21 @@
 	const form = document.getElementById('form');
 	const input = document.getElementById('input');
 	const messages = document.getElementById('messages');
+	// helper function for non user messages
+	const systemMessage = (msg, className) => {
+	    const item = document.createElement('li');
+	    item.classList.add(className);
+	    item.textContent = msg;
+	    messages.appendChild(item);
+	    window.scrollTo(0, document.body.scrollHeight);
+	};
 
 	form.addEventListener('submit', (e) => {
 	    e.preventDefault();
 	    if (input.value) {
-		socket.emit('chat message', input.value);
+		socket.emit('chat message', input.value, () => {
+		input.value = '';	
+		});
 	    }
 	});
 
@@ -68,35 +78,21 @@
 	    // nickname constructor and styling
 	    const userName = msg.author.substring(7);
 	    const userColor = msg.author.substring(0,7);
-
+	    const timeSpan = `<span style="color:grey; font-size:10px; margin-right:2px">${dateStr}</span>`
+	    const nameSpan = `<span class="user-name" style="--user-color:${userColor}">${userName}</span>: `
+	    const contentSpan = document.createElement('span')
 	    // set title for tooltip hover
 	    item.setAttribute('title', `Msg ID: ${msg.id}`);
-
 	    //format and build message
-	    item.innerHTML = `<span style="color:grey; font-size:10px; margin-right:2px">${dateStr}</span> <span class="user-name" style="--user-color:${userColor}">${userName}</span>: ${msg.content}`;
-	    
-		
-	    messages.appendChild(item);
-	    window.scrollTo(0, document.body.scrollHeight);
-	    // fix side-effect of clearing users typing the message
-	    if (input.value === msg.content) {
-		input.value = '';
-	    }
-	});
-	socket.on('toClientMsg', (msg) => {
-	    const item = document.createElement('li');
-	    item.classList.add('s-li');
-	    item.textContent = msg;
+	    item.innerHTML = timeSpan + nameSpan
+	    contentSpan.textContent = msg.content;
+	    item.appendChild(contentSpan);
 	    messages.appendChild(item);
 	    window.scrollTo(0, document.body.scrollHeight);
 	});
-	socket.on('toClientWelcome', (msg) => {
-	    const item = document.createElement('li');
-	    item.classList.add('w-li');
-	    item.textContent = msg;
-	    messages.appendChild(item);
-	    window.scrollTo(0, document.body.scrollHeight);
-	});
+
+	socket.on('toClientMsg', (msg) => systemMessage(msg, 's-li'));
+	socket.on('toClientWelcome', (msg) => systemMessage(msg, 'w-li'));
     </script>
   </body>
 </html>

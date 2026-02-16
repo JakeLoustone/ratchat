@@ -29,7 +29,7 @@ io.on('connection', (socket) => {
 
 
 	//When a message is recieved from a client
-	socket.on('chat message', (msg) => {
+	socket.on('chat message', (msg, callback) => {
 	//Check message length	
 	if (msg.length > config.maxMsgLen) {
 	    socket.emit("toClientMsg", 'system: sorry your message is too long lmao');
@@ -48,6 +48,10 @@ io.on('connection', (socket) => {
 	};
 	//Send message JSON object to all connected sockets
 	io.emit('chat message', chatmsg);
+
+	if (typeof callback === 'function') {
+	    callback();
+	}
     });
 
 

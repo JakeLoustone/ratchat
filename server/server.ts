@@ -55,8 +55,6 @@ io.on('connection', (socket) => {
 		// Check if it's a command
 		if (msg.startsWith('/')) {
 		    
-
-
 			// Split into command
 			const args = msg.slice(1).trim().split(/ +/);
 			const command = args.shift().toLowerCase(); // Get the first word and remove from args array
@@ -76,14 +74,15 @@ io.on('connection', (socket) => {
 							socket.emit('identity', updateUser);
 							if (oldNick) {
 								io.emit('toClientAnnouncement', `system: ${oldNick.substring(7)} changed their username to ${updateUser.nick.substring(7)}`);
+								if (typeof callback === 'function') callback();
 							} else {
 								io.emit('toClientAnnouncement', `system: ${updateUser.nick.substring(7)} has joined teh ratchat`);
+								if (typeof callback === 'function') callback();
 							}
 						} catch (e: any) {
 							socket.emit('toClientMsg', `system error: ${e.message}`);
 						}
 					}
-					if (typeof callback === 'function') callback();
 					return;
 
 				case 'color':
@@ -119,7 +118,7 @@ io.on('connection', (socket) => {
 				default:
 					socket.emit("toClientMsg", "system: that's not a command lol");
 			}
-			return; // Exit the function since we handled a command
+			return;
 		}
 
 		if (!user) {
@@ -139,7 +138,7 @@ io.on('connection', (socket) => {
 		//Build message JSON Object
 		const chatmsg: ChatMessage = {
 			id: messageCounter++,
-			author: "#fc03baph",
+			author: user.nick,
 			content: msg,
 			timestamp: Date.now(),
 			type: "chat message"

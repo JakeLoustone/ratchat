@@ -4,69 +4,74 @@
 		<meta name="viewport" content="width=device-width,initial-scale=1.0">
 		
 		<title>ratchat</title>
-	
+		<link rel="stylesheet" href="https://unpkg.com/98.css">
 		<style>
 	
 		body {
+			height: 100%;
 			margin: 0;
-			padding-bottom: 3rem;
+			overflow: hidden;
 		}
 
-		#form { 
-			background: rgba(0, 0, 0, 0.15);
-			padding: 0.25rem; position: fixed;
-			bottom: 0;
-			left: 0;
-			right: 0;
-			display: flex;
-			height: 3rem;
-			box-sizing: border-box;
-			backdrop-filter: blur(10px);
+		#form{
+		display: flex;
+		gap: 4px;
+		padding-top: 4px;
+		}
+
+		.window-body {
+    		display: flex;
+			flex-direction: column;
+			height: calc(100vh - 30px);
+			margin: 0 !important;
+			padding: 3px;
 		}
 
 		#input {
 			border: none;
+			height: 2rem;
 			padding: 0 1rem;
 			flex-grow: 1;
-			border-radius: 2rem;
 			margin: 0.25rem;
 		}
-
+		
 		#input:focus {
 			outline: none;
 		}
 
-		#form > button {
-			background: #333;
-			border: none;
-			padding: 0 1rem; 
-			margin: 0.25rem; 
-			border-radius: 3px;
-			outline: none; color: #fff;
+		#messages-container {
+			flex-grow: 1;
+			overflow-y: auto;
+			background: white;
+			box-shadow: inset -1px -1px #fff, inset 1px 1px #0a0a0a, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+			padding: 10px;
+			margin-bottom: 4px;
+			display: flex;
+			flex-direction: column;
 		}
-
 		#messages {
 			list-style-type: none;
 			margin: 0;
-			padding: 0; 
+			padding: 0;
+			margin-top: auto;
 		}
 
 		#messages > li {
-		padding: 0.25rem 1rem; 
+			padding: 0.2rem 0.5rem; 
 		}
 
 		#messages > .s-li {
-			padding: 0.5rem 1rem;
+			padding: 0.2rem 0.5rem; 
 			color: red;
 		}
 
 		#messages > .w-li {
-			padding: 0.5rem 1rem;
+			padding: 0.2rem 0.5rem; 
 			color: darkslategrey;
 		}
 
 		#messages > .a-li {
-			padding: 0.5rem 1rem;
+			padding: 0.2rem 0.5rem; 
 			color: #6eab6e;
 		}
 
@@ -85,13 +90,26 @@
 	</head>
 
 	<body>
-		<div style="position: fixed; bottom: 3.1rem; left: 1rem; width: 100%; max-width:98vw; max-height:95vh; overflow-y: scroll">
-			<ul id="messages"></ul>
-		</div>
-	<form id="form" action="">
-		<input id="input" autocomplete="off" /><button>Send</button>
-	</form>
-   
+	<div class="window" style="width: 100vw-10px; height: 100vh-10px;">
+    <div class="title-bar">
+        <div class="title-bar-text">ratchat</div>
+        <div class="title-bar-controls">
+            <button aria-label="Minimize"></button>
+            <button aria-label="Maximize"></button>
+            <button aria-label="Close"></button>
+        </div>
+    </div>
+    <div class="window-body">
+        <div id="messages-container">
+            <ul id="messages"></ul>
+        </div>
+        
+        <form id="form" action="">
+            <input id="input" type="text" autocomplete="off" />
+            <button type="submit">Send</button>
+        </form>
+    </div>
+</div>
 	<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script> 
 
 	<script>
@@ -109,10 +127,11 @@
 		//Helper function for non user messages
 		const systemMessage = (msg, className) => {
 			const item = document.createElement('li');
+			const msgContainer = document.getElementById('messages-container');
 			item.classList.add(className);
 			item.textContent = msg;
 			messages.appendChild(item);
-			window.scrollTo(0, document.body.scrollHeight);
+			msgContainer.scrollTop = msgContainer.scrollHeight;
 		};
 	
 		//Client submission
@@ -149,7 +168,8 @@
 		socket.on('chat message', (msg) => {
 			
 			const item = document.createElement('li');
-		
+			const msgContainer = document.getElementById('messages-container');
+
 			//Date constructor
 			const date = new Date(msg.timestamp);
 			const dateStr = date.toLocaleTimeString([], {
@@ -172,7 +192,7 @@
 			contentSpan.textContent = msg.content;
 			item.appendChild(contentSpan);
 			messages.appendChild(item);
-			window.scrollTo(0, document.body.scrollHeight);
+			msgContainer.scrollTop = msgContainer.scrollHeight;
 		});
 
 		//Server Error Message

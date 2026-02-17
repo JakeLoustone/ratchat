@@ -19,7 +19,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const identityService = new IdentityService();
 const socketUsers = new Map<string, Identity>();
-
+const chatHistory = new Map<number, ChatMessage>();
 
 
 app.get('/ratchat', (req, res) => {
@@ -46,6 +46,9 @@ io.on('connection', (socket) => {
 
 	//A new user has connected	
 	console.log('a user connected');
+	for (const [id, msg] of chatHistory){
+		socket.emit('chat message', msg);
+	}
 
 	//When a message is recieved from a client
 	socket.on('chat message', (msg, callback) => {
@@ -189,6 +192,14 @@ io.on('connection', (socket) => {
 			timestamp: Date.now(),
 			type: "chat message"
 		};
+		//Save message to array and delete oldest if necessary
+		chatHistory.set(chatmsg.id, chatmsg)
+		if (chatHistory.size > config.msgArrayLen){
+			const oldestMessage = chatHistory.keys().next().value;
+			if (oldestMessage  !== undefined) {
+       			chatHistory.delete(oldestMessage);
+    		}
+		}
 		//Send message JSON object to all connected sockets
 		io.emit('chat message', chatmsg);
 

@@ -20,7 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const identityService = new IdentityService();
 const socketUsers = new Map<string, Identity>();
 const chatHistory = new Map<number, ChatMessage>();
-
+var announcement = ''
 
 app.get('/ratchat', (req, res) => {
     res.sendFile('www/ratchat.html', { root : __dirname });
@@ -30,7 +30,9 @@ let messageCounter = 0;
 
 io.on('connection', (socket) => {
 	socket.emit("toClientWelcome", `Welcome: ${config.welcomeMsg}`)
-	
+	if (announcement){
+		socket.emit("toClientAnnouncement", `Announcement: ${announcement}`)
+	}
 	//identity service stuff
 	const clientGUID = socket.handshake.auth.token;
 
@@ -160,9 +162,10 @@ io.on('connection', (socket) => {
 
 				case 'announce':
 					// TODO: Mod verification
-					io.emit("toClientAnnouncement", `announcement: ${fullArgs}`);
+					announcement = `${fullArgs}`
+					io.emit("toClientAnnouncement", `announcement: ${announcement}`);
 					if (typeof callback === 'function') callback();
-					return;
+					return announcement;
 				
 				default:
 					socket.emit("toClientMsg", "system: that's not a command lol");

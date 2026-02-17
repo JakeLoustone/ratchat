@@ -113,7 +113,7 @@ io.on('connection', (socket) => {
 						socket.emit('toClientMsg', "system: please use /chrat <nickname> before trying to set a color");
 						return;
 					}
-					if (args.length === 0 || args[0] < 7) {
+					if (args.length === 0) {
 						socket.emit('toClientMsg', "system: provide a hex value for the color you want to set e.g. /color #000000");
 					} else {
 						try {

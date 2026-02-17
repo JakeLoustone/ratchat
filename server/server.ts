@@ -71,19 +71,19 @@ io.on('connection', (socket) => {
 				case 'h':
 					const helpMessages = [
 						'/help, /h, or /commands : View this list.',
-						'/chat or /nick <nickname> : Change your nickname to <nickname>.',
+						'/chrat or /nick <nickname> : Change your nickname to <nickname>.',
 						"/color <#RRGGBB> : Change your nickname's color to hex #RRGGBB.",
+						'/clear or /clr : removes all visible messsages on your screen. (others can still see them)',
 						"/export : returns your GUID for later importing on other devices. if you like your name don't share it :)"
 					];
 
 					// TODO Check if user has moderator privileges
 					helpMessages.push(
-							'',
 							'--- Moderator Commands ---',
 							'/ban <user> : Permanently bans a user with nickname "user"',
 							'/timeout <user> : Deletes recent messages from nickname "user" and mutes them for the timeout period. (default 5 min)',
 							'/delete <1> : Delete a message with ID 1. Find message IDs by hovering the relevant message.',
-							'/announcement <text> : Send an announcement to all users. New users who join will see the most recent announcement.')
+							'/announce <text> : Send an announcement to all users. New users who join will see the most recent announcement.')
 					helpMessages.forEach(helpMsg => socket.emit("toClientWelcome", helpMsg));
 
 					if (typeof callback === 'function') callback();
@@ -161,6 +161,7 @@ io.on('connection', (socket) => {
 					return;
 
 				case 'announce':
+				case 'announcement':
 					// TODO: Mod verification
 					announcement = `${fullArgs}`
 					io.emit("toClientAnnouncement", `announcement: ${announcement}`);

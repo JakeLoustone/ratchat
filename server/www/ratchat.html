@@ -33,6 +33,7 @@
 			padding: 0 1rem;
 			flex-grow: 1;
 			margin: 0.25rem;
+			font-size: large;
 		}
 		
 		#input:focus {
@@ -54,6 +55,7 @@
 			margin: 0;
 			padding: 0;
 			margin-top: auto;
+			font-size: large;
 		}
 
 		#messages > li {
@@ -152,6 +154,13 @@
 				input.value = '';
 				return;
 			}
+			if(val.startsWith('/clear') && val.length === 6 || val.startsWith('/clr') && val.length === 4){
+				messages.replaceChildren();
+				input.value = '';
+				return;
+			}
+
+
 			//Send message
 			socket.emit('chat message', val, () => {
 				input.value = '';

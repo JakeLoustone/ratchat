@@ -86,7 +86,7 @@ io.on('connection', (socket) => {
 
 				case 'nick':
 				case 'chrat':
-					if (args[0].length < 2 || args[0].length > 15) {
+					if (!args[0] || args[0].length < 2 || args[0].length > 15) {
 					    socket.emit('toClientMsg', "system: please provide a username with at least 2 but less than 15 characters");
 					} else {
 						try {

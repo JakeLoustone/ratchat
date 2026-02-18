@@ -1,9 +1,18 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Identity } from '../../shared/types.ts'
+import * as fs from 'fs';
+import * as path from 'path';
+
 
 export class IdentityService {
     private users: Map<string, Identity> = new Map();
     private registeredNicks: Map<string, string> = new Map();
+    private userList: string;
+
+    constructor(storagePath: string) {
+	this.userList = storagePath;
+	this.loadData();
+    }
 
     public userResolve(guid: string | null, nick: string, color?: string): Identity{
 	const sanitizeNick = nick.replace(/[^\w\s]/gi,  '').trim();
@@ -36,6 +45,7 @@ export class IdentityService {
 
 		const newColor = validColor ? color! : oldColor;
 		user.nick = newColor + sanitizeNick;
+		this.saveData();
 		return user;
 	}
 	if (this.registeredNicks.has(sanitizeNick)) {
@@ -53,7 +63,7 @@ export class IdentityService {
 
 	this.users.set(newGuid, newIdentity);
 	this.registeredNicks.set(sanitizeNick, newGuid);
-
+	this.saveData();
 	return newIdentity;
     }
 
@@ -65,6 +75,42 @@ export class IdentityService {
 	const clean = nick.replace(/[^\w\s]/gi, '').trim();
 	return !this.registeredNicks.has(clean);
     }
+    private loadData() {
+	try {
+	    if (!fs.existsSync(this.userList)) {
+		return;
+	    }
+
+	    const data = fs.readFileSync(this.userList, 'utf-8');
+	    const parseData: [string, Identity][] = JSON.parse(data);
+
+	    this.users = new Map(parseData);
+	    this.registeredNicks.clear();
+
+
+	    for (const [guid, identity] of this.users.entries()) {
+		const existingNick = identity.nick.substring(7)
+		this.registeredNicks.set(existingNick, guid);
+	    }
+	    console.log(`loaded ${this.users.size} users`);
+	} catch (e: any) {
+	    console.error('Failed to load user data', `${e.message}`);
+	}
+    }
+    private saveData() {
+	try {
+	    const dir = path.dirname(this.userList);
+	    if (!fs.existsSync(dir)) {
+		fs.mkdirSync(dir, {recursive: true});
+	    }
+
+	    const data = Array.from(this.users.entries());
+	    fs.writeFileSync(this.userList, JSON.stringify(data, null, 4));
+	} catch (e: any) {
+	    console.error('failed to save user data', `${e.message}`);
+	}
+    }
 }
+
 
 

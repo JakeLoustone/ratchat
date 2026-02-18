@@ -14,10 +14,10 @@ const httpserver = createServer(app);
 const io = new Server(httpserver, {
 		     connectionStateRecovery: {}
 });
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const usersPath = join(__dirname, 'data', 'users.json');
 
-const identityService = new IdentityService();
+const identityService = new IdentityService(usersPath);
 const socketUsers = new Map<string, Identity>();
 const chatHistory = new Map<number, ChatMessage>();
 var announcement = ''

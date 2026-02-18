@@ -96,9 +96,14 @@
 			color: red;
 		}
 
-		#messages > .w-li {
+		#messages > .i-li {
 			padding: 0.2rem 0.5rem; 
 			color: darkslategrey;
+		}
+
+		#messages > .w-li {
+			padding: 0.2rem 0.5rem; 
+			color: darkblue;
 		}
 
 		#messages > .a-li {
@@ -160,6 +165,7 @@
 		const form = document.getElementById('form');
 		const input = document.getElementById('input');
 		const messages = document.getElementById('messages');
+
 		//Helper function for non user messages
 		const systemMessage = (msg, className) => {
 			const item = document.createElement('li');
@@ -260,7 +266,10 @@
 		});
 
 		//Server Error Message
-		socket.on('toClientMsg', (msg) => systemMessage(msg, 's-li'));
+		socket.on('toClientError', (msg) => systemMessage(msg, 's-li'));
+
+		//Server Info Message
+		socket.on('toClientInfo', (msg) => systemMessage(msg, 'i-li'));
 
 		//Server Welcome Message
 		socket.on('toClientWelcome', (msg) => systemMessage(msg, 'w-li'));

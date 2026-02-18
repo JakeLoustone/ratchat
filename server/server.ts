@@ -36,7 +36,7 @@ let messageCounter = 0;
 io.on('connection', (socket) => {
 	socket.emit("toClientWelcome", `${config.welcomeMsg}`)
 	if (announcement){
-		socket.emit("toClientAnnouncement", `Announcement: ${announcement}`)
+		socket.emit("toClientAnnouncement", `announcement: ${announcement}`)
 	}
 	//identity service stuff
 	const clientGUID = socket.handshake.auth.token;
@@ -50,9 +50,9 @@ io.on('connection', (socket) => {
 	if (returningUser) {
 	    updateSocketUser(socket.id, returningUser, 'update');
 	    socket.emit('identity', returningUser);
-	    socket.emit('toClientWelcome', `Welcome back ${returningUser.nick.substring(7)}`);
+	    socket.emit('toClientInfo', `welcome back ${returningUser.nick.substring(7)}`);
 	} else {
-	    socket.emit('toClientMsg', "system: please use the /chrat <nickname> to set a nickname");
+	    socket.emit('toClientError', "system: please use the /chrat <nickname> to set a nickname");
 	}
 
 	//A new user has connected	
@@ -105,12 +105,12 @@ io.on('connection', (socket) => {
 						helpMessages.push(
 							'--- Moderator Commands ---',
 							'/ban <user> : Permanently bans a user with nickname "user"',
-							'/timeout <user> : Deletes recent messages from nickname "user" and mutes them for the timeout period. (default 5 min)',
+							'/timeout or /to <user> : Deletes recent messages from nickname "user" and mutes them for the timeout period. (default 5 min)',
 							'/delete <1> : Delete a message with ID 1. Find message IDs by hovering the relevant message.',
-							'/announce <text> : Send an announcement to all users. New users who join will see the most recent announcement.')
+							'/announce or /announcement <text> : Send an announcement to all users. New users who join will see the most recent announcement.')
 					}
 					
-						helpMessages.forEach(helpMsg => socket.emit("toClientWelcome", helpMsg));
+						helpMessages.forEach(helpMsg => socket.emit("toClientInfo", helpMsg));
 
 					if (typeof callback === 'function') callback();
 					return;
@@ -118,7 +118,7 @@ io.on('connection', (socket) => {
 				case 'nick':
 				case 'chrat':
 					if (!args[0] || args[0].length < 2 || args[0].length > 15) {
-					    socket.emit('toClientMsg', "system: please provide a username with at least 2 but less than 15 characters");
+					    socket.emit('toClientError', "system: please provide a username with at least 2 but less than 15 characters");
 					} else {
 						try {
 							const userGUID = user ? user.guid : (clientGUID || null);
@@ -127,48 +127,48 @@ io.on('connection', (socket) => {
 							updateSocketUser(socket.id, updateUser,'update');
 							socket.emit('identity', updateUser);
 							if (oldNick) {
-								io.emit('toClientAnnouncement', `system: ${oldNick.substring(7)} changed their username to ${updateUser.nick.substring(7)}`);
+								io.emit('toClientAnnouncement', `${oldNick.substring(7)} changed their username to ${updateUser.nick.substring(7)}`);
 								if (typeof callback === 'function') callback();
 							} else {
-								io.emit('toClientAnnouncement', `system: ${updateUser.nick.substring(7)} has joined teh ratchat`);
+								io.emit('toClientAnnouncement', `${updateUser.nick.substring(7)} has joined teh ratchat`);
 								if (typeof callback === 'function') callback();
 							}
 						} catch (e: any) {
-							socket.emit('toClientMsg', `system error: ${e.message}`);
+							socket.emit('toClientError', `system error: ${e.message}`);
 						}
 					}
 					return;
 
 				case 'color':
 					if (!user) {
-						socket.emit('toClientMsg', "system: please use /chrat <nickname> before trying to set a color");
+						socket.emit('toClientError', "system: please use /chrat <nickname> before trying to set a color");
 						return;
 					}
 					if (args.length === 0) {
-						socket.emit('toClientMsg', "system: provide a hex value for the color you want to set e.g. /color #000000");
+						socket.emit('toClientError', "system: provide a hex value for the color you want to set e.g. /color #000000");
 					} else {
 						try {
 							const trimNick = user.nick.substring(7);
 							const updateUser = identityService.userResolve(user.guid, trimNick, args[0]);
 							updateSocketUser(socket.id, updateUser, 'update');
 							socket.emit('identity', updateUser);
-							socket.emit('toClientAnnouncement', `system: your color has been updated to ${args[0]}`);
+							socket.emit('toClientInfo', `system: your color has been updated to ${args[0]}`);
 						} catch (e: any) {
-						    socket.emit('toClientMsg', `system error: ${e.message}`);
+						    socket.emit('toClientError', `system error: ${e.message}`);
 						}
 					}
 					if (typeof callback === 'function') callback();
 					return;
 
 				case 'colour':
-					socket.emit("toClientMsg", "system: lern to speak american")
+					socket.emit("toClientError", "system: lern to speak american")
 					return;
 
 				case 'import':
 					const GUIDregex = new RegExp("^[{]?[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}[}]?$");
 					const newGUID = args[0]
 					if(!GUIDregex.test(newGUID)){
-						socket.emit('toClientMsg', "system: not a valid GUID");
+						socket.emit('toClientError', "system: not a valid GUID");
 						return;
 					}
 					if(GUIDregex.test(newGUID)){
@@ -177,7 +177,7 @@ io.on('connection', (socket) => {
 							updateUser = identityService.getUser(newGUID);
 							updateSocketUser(socket.id, updateUser, 'update');
 							socket.emit('identity', updateUser);
-							socket.emit('toClientMsg', `system: identity changed to ${updateUser.nick.substring(7)}`);
+							socket.emit('toClientInfo', `system: identity changed to ${updateUser.nick.substring(7)}`);
 							if(commandUser?.nick !== undefined){
 								io.emit('toClientAnnouncement', `${commandUser?.nick.substring(7)} disconnected`);
 							}
@@ -185,56 +185,61 @@ io.on('connection', (socket) => {
 							if (typeof callback === 'function') callback();
 							return;
 						} catch (e: any) {
-							socket.emit('toClientMsg', `system error: ${e.message}`);
+							socket.emit('toClientError', `system error: ${e.message}`);
 							return;
 						}
 					}
 					return;
+				//case 'afk':
+
 
 				case 'ban':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
-						return socket.emit("toClientMsg", "system: naughty naughty");
+						return socket.emit("toClientError", "system: naughty naughty");
 					}
 					if(commandUser?.isMod){
-						if (args.length === 0) return socket.emit("toClientMsg", "missing target");
+						if (args.length === 0) return socket.emit("toClientError", "missing target");
 
-						io.emit("toClientMsg", `system: ${fullArgs} has been banned.`);
+						io.emit("toClientInfo", `system: ${fullArgs} has been banned.`);
 						if (typeof callback === 'function') callback();
 						return;
 					}
 					return;
+
 				case 'timeout':
 				case 'to':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
-						return socket.emit("toClientMsg", "system: naughty naughty");
+						return socket.emit("toClientError", "system: naughty naughty");
 					}
 					if(commandUser?.isMod){
-						if (args.length === 0) return socket.emit("toClientMsg", "missing target");
+						if (args.length === 0) return socket.emit("toClientError", "missing target");
 
-						io.emit("toClientMsg", `system: ${fullArgs} has been timed out.`);
+						io.emit("toClientInfo", `system: ${fullArgs} has been timed out.`);
 						if (typeof callback === 'function') callback();
 						return;
 					}
 					return;
+
 				case 'delete':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
-						return socket.emit("toClientMsg", "system: naughty naughty");
+						return socket.emit("toClientError", "system: naughty naughty");
 					}
 					if(commandUser?.isMod){
-						if (args.length === 0 || isNaN(Number(args[0]))) return socket.emit("toClientMsg", "please provide message id");
-						socket.emit("toClientMsg", `system: deleting message ID ${fullArgs}`);
+						if (args.length === 0 || isNaN(Number(args[0]))) return socket.emit("toClientError", "please provide message id");
+						socket.emit("toClientInfo", `system: deleted message ID ${fullArgs}`);
 						if (typeof callback === 'function') callback();
 						return;
 					}
 					return;
+
 				case 'announce':
 				case 'announcement':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
-						return socket.emit("toClientMsg", "system: naughty naughty");
+						return socket.emit("toClientError", "system: naughty naughty");
 					}
 					if(commandUser?.isMod){
 						announcement = `${fullArgs}`
@@ -243,20 +248,20 @@ io.on('connection', (socket) => {
 						return;
 					}
 				default:
-					socket.emit("toClientMsg", "system: that's not a command lol");
+					socket.emit("toClientError", "system: that's not a command lol");
 			}
 			return;
 		}
 
 		if (!user) {
-		    socket.emit('toClientMsg', "system: please set your nickname with /chrat <nickname> before chatting");
+		    socket.emit('toClientError', "system: please set your nickname with /chrat <nickname> before chatting");
 		    if (typeof callback === 'function') callback();
 		    return;
 		}
 
 		//Check message length	
 		if (msg.length > config.maxMsgLen) {
-	    	socket.emit("toClientMsg", 'system: sorry your message is too long lmao');
+	    	socket.emit("toClientError", 'system: sorry your message is too long lmao');
 	    	return;
 		}
 	

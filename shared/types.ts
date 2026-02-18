@@ -4,6 +4,7 @@ export interface Identity {
     status: string;
     isMod: boolean;
     lastMessage: Date;
+    isAfk: boolean;
 }
 
 export interface ChatMessage {

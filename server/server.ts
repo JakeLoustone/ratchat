@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { writeFileSync, readFileSync } from 'fs';
 import type { Identity, ChatMessage } from '../shared/types.ts';
 import { IdentityService } from './services/identity.ts'
+import { error } from 'node:console';
 
 
 const config = JSON.parse(readFileSync('./config.json'));
@@ -20,7 +21,10 @@ const usersPath = join(__dirname, 'data', 'users.json');
 const identityService = new IdentityService(usersPath);
 const socketUsers = new Map<string, Identity>();
 const chatHistory = new Map<number, ChatMessage>();
-var announcement = ''
+var announcement = '';
+var uList: userSum[] = [];
+
+type userSum = Pick<Identity, "nick" | "status" | "isAfk">
 
 app.get('/ratchat', (req, res) => {
 	res.setHeader('X-Robots-Tag', 'noindex, nofollow');
@@ -30,7 +34,7 @@ app.get('/ratchat', (req, res) => {
 let messageCounter = 0;
 
 io.on('connection', (socket) => {
-	socket.emit("toClientWelcome", `Welcome: ${config.welcomeMsg}`)
+	socket.emit("toClientWelcome", `${config.welcomeMsg}`)
 	if (announcement){
 		socket.emit("toClientAnnouncement", `Announcement: ${announcement}`)
 	}
@@ -44,7 +48,7 @@ io.on('connection', (socket) => {
 	}
 
 	if (returningUser) {
-	    socketUsers.set(socket.id, returningUser);
+	    updateSocketUser(socket.id, returningUser, 'update');
 	    socket.emit('identity', returningUser);
 	    socket.emit('toClientWelcome', `Welcome back ${returningUser.nick.substring(7)}`);
 	} else {
@@ -53,6 +57,7 @@ io.on('connection', (socket) => {
 
 	//A new user has connected	
 	console.log('a user connected');
+	socket.emit('userlist',uList)
 	for (const [id, msg] of chatHistory){
 		socket.emit('chat message', msg);
 	}
@@ -119,7 +124,7 @@ io.on('connection', (socket) => {
 							const userGUID = user ? user.guid : (clientGUID || null);
 							const oldNick = user ? user.nick: null;
 							const updateUser = identityService.userResolve(userGUID, args[0]);
-							socketUsers.set(socket.id, updateUser);
+							updateSocketUser(socket.id, updateUser,'update');
 							socket.emit('identity', updateUser);
 							if (oldNick) {
 								io.emit('toClientAnnouncement', `system: ${oldNick.substring(7)} changed their username to ${updateUser.nick.substring(7)}`);
@@ -145,7 +150,7 @@ io.on('connection', (socket) => {
 						try {
 							const trimNick = user.nick.substring(7);
 							const updateUser = identityService.userResolve(user.guid, trimNick, args[0]);
-							socketUsers.set(socket.id, updateUser);
+							updateSocketUser(socket.id, updateUser, 'update');
 							socket.emit('identity', updateUser);
 							socket.emit('toClientAnnouncement', `system: your color has been updated to ${args[0]}`);
 						} catch (e: any) {
@@ -170,7 +175,7 @@ io.on('connection', (socket) => {
 						let updateUser: Identity | null = null;
 						try{
 							updateUser = identityService.getUser(newGUID);
-							socketUsers.set(socket.id, updateUser);
+							updateSocketUser(socket.id, updateUser, 'update');
 							socket.emit('identity', updateUser);
 							socket.emit('toClientMsg', `system: identity changed to ${updateUser.nick.substring(7)}`);
 							if(commandUser?.nick !== undefined){
@@ -285,12 +290,32 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
 	console.log('a user disconnected');
-	socketUsers.delete(socket.id);
-	if (returningUser){
-	io.emit('toClientAnnouncement', `${returningUser.nick.substring(7)} disconnected`);
+	const disuser =socketUsers.get(socket.id)
+	if(disuser){
+	updateSocketUser(socket.id, disuser, 'delete');
+	io.emit('toClientAnnouncement', `${disuser.nick.substring(7)} disconnected`);
 	}
     });
 });
+
+
+//Helper function for socketUsers updates
+function updateSocketUser(socketID: string, identity: Identity, updateType: 'update' | 'delete'): void {
+	if(updateType === 'update'){
+		socketUsers.set(socketID, identity)
+	}
+	else if(updateType === 'delete'){
+		socketUsers.delete(socketID)
+	}
+	else throw new Error(`bad update type ${updateType}`);
+	uList = Array.from(socketUsers.values()).map(({ nick, status, isAfk }) => ({
+        nick,
+        status,
+        isAfk
+	}));
+	io.emit('userlist', uList);
+	return;
+}
 
 
 httpserver.listen(config.PORT, () => {

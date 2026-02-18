@@ -58,7 +58,8 @@ export class IdentityService {
 	    nick: (color || '#000000') + sanitizeNick,
 	    status: 'online',
 	    isMod: false,
-	    lastMessage: new Date(0)
+	    lastMessage: new Date(0),
+		isAfk: false
 	};
 
 	this.users.set(newGuid, newIdentity);

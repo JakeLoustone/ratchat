@@ -15,16 +15,16 @@
 
 		#form{
 		display: flex;
-		gap: 4px;
-		padding-top: 4px;
+		gap: 0.25rem;
+		padding-top: 0.25rem;
 		}
 
 		.window-body {
     		display: flex;
 			flex-direction: column;
-			height: calc(100vh - 30px);
+			height: calc(100vh - 2rem);
 			margin: 0 !important;
-			padding: 3px;
+			padding: 0.2rem;
 		}
 
 		#input {
@@ -44,11 +44,40 @@
 			flex-grow: 1;
 			overflow-y: auto;
 			background: white;
-			box-shadow: inset -1px -1px #fff, inset 1px 1px #0a0a0a, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
-			padding: 10px;
-			margin-bottom: 4px;
+			box-shadow: inset -0.0625rem -0.0625rem #fff,
+						inset 0.0625rem 0.0625rem #0a0a0a, 
+						inset -0.125rem -0.125rem #dfdfdf, 
+						inset 0.125rem 0.125rem #808080;
+			padding: 0.625rem;
+			margin-top: 0.25rem;
+			margin-bottom: 0.25rem;
 			display: flex;
 			flex-direction: column;
+		}
+		.user-sidebar {
+			width: 10%;
+			min-width: 10rem;
+			background: white;
+			box-shadow: inset -0.0625rem -0.0625rem #fff, 
+						inset 0.0625rem 0.0625rem #0a0a0a, 
+						inset -0.125rem -0.125rem #dfdfdf, 
+						inset 0.125rem 0.125rem #808080;
+			padding: 0.3125rem;
+			margin-top: 0.25rem;
+			margin-bottom: 0.25rem;			
+			overflow-y: auto;
+			flex-shrink: 0;
+		}
+		#user-list {
+			list-style: none;
+			padding: 0;
+			margin: 0.25rem;
+			font-size: large
+		}
+		.user-status {
+			font-size: larger;
+			color: #444;
+			margin-left: 0.3125rem;
 		}
 		#messages {
 			list-style-type: none;
@@ -79,8 +108,8 @@
 
 		#messages .user-name {
 			font-weight: bold;
-			margin-right: 2px;
-			margin-left: 2px;
+			margin-right: 0.15rem;
+			margin-left: 0.15rem;
 			color: var(--user-color, black);
 		}
 
@@ -92,26 +121,33 @@
 	</head>
 
 	<body>
-	<div class="window" style="width: 100vw-10px; height: 100vh-10px;">
-    <div class="title-bar">
-        <div class="title-bar-text">ratchat</div>
-        <div class="title-bar-controls">
-            <button aria-label="Minimize"></button>
-            <button aria-label="Maximize"></button>
-            <button aria-label="Close"></button>
+    <div class="window" style="width: 99.7%; height: 100vh; display: flex; flex-direction: column;">
+        <div class="title-bar">
+            <div class="title-bar-text">ratchat</div>
+            <div class="title-bar-controls">
+                <button aria-label="Minimize"></button>
+                <button aria-label="Maximize"></button>
+                <button aria-label="Close"></button>
+            </div>
+        </div>
+
+        <div class="window-body">
+            <div style="display: flex; flex-direction: row; flex-grow: 1; overflow: hidden; gap: 4px;">
+                <div id="messages-container">
+                    <ul id="messages"></ul>
+                </div>
+                
+                <div id="user-sidebar" class="user-sidebar">
+                    <ul id="user-list" class="user-list"></ul>
+                </div>
+            </div>
+
+            <form id="form" action="">
+                <input id="input" type="text" autocomplete="off" />
+                <button type="submit">Send</button>
+            </form>
         </div>
     </div>
-    <div class="window-body">
-        <div id="messages-container">
-            <ul id="messages"></ul>
-        </div>
-        
-        <form id="form" action="">
-            <input id="input" type="text" autocomplete="off" />
-            <button type="submit">Send</button>
-        </form>
-    </div>
-</div>
 	<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script> 
 
 	<script>
@@ -124,8 +160,6 @@
 		const form = document.getElementById('form');
 		const input = document.getElementById('input');
 		const messages = document.getElementById('messages');
-
-
 		//Helper function for non user messages
 		const systemMessage = (msg, className) => {
 			const item = document.createElement('li');
@@ -135,7 +169,7 @@
 			messages.appendChild(item);
 			msgContainer.scrollTop = msgContainer.scrollHeight;
 		};
-	
+
 		//Client submission
 		form.addEventListener('submit', (e) => {
 			e.preventDefault();
@@ -172,6 +206,27 @@
 		    console.log('Identity synced:', identity);
 		    localStorage.setItem('ratGUID', identity.guid);
 		});
+
+		//User listing events
+		socket.on('userlist', (uList) => {
+			const userListElement = document.getElementById('user-list');
+			userListElement.innerHTML = ''; // Clear current list
+
+			uList.forEach(user => {
+				const li = document.createElement('li');
+				li.style.marginBottom = "2px";
+				
+				const userColor = user.nick.substring(0, 7);
+				const userName = user.nick.substring(7);
+				const statusText = user.status ? `<div style="font-size:small; color: #444; margin-left: 5px;">${user.status}</div>` : '';
+
+				li.innerHTML = `
+					<span style="color: ${userColor}; font-weight: bold;">${userName}</span>
+					${statusText}
+				`;
+				userListElement.appendChild(li);
+					});
+				});
 
 		//Message recieved
 		socket.on('chat message', (msg) => {

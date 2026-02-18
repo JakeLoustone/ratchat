@@ -34,10 +34,12 @@ app.get('/ratchat', (req, res) => {
 let messageCounter = 0;
 
 io.on('connection', (socket) => {
+	//On connection welcome and announcement messages
 	socket.emit("toClientWelcome", `${config.welcomeMsg}`)
 	if (announcement){
 		socket.emit("toClientAnnouncement", `announcement: ${announcement}`)
 	}
+
 	//identity service stuff
 	const clientGUID = socket.handshake.auth.token;
 	let returningUser: Identity | null = null;
@@ -47,10 +49,11 @@ io.on('connection', (socket) => {
 		console.warn(`${error.message}`);
 	}
 
+	//Returning user check
 	if (returningUser) {
 	    updateSocketUser(socket.id, returningUser, 'update');
 	    socket.emit('identity', returningUser);
-	    socket.emit('toClientInfo', `welcome back ${returningUser.nick.substring(7)}`);
+	    socket.emit('toClientInfo', `welcome back, ${returningUser.nick.substring(7)}`);
 	} else {
 	    socket.emit('toClientError', "system: please use the /chrat <nickname> to set a nickname");
 	}
@@ -62,7 +65,7 @@ io.on('connection', (socket) => {
 		socket.emit('chat message', msg);
 	}
 
-	//returning user announcement
+	//Returning user announcement
 	if (returningUser){
 		io.emit('toClientAnnouncement', `${returningUser.nick.substring(7)} connected`);
 	}
@@ -87,7 +90,7 @@ io.on('connection', (socket) => {
 			}
 				
 			switch (command) {
-
+				//List all commands
 				case 'help':
 				case 'commands':
 				case 'h':
@@ -96,11 +99,12 @@ io.on('connection', (socket) => {
 						'/chrat or /nick <nickname> : Change your nickname to <nickname>.',
 						"/color <#RRGGBB> : Change your nickname's color to hex #RRGGBB.",
 						'/clear or /clr : removes all visible messsages on your screen. (others can still see them)',
+						//export is handled client side
 						"/export : returns your GUID for later importing on other devices. if you like your name don't share it :)",
 						'/import : import a GUID exported earlier to reclaim your nickname on another device or browser. must match exactly!'
 						
 					];
-
+					//Show moderator commands only if user is a mod
 					if(commandUser?.isMod){
 						helpMessages.push(
 							'--- Moderator Commands ---',
@@ -114,7 +118,8 @@ io.on('connection', (socket) => {
 
 					if (typeof callback === 'function') callback();
 					return;
-
+				
+				//Change nickname
 				case 'nick':
 				case 'chrat':
 					if (!args[0] || args[0].length < 2 || args[0].length > 15) {
@@ -139,6 +144,7 @@ io.on('connection', (socket) => {
 					}
 					return;
 
+				//Change nickname color
 				case 'color':
 					if (!user) {
 						socket.emit('toClientError', "system: please use /chrat <nickname> before trying to set a color");
@@ -158,19 +164,21 @@ io.on('connection', (socket) => {
 						}
 					}
 					if (typeof callback === 'function') callback();
-					return;
-
+					return;	
 				case 'colour':
 					socket.emit("toClientError", "system: lern to speak american")
 					return;
 
+				//Import GUID that has been previously exported
 				case 'import':
+					//Verify legitimate GUID via regex
 					const GUIDregex = new RegExp("^[{]?[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}[}]?$");
 					const newGUID = args[0]
 					if(!GUIDregex.test(newGUID)){
 						socket.emit('toClientError', "system: not a valid GUID");
 						return;
 					}
+					//Call identity service to handle new GUID
 					if(GUIDregex.test(newGUID)){
 						let updateUser: Identity | null = null;
 						try{
@@ -178,9 +186,13 @@ io.on('connection', (socket) => {
 							updateSocketUser(socket.id, updateUser, 'update');
 							socket.emit('identity', updateUser);
 							socket.emit('toClientInfo', `system: identity changed to ${updateUser.nick.substring(7)}`);
+
+							//Announce disconnect if user was listed previously
 							if(commandUser?.nick !== undefined){
 								io.emit('toClientAnnouncement', `${commandUser?.nick.substring(7)} disconnected`);
 							}
+							
+							//Announce new user connection
 							io.emit('toClientAnnouncement', `${updateUser.nick.substring(7)} connected`);
 							if (typeof callback === 'function') callback();
 							return;
@@ -190,9 +202,31 @@ io.on('connection', (socket) => {
 						}
 					}
 					return;
-				//case 'afk':
 
+				//Toggle AFK status in user listing
+				case 'afk':
+					if (!user) {
+						socket.emit('toClientError', "system: please use /chrat <nickname> before trying to go afk lmao");
+						return;
+					}
+					try {
+							const afkUser = identityService.toggleAfk(user.guid);
+							if (afkUser.isAfk){
+								socket.emit('toClientInfo', "you've gone afk");
+							}
+							else{
+								socket.emit('toClientInfo', `welcome back, ${afkUser.nick.substring(7)}`);
+							}
+							updateSocketUser(socket.id, afkUser, 'update');
+													
+						} catch (e: any) {
+						    socket.emit('toClientError', `system error: ${e.message}`);
+							return;
+						}
+					if (typeof callback === 'function') callback();
+					return;
 
+				//IP ban a user via nickname
 				case 'ban':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
@@ -206,7 +240,8 @@ io.on('connection', (socket) => {
 						return;
 					}
 					return;
-
+				
+				//Timeout a user preventing further chatting for 5 min
 				case 'timeout':
 				case 'to':
 					if(!commandUser?.isMod){
@@ -221,7 +256,8 @@ io.on('connection', (socket) => {
 						return;
 					}
 					return;
-
+				
+				//Deletes a message from message history buffer and asks clients nicely to remove from screen
 				case 'delete':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
@@ -235,6 +271,7 @@ io.on('connection', (socket) => {
 					}
 					return;
 
+				//Send a global announcement that is stored until server reset
 				case 'announce':
 				case 'announcement':
 					if(!commandUser?.isMod){
@@ -247,12 +284,15 @@ io.on('connection', (socket) => {
 						if (typeof callback === 'function') callback();
 						return;
 					}
+				
+				//Failcase
 				default:
 					socket.emit("toClientError", "system: that's not a command lol");
 			}
 			return;
 		}
 
+		//Prevent users from chatting without an identity
 		if (!user) {
 		    socket.emit('toClientError', "system: please set your nickname with /chrat <nickname> before chatting");
 		    if (typeof callback === 'function') callback();
@@ -292,7 +332,7 @@ io.on('connection', (socket) => {
 		}
     });
 
-
+	//On socket discconect flow
     socket.on('disconnect', () => {
 	console.log('a user disconnected');
 	const disuser =socketUsers.get(socket.id)
@@ -322,7 +362,7 @@ function updateSocketUser(socketID: string, identity: Identity, updateType: 'upd
 	return;
 }
 
-
+//Server standup
 httpserver.listen(config.PORT, () => {
     console.log(JSON.stringify(config));
     console.log(`server running at http://localhost:${config.PORT}`);

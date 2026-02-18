@@ -77,6 +77,20 @@ export class IdentityService {
 		return user;
     }
 
+	public toggleAfk(guid: string): Identity {
+		const user = this.users.get(guid);
+		if(!user){
+			throw new Error('No matching user found to GUID')
+		}
+		if(user.isAfk){
+			user.isAfk = false;
+		}
+		else{
+			user.isAfk = true;
+		}
+		return user;
+    }
+
     public nickAvailable(nick: string): boolean {
 	const clean = nick.replace(/[^\w\s]/gi, '').trim();
 	return !this.registeredNicks.has(clean);

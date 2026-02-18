@@ -67,8 +67,13 @@ export class IdentityService {
 	return newIdentity;
     }
 
-    public getUser(guid: string): Identity | undefined {
-	return this.users.get(guid);
+    public getUser(guid: string): Identity {
+	
+		const user = this.users.get(guid);
+		if(!user){
+			throw new Error('No matching user found to GUID')
+		}
+		return user;
     }
 
     public nickAvailable(nick: string): boolean {

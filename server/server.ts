@@ -36,7 +36,7 @@ io.on('connection', (socket) => {
 	//identity service stuff
 	const clientGUID = socket.handshake.auth.token;
 
-	const returningUser = clientGUID ? identityService.getUser(clientGUID) : undefined;
+	const returningUser = identityService.getUser(clientGUID)
 
 	if (returningUser) {
 	    socketUsers.set(socket.id, returningUser);
@@ -64,8 +64,10 @@ io.on('connection', (socket) => {
 			const args = msg.slice(1).trim().split(/ +/);
 			const command = args.shift().toLowerCase(); // Get the first word and remove from args array
 			const fullArgs = args.join(' '); // Rejoin the rest for messages/targets
-
+			const commandUser = identityService.getUser(clientGUID);
+			
 			switch (command) {
+
 				case 'help':
 				case 'commands':
 				case 'h':
@@ -77,14 +79,16 @@ io.on('connection', (socket) => {
 						"/export : returns your GUID for later importing on other devices. if you like your name don't share it :)"
 					];
 
-					// TODO Check if user has moderator privileges
-					helpMessages.push(
+					if(commandUser.isMod){
+						helpMessages.push(
 							'--- Moderator Commands ---',
 							'/ban <user> : Permanently bans a user with nickname "user"',
 							'/timeout <user> : Deletes recent messages from nickname "user" and mutes them for the timeout period. (default 5 min)',
 							'/delete <1> : Delete a message with ID 1. Find message IDs by hovering the relevant message.',
 							'/announce <text> : Send an announcement to all users. New users who join will see the most recent announcement.')
-					helpMessages.forEach(helpMsg => socket.emit("toClientWelcome", helpMsg));
+					}
+					
+						helpMessages.forEach(helpMsg => socket.emit("toClientWelcome", helpMsg));
 
 					if (typeof callback === 'function') callback();
 					return;
@@ -139,35 +143,54 @@ io.on('connection', (socket) => {
 					return;
 
 				case 'ban':
-					if (args.length === 0) return socket.emit("toClientMsg", "missing target");
-					// TODO: Mod verification
-					io.emit("toClientMsg", `system: ${fullArgs} has been banned.`);
-					if (typeof callback === 'function') callback();
-					return;
+					if(!commandUser.isMod){
+						if (typeof callback === 'function') callback();
+						return socket.emit("toClientMsg", "system: naughty naughty");
+					}
+					if(commandUser.isMod){
+						if (args.length === 0) return socket.emit("toClientMsg", "missing target");
 
+						io.emit("toClientMsg", `system: ${fullArgs} has been banned.`);
+						if (typeof callback === 'function') callback();
+						return;
+					}
 				case 'timeout':
 				case 'to':
-					if (args.length === 0) return socket.emit("toClientMsg", "missing target");
-					// TODO: Mod verification
-					io.emit("toClientMsg", `system: ${fullArgs} has been timed out.`);
-					if (typeof callback === 'function') callback();
-					return;
+					if(!commandUser.isMod){
+						if (typeof callback === 'function') callback();
+						return socket.emit("toClientMsg", "system: naughty naughty");
+					}
+					if(commandUser.isMod){
+						if (args.length === 0) return socket.emit("toClientMsg", "missing target");
 
+						io.emit("toClientMsg", `system: ${fullArgs} has been timed out.`);
+						if (typeof callback === 'function') callback();
+						return;
+					}
 				case 'delete':
-					if (args.length === 0 || isNaN(Number(args[0]))) return socket.emit("toClientMsg", "please provide message id");
-					// TODO: Mod verification
-					socket.emit("toClientMsg", `system: deleting message ${fullArgs}`);
-					if (typeof callback === 'function') callback();
-					return;
+					if(!commandUser.isMod){
+						if (typeof callback === 'function') callback();
+						return socket.emit("toClientMsg", "system: naughty naughty");
+					}
+					if(commandUser.isMod){
+						if (args.length === 0 || isNaN(Number(args[0]))) return socket.emit("toClientMsg", "please provide message id");
+						socket.emit("toClientMsg", `system: deleting message ID ${fullArgs}`);
+						if (typeof callback === 'function') callback();
+						return;
+					}
 
 				case 'announce':
 				case 'announcement':
-					// TODO: Mod verification
-					announcement = `${fullArgs}`
-					io.emit("toClientAnnouncement", `announcement: ${announcement}`);
-					if (typeof callback === 'function') callback();
-					return announcement;
-				
+					if(!commandUser.isMod){
+						if (typeof callback === 'function') callback();
+						return socket.emit("toClientMsg", "system: naughty naughty");
+					}
+					if(commandUser.isMod){
+						announcement = `${fullArgs}`
+						io.emit("toClientAnnouncement", `announcement: ${announcement}`);
+						if (typeof callback === 'function') callback();
+						return announcement;
+					}
 				default:
 					socket.emit("toClientMsg", "system: that's not a command lol");
 			}

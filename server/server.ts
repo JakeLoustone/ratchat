@@ -23,6 +23,7 @@ const chatHistory = new Map<number, ChatMessage>();
 var announcement = ''
 
 app.get('/ratchat', (req, res) => {
+	res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     res.sendFile('www/ratchat.html', { root : __dirname });
 });
 
@@ -35,8 +36,12 @@ io.on('connection', (socket) => {
 	}
 	//identity service stuff
 	const clientGUID = socket.handshake.auth.token;
-
-	const returningUser = identityService.getUser(clientGUID)
+	let returningUser: Identity | null = null;
+	try{
+		returningUser = identityService.getUser(clientGUID)
+	} catch (error: any){
+		console.warn(`${error.message}`);
+	}
 
 	if (returningUser) {
 	    socketUsers.set(socket.id, returningUser);
@@ -52,6 +57,11 @@ io.on('connection', (socket) => {
 		socket.emit('chat message', msg);
 	}
 
+	//returning user announcement
+	if (returningUser){
+		io.emit('toClientAnnouncement', `${returningUser.nick.substring(7)} connected`);
+	}
+
 	//When a message is recieved from a client
 	socket.on('chat message', (msg, callback) => {
 		// Set user context
@@ -64,8 +74,13 @@ io.on('connection', (socket) => {
 			const args = msg.slice(1).trim().split(/ +/);
 			const command = args.shift().toLowerCase(); // Get the first word and remove from args array
 			const fullArgs = args.join(' '); // Rejoin the rest for messages/targets
-			const commandUser = identityService.getUser(clientGUID);
-			
+			let commandUser: Identity | null = null;
+			try{
+				commandUser = identityService.getUser(clientGUID)
+			} catch (error: any){
+				console.warn(`${error.message}`);
+			}
+				
 			switch (command) {
 
 				case 'help':
@@ -79,7 +94,7 @@ io.on('connection', (socket) => {
 						"/export : returns your GUID for later importing on other devices. if you like your name don't share it :)"
 					];
 
-					if(commandUser.isMod){
+					if(commandUser?.isMod){
 						helpMessages.push(
 							'--- Moderator Commands ---',
 							'/ban <user> : Permanently bans a user with nickname "user"',
@@ -143,11 +158,11 @@ io.on('connection', (socket) => {
 					return;
 
 				case 'ban':
-					if(!commandUser.isMod){
+					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
 						return socket.emit("toClientMsg", "system: naughty naughty");
 					}
-					if(commandUser.isMod){
+					if(commandUser?.isMod){
 						if (args.length === 0) return socket.emit("toClientMsg", "missing target");
 
 						io.emit("toClientMsg", `system: ${fullArgs} has been banned.`);
@@ -156,11 +171,11 @@ io.on('connection', (socket) => {
 					}
 				case 'timeout':
 				case 'to':
-					if(!commandUser.isMod){
+					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
 						return socket.emit("toClientMsg", "system: naughty naughty");
 					}
-					if(commandUser.isMod){
+					if(commandUser?.isMod){
 						if (args.length === 0) return socket.emit("toClientMsg", "missing target");
 
 						io.emit("toClientMsg", `system: ${fullArgs} has been timed out.`);
@@ -168,11 +183,11 @@ io.on('connection', (socket) => {
 						return;
 					}
 				case 'delete':
-					if(!commandUser.isMod){
+					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
 						return socket.emit("toClientMsg", "system: naughty naughty");
 					}
-					if(commandUser.isMod){
+					if(commandUser?.isMod){
 						if (args.length === 0 || isNaN(Number(args[0]))) return socket.emit("toClientMsg", "please provide message id");
 						socket.emit("toClientMsg", `system: deleting message ID ${fullArgs}`);
 						if (typeof callback === 'function') callback();
@@ -181,15 +196,15 @@ io.on('connection', (socket) => {
 
 				case 'announce':
 				case 'announcement':
-					if(!commandUser.isMod){
+					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
 						return socket.emit("toClientMsg", "system: naughty naughty");
 					}
-					if(commandUser.isMod){
+					if(commandUser?.isMod){
 						announcement = `${fullArgs}`
 						io.emit("toClientAnnouncement", `announcement: ${announcement}`);
 						if (typeof callback === 'function') callback();
-						return announcement;
+						return;
 					}
 				default:
 					socket.emit("toClientMsg", "system: that's not a command lol");

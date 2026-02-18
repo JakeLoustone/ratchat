@@ -91,7 +91,9 @@ io.on('connection', (socket) => {
 						'/chrat or /nick <nickname> : Change your nickname to <nickname>.',
 						"/color <#RRGGBB> : Change your nickname's color to hex #RRGGBB.",
 						'/clear or /clr : removes all visible messsages on your screen. (others can still see them)',
-						"/export : returns your GUID for later importing on other devices. if you like your name don't share it :)"
+						"/export : returns your GUID for later importing on other devices. if you like your name don't share it :)",
+						'/import : import a GUID exported earlier to reclaim your nickname on another device or browser. must match exactly!'
+						
 					];
 
 					if(commandUser?.isMod){
@@ -157,6 +159,33 @@ io.on('connection', (socket) => {
 					socket.emit("toClientMsg", "system: lern to speak american")
 					return;
 
+				case 'import':
+					const GUIDregex = new RegExp("^[{]?[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}[}]?$");
+					const newGUID = args[0]
+					if(!GUIDregex.test(newGUID)){
+						socket.emit('toClientMsg', "system: not a valid GUID");
+						return;
+					}
+					if(GUIDregex.test(newGUID)){
+						let updateUser: Identity | null = null;
+						try{
+							updateUser = identityService.getUser(newGUID);
+							socketUsers.set(socket.id, updateUser);
+							socket.emit('identity', updateUser);
+							socket.emit('toClientMsg', `system: identity changed to ${updateUser.nick.substring(7)}`);
+							if(commandUser?.nick !== undefined){
+								io.emit('toClientAnnouncement', `${commandUser?.nick.substring(7)} disconnected`);
+							}
+							io.emit('toClientAnnouncement', `${updateUser.nick.substring(7)} connected`);
+							if (typeof callback === 'function') callback();
+							return;
+						} catch (e: any) {
+							socket.emit('toClientMsg', `system error: ${e.message}`);
+							return;
+						}
+					}
+					return;
+
 				case 'ban':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
@@ -169,6 +198,7 @@ io.on('connection', (socket) => {
 						if (typeof callback === 'function') callback();
 						return;
 					}
+					return;
 				case 'timeout':
 				case 'to':
 					if(!commandUser?.isMod){
@@ -182,6 +212,7 @@ io.on('connection', (socket) => {
 						if (typeof callback === 'function') callback();
 						return;
 					}
+					return;
 				case 'delete':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
@@ -193,7 +224,7 @@ io.on('connection', (socket) => {
 						if (typeof callback === 'function') callback();
 						return;
 					}
-
+					return;
 				case 'announce':
 				case 'announcement':
 					if(!commandUser?.isMod){

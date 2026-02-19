@@ -1,4 +1,4 @@
-import { Server } from 'socket.io';
+import { Server, Socket} from 'socket.io';
 import express from 'express';
 import { createServer } from 'http';
 import { dirname, join } from 'path';
@@ -8,11 +8,11 @@ import type { Identity, ChatMessage, MessageType } from '../shared/types.ts';
 import { IdentityService } from './services/identity.ts'
 import { mType } from '../shared/types.ts';
 
-//TODO: helper function for messages
 //TODO: refactor command handling
 //TODO: ip collection
 //TODO: timeout enforcement
 //TODO: ban enforcement
+//TODO: add /nick timing restriction
 //TODO: message deletion
 //TODO: nickname protection
 //TODO: bad word enforcement
@@ -24,120 +24,114 @@ import { mType } from '../shared/types.ts';
 const config = JSON.parse(readFileSync('./config.json', 'utf-8'));
 const app = express();
 const httpserver = createServer(app);
-const io = new Server(httpserver, {
-		     connectionStateRecovery: {}
-});
+const io = new Server(httpserver, {connectionStateRecovery:{}});
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const usersPath = join(__dirname, 'data', 'users.json');
 
 const identityService = new IdentityService(usersPath);
 const socketUsers = new Map<string, Identity>();
 const chatHistory = new Map<number, ChatMessage>();
+
+let messageCounter = {val: 0};
+
 var announcement = '';
 var uList: UserSum[] = [];
 
 type UserSum = Pick<Identity, "nick" | "status" | "isAfk">
-type Target = 'socket' | 'all';
+type Target = Server | Socket;
 type Payload = ChatMessage | Identity | UserSum[];
 
 
-app.get('/ratchat', (req, res) => {
-	res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-    res.sendFile('www/ratchat.html', { root : __dirname });
-});
 
-let messageCounter = 0;
+//Send helper function
+function send(to: Target, metype: MessageType, msg: Payload): void {	
+	//double check target
+	if (!(to instanceof Server) && !(to instanceof Socket)){
+		throw new Error('Invalid emit target')
+	}
+
+	//Confirm payload typing
+	if (metype === mType.identity) {
+			// Check if msg has Identity properties
+			if (!msg || typeof msg !== 'object' || !('guid' in msg)) {
+				throw new Error(`payload mismatch: ${metype} requires an Identity object.`);
+			}
+		} 
+		else if (metype === mType.list) {
+			// Check if msg is an array (userSum[])
+			if (!Array.isArray(msg)) {
+				throw new Error(`payload mismatch: ${metype} requires a userSum array.`);
+			}
+		} 
+		else {
+			if (!msg || typeof msg !== 'object' || !('content' in msg)) {
+				throw new Error(`payload mismatch: ${metype} requires a ChatMessage object.`);
+			}
+		}
+	//Fire it off
+	to.emit(metype, msg)
+}
+
+//Helper function for ChatMessage construction
+//Function overload: if sys is false, require an identity
+function createMsg(
+	sys: false, 
+	author: Identity,
+	content: string,
+	metype: Exclude<MessageType, typeof mType.identity | typeof mType.list>
+): ChatMessage;
+//if sys is true, use the system string
+function createMsg(
+	sys: true,
+	author: string,
+	content: string,
+	metype: Exclude<MessageType, typeof mType.identity | typeof mType.list>
+): ChatMessage;
+//final overload
+function createMsg(
+	sys: boolean = false,
+	author: Identity | string = 'system',
+	content: string,
+	metype: Exclude<MessageType, typeof mType.identity | typeof mType.list>
+	): ChatMessage {
+		return {
+		id: sys? -1: messageCounter.val++,
+		author: typeof author === 'string' ? author : author.nick,
+		content: content,
+		timestamp: Date.now(),
+		type: metype
+	};
+}
+
+//Sys message shorthand
+const sendSys = (to: Target, type: MessageType, text: string) => send(to, type, createMsg(true,'system',text,type as any));
+
+//Helper function for socketUsers updates
+function updateSocketUser(socketID: string, identity: Identity, updateType: 'update' | 'delete'): void {
+	if(updateType === 'update'){
+		socketUsers.set(socketID, identity)
+	}
+	else if(updateType === 'delete'){
+		socketUsers.delete(socketID)
+	}
+	else throw new Error(`bad update type ${updateType}`);
+	uList = Array.from(socketUsers.values()).map(({ nick, status, isAfk }) => ({
+		nick,
+		status,
+		isAfk
+	}));
+	send(io, mType.list, uList);
+	return;
+}
 
 //CONNECTION POINT
 
 io.on('connection', (socket) => {
-	
-	//Send helper function
-	function send(to: Target, metype: MessageType, msg: Payload): void {	
-		//build target
-		let tar = null
-		if(to === 'all'){tar = io;}
-		else if(to === 'socket'){tar = socket;}
-		else{throw new Error('Invalid emit target')}
-
-		//Confirm payload typing
-		if (metype === mType.identity) {
-				// Check if msg has Identity properties
-				if (!msg || typeof msg !== 'object' || !('guid' in msg)) {
-					throw new Error(`payload mismatch: ${metype} requires an Identity object.`);
-				}
-			} 
-			else if (metype === mType.list) {
-				// Check if msg is an array (userSum[])
-				if (!Array.isArray(msg)) {
-					throw new Error(`payload mismatch: ${metype} requires a userSum array.`);
-				}
-			} 
-			else {
-				if (!msg || typeof msg !== 'object' || !('content' in msg)) {
-					throw new Error(`payload mismatch: ${metype} requires a ChatMessage object.`);
-				}
-			}
-		//Fire it off
-		tar.emit(metype, msg)
-	}
-
-	//Helper function for ChatMessage construction
-	//Function overload: if sys is false, require an identity
-	function createMsg(
-		sys: false, 
-		author: Identity,
-		content: string,
-		metype: Exclude<MessageType, typeof mType.identity | typeof mType.list>
-	): ChatMessage;
-	//if sys is true, use the system string
-	function createMsg(
-		sys: true,
-		author: string,
-		content: string,
-		metype: Exclude<MessageType, typeof mType.identity | typeof mType.list>
-	): ChatMessage;
-	//final overload
-	function createMsg(
-		sys: boolean = false,
-		author: Identity | string = 'system',
-		content: string,
-		metype: Exclude<MessageType, typeof mType.identity | typeof mType.list>
-		): ChatMessage {
-			return {
-			id: sys? -1: messageCounter++,
-			author: typeof author === 'string' ? author : author.nick,
-			content: content,
-			timestamp: Date.now(),
-			type: metype
-		};
-	}
-
-	//Sys message shorthand
-	const sendSys = (to: Target, type: MessageType, text: string) => send(to, type, createMsg(true,'system',text,type as any));
-
-	//Helper function for socketUsers updates
-	function updateSocketUser(socketID: string, identity: Identity, updateType: 'update' | 'delete'): void {
-		if(updateType === 'update'){
-			socketUsers.set(socketID, identity)
-		}
-		else if(updateType === 'delete'){
-			socketUsers.delete(socketID)
-		}
-		else throw new Error(`bad update type ${updateType}`);
-		uList = Array.from(socketUsers.values()).map(({ nick, status, isAfk }) => ({
-			nick,
-			status,
-			isAfk
-		}));
-		send('all', mType.list, uList);
-		return;
-	}
 
 	//On connection welcome and announcement messages
-	sendSys('socket', mType.welcome, `${config.welcomeMsg}`)
+	sendSys(socket, mType.welcome, `${config.welcomeMsg}`)
 	if (announcement){
-		sendSys('socket', mType.ann, `announcemet: ${announcement}`)
+		sendSys(socket, mType.ann, `announcemet: ${announcement}`)
 	}
 
 	//identity service stuff
@@ -152,24 +146,24 @@ io.on('connection', (socket) => {
 	//Returning user check
 	if (returningUser) {
 	    updateSocketUser(socket.id, returningUser, 'update');
-		send('socket', mType.identity, returningUser);
-		sendSys('socket', mType.info, `welcome back, ${returningUser.nick.substring(7)}`);
+		send(socket, mType.identity, returningUser);
+		sendSys(socket, mType.info, `welcome back, ${returningUser.nick.substring(7)}`);
 	} else {
-	    sendSys('socket',mType.error,"system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
+	    sendSys(socket,mType.error,"system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
 		//GDPR warning
-		sendSys('socket',mType.error,"system: be aware either command will store data regarding your session. type '/gdpr info' for more info");
+		sendSys(socket,mType.error,"system: be aware either command will store data regarding your session. type '/gdpr info' for more info");
 	}
 
 	//A new user has connected	
 	console.log('a user connected');
-	send('socket',mType.list, uList)
+	send(socket,mType.list, uList)
 	for (const [id, msg] of chatHistory){
-		send('socket', mType.chat, msg)
+		send(socket, mType.chat, msg)
 	}
 
 	//Returning user announcement
 	if (returningUser){
-		sendSys('all',mType.ann,`${returningUser.nick.substring(7)} connected`);
+		sendSys(io,mType.ann,`${returningUser.nick.substring(7)} connected`);
 	}
 
 	//When a message is recieved from a client
@@ -220,7 +214,7 @@ io.on('connection', (socket) => {
 							'/delete <1> : Delete a message with ID 1. Find message IDs by hovering the relevant message.',
 							'/announce or /announcement <text> : Send an announcement to all users. New users who join will see the most recent announcement.')
 					}
-						helpMessages.forEach(helpMsg => sendSys('socket',mType.info, helpMsg));
+						helpMessages.forEach(helpMsg => sendSys(socket,mType.info, helpMsg));
 
 					if (typeof callback === 'function') callback();
 					return;
@@ -229,23 +223,23 @@ io.on('connection', (socket) => {
 				case 'nick':
 				case 'chrat':
 					if (!args[0] || args[0].length < 2 || args[0].length > 15) {
-						sendSys('socket',mType.error,'system: please provide a username with at least 2 but less than 15 characters');
+						sendSys(socket,mType.error,'system: please provide a username with at least 2 but less than 15 characters');
 					} else {
 						try {
 							const userGUID = user ? user.guid : (clientGUID || null);
 							const oldNick = user ? user.nick: null;
 							const updateUser = identityService.userResolve(userGUID, args[0]);
 							updateSocketUser(socket.id, updateUser,'update');
-							send('socket',mType.identity,updateUser);
+							send(socket,mType.identity,updateUser);
 							if (oldNick) {
-								sendSys('all', mType.ann, `${oldNick.substring(7)} changed their username to ${updateUser.nick.substring(7)}`);
+								sendSys(io, mType.ann, `${oldNick.substring(7)} changed their username to ${updateUser.nick.substring(7)}`);
 								if (typeof callback === 'function') callback();
 							} else {
-								sendSys('all', mType.ann, `${updateUser.nick.substring(7)} has joined teh ratchat`);
+								sendSys(io, mType.ann, `${updateUser.nick.substring(7)} has joined teh ratchat`);
 								if (typeof callback === 'function') callback();
 							}
 						} catch (e: any) {
-							sendSys('socket', mType.error, `system error: ${e.message}`);
+							sendSys(socket, mType.error, `system error: ${e.message}`);
 						}
 					}
 					return;
@@ -253,26 +247,26 @@ io.on('connection', (socket) => {
 				//Change nickname color
 				case 'color':
 					if (!user) {
-						sendSys('socket', mType.error, "system: please use /chrat <nickname> before trying to set a color");
+						sendSys(socket, mType.error, "system: please use /chrat <nickname> before trying to set a color");
 						return;
 					}
 					if (args.length === 0) {
-						sendSys('socket', mType.error, "system: provide a hex value for the color you want to set e.g. /color #000000");
+						sendSys(socket, mType.error, "system: provide a hex value for the color you want to set e.g. /color #000000");
 					} else {
 						try {
 							const trimNick = user.nick.substring(7);
 							const updateUser = identityService.userResolve(user.guid, trimNick, args[0]);
 							updateSocketUser(socket.id, updateUser, 'update');
-							send('socket', mType.identity, updateUser);
-							sendSys('socket', mType.info, `system: your color has been updated to ${args[0]}`);
+							send(socket, mType.identity, updateUser);
+							sendSys(socket, mType.info, `system: your color has been updated to ${args[0]}`);
 						} catch (e: any) {
-						    sendSys('socket', mType.error, `system error: ${e.message}`);
+						    sendSys(socket, mType.error, `system error: ${e.message}`);
 						}
 					}
 					if (typeof callback === 'function') callback();
 					return;	
 				case 'colour':
-					sendSys('socket', mType.error, "system: lern to speak american")
+					sendSys(socket, mType.error, "system: lern to speak american")
 					return;
 
 				//Import GUID that has been previously exported
@@ -281,7 +275,7 @@ io.on('connection', (socket) => {
 					const GUIDregex = new RegExp("^[{]?[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}[}]?$");
 					const newGUID = args[0]
 					if(!GUIDregex.test(newGUID)){
-						sendSys('socket', mType.error, "system: not a valid GUID");
+						sendSys(socket, mType.error, "system: not a valid GUID");
 						return;
 					}
 					//Call identity service to handle new GUID
@@ -290,20 +284,20 @@ io.on('connection', (socket) => {
 						try{
 							updateUser = identityService.getUser(newGUID);
 							updateSocketUser(socket.id, updateUser, 'update');
-							send('socket', mType.identity, updateUser);
-							sendSys('socket', mType.info, `system: identity changed to ${updateUser.nick.substring(7)}`);
+							send(socket, mType.identity, updateUser);
+							sendSys(socket, mType.info, `system: identity changed to ${updateUser.nick.substring(7)}`);
 
 							//Announce disconnect if user was listed previously
 							if(commandUser?.nick !== undefined){
-								sendSys('all', mType.ann, `${commandUser?.nick.substring(7)} disconnected`);
+								sendSys(io, mType.ann, `${commandUser?.nick.substring(7)} disconnected`);
 							}
 							
 							//Announce new user connection
-							sendSys('all', mType.ann, `${updateUser.nick.substring(7)} connected`);
+							sendSys(io, mType.ann, `${updateUser.nick.substring(7)} connected`);
 							if (typeof callback === 'function') callback();
 							return;
 						} catch (e: any) {
-							sendSys('socket', mType.error, `system error: ${e.message}`);
+							sendSys(socket, mType.error, `system error: ${e.message}`);
 							return;
 						}
 					}
@@ -312,21 +306,21 @@ io.on('connection', (socket) => {
 				//Toggle AFK status in user listing
 				case 'afk':
 					if (!user) {
-						sendSys('socket', mType.error, "system: please use /chrat <nickname> before trying to go afk lmao");
+						sendSys(socket, mType.error, "system: please use /chrat <nickname> before trying to go afk lmao");
 						return;
 					}
 					try {
 							const afkUser = identityService.toggleAfk(user.guid);
 							if (afkUser.isAfk){
-								sendSys('socket', mType.info, "you've gone afk");
+								sendSys(socket, mType.info, "you've gone afk");
 							}
 							else{
-								sendSys('socket', mType.info, `welcome back, ${afkUser.nick.substring(7)}`);
+								sendSys(socket, mType.info, `welcome back, ${afkUser.nick.substring(7)}`);
 							}
 							updateSocketUser(socket.id, afkUser, 'update');
 													
 						} catch (e: any) {
-						    sendSys('socket', mType.error, `system error: ${e.message}`);
+						    sendSys(socket, mType.error, `system error: ${e.message}`);
 							return;
 						}
 					if (typeof callback === 'function') callback();
@@ -342,21 +336,21 @@ io.on('connection', (socket) => {
 					//ASCII filter
 					const newStatus = noHtml.replace(/[^\x20-\x7E]/g, '');
 					if(newStatus.length > 32){
-						sendSys('socket', mType.error, 'system: tl;dr - set something shorter');
+						sendSys(socket, mType.error, 'system: tl;dr - set something shorter');
 						return;
 					}
 					if(commandUser){
 						try{
 							const updatedUser = identityService.setStatus(commandUser.guid, newStatus);
 							updateSocketUser(socket.id, updatedUser, "update");
-							sendSys('socket', mType.info, `your status is now: ${updatedUser.status}`);
+							sendSys(socket, mType.info, `your status is now: ${updatedUser.status}`);
 							if (typeof callback === 'function') callback();
 							return;
 						} catch (e: any) {
-							sendSys('socket', mType.error, `system error: ${e.message}`);
+							sendSys(socket, mType.error, `system error: ${e.message}`);
 						}
 					}else{
-						sendSys('socket', mType.error, "system: please use /chrat <nickname> before trying to facebook post");
+						sendSys(socket, mType.error, "system: please use /chrat <nickname> before trying to facebook post");
 						if (typeof callback === 'function') callback();
 					}
 					return;
@@ -364,7 +358,7 @@ io.on('connection', (socket) => {
 				//GDPR command so the EU doesn't disappear us
 				case 'gdpr':
 					if (args.length === 0 ){
-						sendSys('socket', mType.error, "system: please use with 'info', 'export' or 'delete' after /gdpr");
+						sendSys(socket, mType.error, "system: please use with 'info', 'export' or 'delete' after /gdpr");
 						return;
 					}
 					const subComm = args[0]
@@ -389,23 +383,23 @@ io.on('connection', (socket) => {
 							'Use /gdpr export to see a copy of your data stored on the server, if any.',
 							'Use /gdpr delete to permanently remove your data from the server. this will prevent you from utilizing the application.'
 							]	
-							gdprMessages.forEach(helpMsg => sendSys('socket', mType.info, helpMsg));
+							gdprMessages.forEach(helpMsg => sendSys(socket, mType.info, helpMsg));
 							if (typeof callback === 'function') callback();
 							return;
 						case 'export':
 							if (!commandUser) {
-								sendSys('socket', mType.error, "system: no server stored data");
+								sendSys(socket, mType.error, "system: no server stored data");
 								if (typeof callback === 'function') callback();
 								return;
 							}
 							else{
-								sendSys('socket', mType.info, `Server stored info: ${JSON.stringify(commandUser, null, 4)}`);
+								sendSys(socket, mType.info, `Server stored info: ${JSON.stringify(commandUser, null, 4)}`);
 								if (typeof callback === 'function') callback();
 								return;
 							}
 						case 'delete':
 							if (!commandUser){
-								sendSys('socket', mType.error, "system: no server stored data");
+								sendSys(socket, mType.error, "system: no server stored data");
 								if (typeof callback === 'function') callback();
 								return;
 							}
@@ -416,21 +410,21 @@ io.on('connection', (socket) => {
 
 									//local deletion ID
 									const sentinelId = {guid: 'RESET_IDENTITY'} as Identity;
-									send('socket', mType.identity, sentinelId);
-									
-									sendSys('socket', mType.info, 'goodbye is ur data');
-									sendSys('all', mType.ann, `${commandUser.nick.substring(7)} disconnected`)
+									send(socket, mType.identity, sentinelId);
+
+									sendSys(socket, mType.info, 'goodbye is ur data');
+									sendSys(io, mType.ann, `${commandUser.nick.substring(7)} disconnected`)
 									if (typeof callback === 'function') callback();
 								}
 								catch(e: any) {
-						    	sendSys('socket', mType.error, `system error: ${e.message}`);
+						    	sendSys(socket, mType.error, `system error: ${e.message}`);
 								return;
 								}
 							return;
 							}
 							
 						default:
-							sendSys('socket', mType.error, "system: please use with 'info', 'export' or 'delete' after /gdpr");
+							sendSys(socket, mType.error, "system: please use with 'info', 'export' or 'delete' after /gdpr");
 					return;
 					}
 
@@ -442,16 +436,16 @@ io.on('connection', (socket) => {
 				case 'ban':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
-						sendSys('socket', mType.error, "system: naughty naughty");
+						sendSys(socket, mType.error, "system: naughty naughty");
 						return;
 					}
 					if(commandUser?.isMod){
 						if (args.length === 0){
-							sendSys('socket', mType.error, "missing target");
+							sendSys(socket, mType.error, "missing target");
 							return;
 						}
 
-						sendSys('all', mType.info, `system: ${fullArgs} has been banned.`);
+						sendSys(io, mType.info, `system: ${fullArgs} has been banned.`);
 						if (typeof callback === 'function') callback();
 						return;
 					}
@@ -462,16 +456,16 @@ io.on('connection', (socket) => {
 				case 'to':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
-						sendSys('socket', mType.error, "system: naughty naughty");
+						sendSys(socket, mType.error, "system: naughty naughty");
 						return;
 					}
 					if(commandUser?.isMod){
 						if (args.length === 0){
-							sendSys('socket', mType.error, "missing target");
+							sendSys(socket, mType.error, "missing target");
 							return;
 						}
 
-						sendSys('all', mType.info, `system: ${fullArgs} has been timed out.`);
+						sendSys(io, mType.info, `system: ${fullArgs} has been timed out.`);
 						if (typeof callback === 'function') callback();
 						return;
 					}
@@ -481,15 +475,15 @@ io.on('connection', (socket) => {
 				case 'delete':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
-						sendSys('socket', mType.error, "system: naughty naughty");
+						sendSys(socket, mType.error, "system: naughty naughty");
 						return;
 					}
 					if(commandUser?.isMod){
 						if (args.length === 0 || isNaN(Number(args[0]))){
-							sendSys('socket', mType.error, "please provide message id");
+							sendSys(socket, mType.error, "please provide message id");
 							return;
 						}
-						sendSys('socket', mType.info, `system: deleted message ID ${fullArgs}`);
+						sendSys(socket, mType.info, `system: deleted message ID ${fullArgs}`);
 						if (typeof callback === 'function') callback();
 						return;
 					}
@@ -500,33 +494,33 @@ io.on('connection', (socket) => {
 				case 'announcement':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
-						sendSys('socket', mType.error, "system: naughty naughty");
+						sendSys(socket, mType.error, "system: naughty naughty");
 						return;
 					}
 					if(commandUser?.isMod){
 						announcement = `${fullArgs}`
-						sendSys('all', mType.ann, `announcement: ${announcement}`);
+						sendSys(io, mType.ann, `announcement: ${announcement}`);
 						if (typeof callback === 'function') callback();
 						return;
 					}
 				
 				//Failcase
 				default:
-					sendSys('socket', mType.error, "system: that's not a command lol");
+					sendSys(socket, mType.error, "system: that's not a command lol");
 			}
 			return;
 		}
 
 		//Prevent users from chatting without an identity
 		if (!user) {
-		    sendSys('socket', mType.error, "system: please set your nickname with /chrat <nickname> before chatting");
+		    sendSys(socket, mType.error, "system: please set your nickname with /chrat <nickname> before chatting");
 		    if (typeof callback === 'function') callback();
 		    return;
 		}
 
 		//Check message length	
 		if (msg.length > config.maxMsgLen) {
-	    	sendSys('socket', mType.error, 'system: sorry your message is too long lmao');
+	    	sendSys(socket, mType.error, 'system: sorry your message is too long lmao');
 	    	return;
 		}
 	
@@ -544,7 +538,7 @@ io.on('connection', (socket) => {
     		}
 		}
 		//Send message JSON object to all connected sockets
-		send('all', mType.chat, chatmsg);
+		send(io, mType.chat, chatmsg);
 
 		//Send callback for input clearing
 		if (typeof callback === 'function') {
@@ -558,9 +552,15 @@ io.on('connection', (socket) => {
 	const disuser =socketUsers.get(socket.id)
 	if(disuser){
 	updateSocketUser(socket.id, disuser, 'delete');
-	sendSys('all', mType.ann, `${disuser.nick.substring(7)} disconnected`);
+	sendSys(io, mType.ann, `${disuser.nick.substring(7)} disconnected`);
 	}
     });
+});
+
+//Get HTML file
+app.get('/ratchat', (req, res) => {
+	res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    res.sendFile('www/ratchat.html', { root : __dirname });
 });
 
 //Server standup

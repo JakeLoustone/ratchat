@@ -9,7 +9,7 @@ import { IdentityService } from './services/identity.ts'
 import { error } from 'node:console';
 
 
-const config = JSON.parse(readFileSync('./config.json'));
+const config = JSON.parse(readFileSync('./config.json', 'utf-8'));
 const app = express();
 const httpserver = createServer(app);
 const io = new Server(httpserver, {
@@ -107,6 +107,7 @@ io.on('connection', (socket) => {
 						"/export : returns your GUID for later importing on other devices. if you like your name don't share it :)",
 						'/import : import a GUID exported earlier to reclaim your nickname on another device or browser. must match exactly!',
 						'/afk : toggle AFK status in the user listing',
+						'/status or /me : set your status in the user listing',
 						'/gdpr <flag> : <info> for more information, <export> for a copy of your data, and <delete> to wipe your data.'
 						
 					];
@@ -231,6 +232,35 @@ io.on('connection', (socket) => {
 						}
 					if (typeof callback === 'function') callback();
 					return;
+				
+				//Set status for user listing
+				case 'status':
+				case 'me':
+					
+					const rawStatus = fullArgs
+					//Sanitize :)
+					const noHtml = rawStatus.replace(/<[^>]*>?/gm, '');
+					//ASCII filter
+					const newStatus = noHtml.replace(/[^\x20-\x7E]/g, '');
+					if(newStatus.length > 32){
+						socket.emit('toClientError', 'system: tl;dr - set something shorter');
+						return;
+					}
+					if(commandUser){
+						try{
+							const updatedUser = identityService.setStatus(commandUser.guid, newStatus);
+							updateSocketUser(socket.id, updatedUser, "update");
+							socket.emit('toClientInfo', `your status is now: ${updatedUser.status}`);
+							if (typeof callback === 'function') callback();
+							return;
+						} catch (e: any) {
+							socket.emit('toClientError', `system error: ${e.message}`);
+						}
+					}else{
+						socket.emit('toClientError', "system: please use /chrat <nickname> before trying to facebook post");
+						if (typeof callback === 'function') callback();
+					}
+					return;
 
 				//GDPR command so the EU doesn't disappear us
 				case 'gdpr':
@@ -300,9 +330,11 @@ io.on('connection', (socket) => {
 							socket.emit("toClientError", "system: please use with 'info', 'export' or 'delete' after /gdpr");
 					return;
 					}
+
 				// ------------------------
 				// MODERATOR COMMANDS BELOW:
 				// ------------------------
+
 				//IP ban a user via nickname
 				case 'ban':
 					if(!commandUser?.isMod){

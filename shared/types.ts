@@ -7,19 +7,30 @@ export interface Identity {
     isAfk: boolean;
 }
 
+export enum messageType{
+    chat = "chat message",
+    info = "toClientInfo",
+    error = "toClientError",
+    announcement = "toClientAnnouncement",
+    welcome = "toClientWelcome",
+    identity = "identity",
+    list = "userlist"
+}
+
 export interface ChatMessage {
     id: number;
     author: Identity['nick'];
     content: string;
     timestamp: number;
-    type: enum;
+    type: messageType;
 }
 
 export interface ServerConfig {
-    welcomeMessage: string;
+    welcomeMsg: string;
     slowMode: number;
     maxMsgLen: number;
     maxNickLen: number;
-
+    msgArrayLen: number;
+    PORT: number;
 }
 

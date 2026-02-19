@@ -83,12 +83,25 @@ export class IdentityService {
 		}
 		if(user.isAfk){
 			user.isAfk = false;
+			this.saveData();
 		}
 		else{
 			user.isAfk = true;
+			this.saveData();
 		}
 		return user;
     }
+
+	public setStatus(guid: string, status: string): Identity {
+		const user = this.users.get(guid);
+		const newStatus = status;
+		if(!user){
+			throw new Error('No matching user found to GUID')
+		}
+		user.status = newStatus;
+		this.saveData();
+		return user;
+	}
 
 	public deleteUser(guid: string): void {
 		const user = this.users.get(guid);

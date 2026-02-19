@@ -1,4 +1,8 @@
 {
+  "name": "ratchat",
+  "version": "1.0.0",
+  "license": "MIT",
+  "type": "module",
   "dependencies": {
     "98.css": "^0.1.21",
     "express": "^5.2.1",

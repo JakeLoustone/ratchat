@@ -127,7 +127,7 @@
 		}
 
 		#messages > .w-li {
-			padding: 0.2rem 0.5rem; 
+			padding: 0.2rem 0.5rem;
 			color: darkblue;
 			white-space: pre-wrap;
 		}
@@ -164,7 +164,7 @@
         </div>
 
         <div class="window-body">
-            <div style="display: flex; flex-direction: row; flex-grow: 1; overflow: hidden; gap: 4px;">
+            <div style="display: flex; flex-direction: row; flex-grow: 1; overflow: hidden; gap: 0.25rem;">
                 <div id="messages-container">
                     <ul id="messages"></ul>
                 </div>
@@ -231,19 +231,21 @@
 			}
 
 			//Send message
-			socket.emit('chat message', val, () => {
+			socket.emit('toServerChat', val, () => {
 				input.value = '';
 			});
 		});
 
 		//Identity events
 		socket.on('identity', (identity) => {
-			if (identity && identity.guid) {
-				console.log('Identity synced:', identity);
-				localStorage.setItem('ratGUID', identity.guid);
-			} else {
+			if (identity && identity.guid === 'RESET_IDENTITY'){
 				console.log('Identity cleared from local storage');
 				localStorage.removeItem('ratGUID');
+			} else if(identity && identity.guid) {
+				console.log('Identity synced:', identity);
+				localStorage.setItem('ratGUID', identity.guid);
+			} else{
+				console.log('identity load error')
 			}
 		});
 
@@ -254,64 +256,80 @@
 
 			uList.forEach(user => {
 				const li = document.createElement('li');
-				li.style.marginBottom = "2px";
+				li.style.marginBottom = "0.125rem";
 				
 				const userColor = user.nick.substring(0, 7);
 				const userName = user.nick.substring(7);
 				const orb = user.isAfk ? 'orb-afk' : 'orb-online';
-				const statusText = user.status ? `<div style="font-size:small; color: #444; margin-left: 5px;">${user.status}</div>` : '';
+				const orbLabel = user.isAfk ? 'AFK' : 'Online'
+				const statusText = user.status ? `<div style="font-size:small; color: #444; margin-left: 0.375rem;">${user.status}</div>` : '';
 
 				li.innerHTML = `
-					<span class="status-orb ${orb}"></span><span style="color: ${userColor}; font-weight: bold;">${userName}</span>
+					<span class="status-orb ${orb}" title="${orbLabel}"></span><span style="color: ${userColor}; font-weight: bold;">${userName}</span>
 					${statusText}
 				`;
 				userListElement.appendChild(li);
 					});
 		});
 
-		//Message recieved
-		socket.on('chat message', (msg) => {
+		//message type to css class
+		const toClass = {
+			'toClientChat': '',
+			'toClientError': 's-li',
+			'toClientInfo': 'i-li',
+			'toClientWelcome': 'w-li',
+			'toClientAnnouncement': 'a-li'
+		};
+
+		//message renderer
+		const renderMessage =(msg) =>{
 			
 			const item = document.createElement('li');
 			const msgContainer = document.getElementById('messages-container');
 
+			//message type classification
+			const className = toClass[msg.type];
+   			if (className) item.classList.add(className);
+
 			//Date constructor
+			if(msg.id !== -1){
 			const date = new Date(msg.timestamp);
-			const dateStr = date.toLocaleTimeString([], {
-			hour: '2-digit',
-			minute: '2-digit'
-			});
+			const dateStr = date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+			const timeSpan = document.createElement('span');
+				timeSpan.textContent = dateStr;
+				timeSpan.style = "color:grey; font-size:small; margin-right:0.5rem"
+			item.appendChild(timeSpan);
+			}
 
 			//Nickname constructor and styling
+			if(msg.id !== -1 && msg.author){
 			const userName = msg.author.substring(7);
 			const userColor = msg.author.substring(0,7);
-			const timeSpan = `<span style="color:grey; font-size:10px; margin-right:2px">${dateStr}</span>`
-			const nameSpan = `<span class="user-name" style="--user-color:${userColor}">${userName}</span>: `
-			const contentSpan = document.createElement('span')
-
-			//Set title for tooltip hover
+			const nameSpan = document.createElement('span');
+            nameSpan.className = "user-name";
+				nameSpan.style.setProperty('--user-color', userColor);
+				nameSpan.textContent = userName + ": ";
+			item.appendChild(nameSpan)
+			//set hover msg ID
 			item.setAttribute('title', `Msg ID: ${msg.id}`);
+			}
 
-			//Format and build message
-			item.innerHTML = timeSpan + nameSpan
-			contentSpan.textContent = msg.content;
+			//Message content
+			const contentSpan = document.createElement('span')
+				contentSpan.textContent = msg.content;
 			item.appendChild(contentSpan);
+
+			//finalize
 			messages.appendChild(item);
 			msgContainer.scrollTop = msgContainer.scrollHeight;
-		});
+		};
 
-		//Server Error Message
-		socket.on('toClientError', (msg) => systemMessage(msg, 's-li'));
-
-		//Server Info Message
-		socket.on('toClientInfo', (msg) => systemMessage(msg, 'i-li'));
-
-		//Server Welcome Message
-		socket.on('toClientWelcome', (msg) => systemMessage(msg, 'w-li'));
-
-		//Server Announcement
-		socket.on('toClientAnnouncement', (msg) => systemMessage(msg, 'a-li'));
-
+		//message listeners
+		socket.on('toClientChat', renderMessage);
+		socket.on('toClientError', renderMessage);
+		socket.on('toClientInfo', renderMessage);
+		socket.on('toClientWelcome', renderMessage);
+		socket.on('toClientAnnouncement', renderMessage);
 	</script>
 	</body>
 

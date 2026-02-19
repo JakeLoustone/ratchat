@@ -7,24 +7,25 @@ export interface Identity {
     isAfk: boolean;
 }
 
-export const messageTypeObj = {
-    chat: "chat message",
+export const mType = {
+    chat: "toClientChat",
     info: "toClientInfo",
     error: "toClientError",
-    announcement: "toClientAnnouncement",
+    ann: "toClientAnnouncement",
     welcome: "toClientWelcome",
     identity: "identity",
-    list: "userlist"
+    list: "userlist",
+    schat: "toServerChat"
 } as const;
 
-export type messageType = typeof messageTypeObj[keyof typeof messageTypeObj];
+export type MessageType = typeof mType[keyof typeof mType];
 
 export interface ChatMessage {
     id: number;
     author: Identity['nick'];
     content: string;
     timestamp: number;
-    type: messageType;
+    type: MessageType;
 }
 
 export interface ServerConfig {
@@ -35,4 +36,3 @@ export interface ServerConfig {
     msgArrayLen: number;
     PORT: number;
 }
-

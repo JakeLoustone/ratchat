@@ -55,7 +55,9 @@ io.on('connection', (socket) => {
 	    socket.emit('identity', returningUser);
 	    socket.emit('toClientInfo', `welcome back, ${returningUser.nick.substring(7)}`);
 	} else {
-	    socket.emit('toClientError', "system: please use the /chrat <nickname> to set a nickname");
+	    socket.emit('toClientError', "system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
+		//GDPR warning
+		socket.emit('toClientError', "system: be aware either command will store data regarding your session. type '/gdpr info' for more info");
 	}
 
 	//A new user has connected	
@@ -83,12 +85,14 @@ io.on('connection', (socket) => {
 			const command = args.shift().toLowerCase(); // Get the first word and remove from args array
 			const fullArgs = args.join(' '); // Rejoin the rest for messages/targets
 			let commandUser: Identity | null = null;
-			try{
-				commandUser = identityService.getUser(clientGUID)
-			} catch (error: any){
-				console.warn(`${error.message}`);
+			commandUser = socketUsers.get(socket.id) || null;
+			if (!commandUser && clientGUID) {
+				try {
+					commandUser = identityService.getUser(clientGUID);
+				} catch (error: any) {
+					console.warn(`${error.message}`);
+				}
 			}
-				
 			switch (command) {
 				//List all commands
 				case 'help':
@@ -101,7 +105,9 @@ io.on('connection', (socket) => {
 						'/clear or /clr : removes all visible messsages on your screen. (others can still see them)',
 						//export is handled client side
 						"/export : returns your GUID for later importing on other devices. if you like your name don't share it :)",
-						'/import : import a GUID exported earlier to reclaim your nickname on another device or browser. must match exactly!'
+						'/import : import a GUID exported earlier to reclaim your nickname on another device or browser. must match exactly!',
+						'/afk : toggle AFK status in the user listing',
+						'/gdpr <flag> : <info> for more information, <export> for a copy of your data, and <delete> to wipe your data.'
 						
 					];
 					//Show moderator commands only if user is a mod
@@ -226,14 +232,89 @@ io.on('connection', (socket) => {
 					if (typeof callback === 'function') callback();
 					return;
 
+				//GDPR command so the EU doesn't disappear us
+				case 'gdpr':
+					if (args.length === 0 ){
+						socket.emit("toClientError", "system: please use with 'info', 'export' or 'delete' after /gdpr");
+						return;
+					}
+					const subComm = args[0]
+					
+					//GDPR switch
+					switch (subComm){
+						case 'info':
+							const gdprMessages = [
+							'---------------------------------------------------------------------------------------------',
+							'We store the following data server side:',
+							'guid			|	Unique identifier and allows multiple sessions to have the same nickname',
+							'nick			|	Chosen nickname and color set by the /nick and /color commands',
+							'status			|	Chosen status displayed in user listing set by /status command',
+							'isMod			|	Flag for allowing moderator actions',
+							'lastMessage	|	Timestamp of last message sent fortimeout enforcement and nickname cleanup',
+							'isAfk			|	AFK flag for user listing set by /afk command',
+							'ip				|	Last known ip address for ban enforcement if necessary',
+							'---------------------------------------------------------------------------------------------',
+							'We store the following information locally:',
+							'ratGUID		|	a local copy of the GUID for message construction',
+							'---------------------------------------------------------------------------------------------',
+							'Use /gdpr export to see a copy of your data stored on the server, if any.',
+							'Use /gdpr delete to permanently remove your data from the server. this will prevent you from utilizing the application.'
+							]	
+							gdprMessages.forEach(helpMsg => socket.emit("toClientInfo", helpMsg));
+							if (typeof callback === 'function') callback();
+							return;
+						case 'export':
+							if (!commandUser) {
+								socket.emit('toClientError', "system: no server stored data");
+								if (typeof callback === 'function') callback();
+								return;
+							}
+							else{
+								socket.emit("toClientInfo", `Server stored info: ${JSON.stringify(commandUser, null, 4)}`);
+								if (typeof callback === 'function') callback();
+								return;
+							}
+						case 'delete':
+							if (!commandUser){
+								socket.emit('toClientError', "system: no server stored data");
+								if (typeof callback === 'function') callback();
+								return;
+							}
+							else{
+								try{
+									identityService.deleteUser(commandUser.guid);
+									updateSocketUser(socket.id, commandUser, 'delete');
+									socket.emit('identity', null);
+									socket.emit('toClientInfo', 'goodbye is ur data');
+									io.emit('toClientAnnouncement', `${commandUser.nick.substring(7)} disconnected`)
+									if (typeof callback === 'function') callback();
+								}
+								catch(e: any) {
+						    	socket.emit('toClientError', `system error: ${e.message}`);
+								return;
+								}
+							return;
+							}
+							
+						default:
+							socket.emit("toClientError", "system: please use with 'info', 'export' or 'delete' after /gdpr");
+					return;
+					}
+				// ------------------------
+				// MODERATOR COMMANDS BELOW:
+				// ------------------------
 				//IP ban a user via nickname
 				case 'ban':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
-						return socket.emit("toClientError", "system: naughty naughty");
+						socket.emit("toClientError", "system: naughty naughty");
+						return;
 					}
 					if(commandUser?.isMod){
-						if (args.length === 0) return socket.emit("toClientError", "missing target");
+						if (args.length === 0){
+							socket.emit("toClientError", "missing target");
+							return;
+						}
 
 						io.emit("toClientInfo", `system: ${fullArgs} has been banned.`);
 						if (typeof callback === 'function') callback();
@@ -246,10 +327,14 @@ io.on('connection', (socket) => {
 				case 'to':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
-						return socket.emit("toClientError", "system: naughty naughty");
+						socket.emit("toClientError", "system: naughty naughty");
+						return;
 					}
 					if(commandUser?.isMod){
-						if (args.length === 0) return socket.emit("toClientError", "missing target");
+						if (args.length === 0){
+							socket.emit("toClientError", "missing target");
+							return;
+						}
 
 						io.emit("toClientInfo", `system: ${fullArgs} has been timed out.`);
 						if (typeof callback === 'function') callback();
@@ -261,10 +346,14 @@ io.on('connection', (socket) => {
 				case 'delete':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
-						return socket.emit("toClientError", "system: naughty naughty");
+						socket.emit("toClientError", "system: naughty naughty");
+						return;
 					}
 					if(commandUser?.isMod){
-						if (args.length === 0 || isNaN(Number(args[0]))) return socket.emit("toClientError", "please provide message id");
+						if (args.length === 0 || isNaN(Number(args[0]))){
+							socket.emit("toClientError", "please provide message id");
+							return;
+						}
 						socket.emit("toClientInfo", `system: deleted message ID ${fullArgs}`);
 						if (typeof callback === 'function') callback();
 						return;
@@ -276,7 +365,8 @@ io.on('connection', (socket) => {
 				case 'announcement':
 					if(!commandUser?.isMod){
 						if (typeof callback === 'function') callback();
-						return socket.emit("toClientError", "system: naughty naughty");
+						socket.emit("toClientError", "system: naughty naughty");
+						return;
 					}
 					if(commandUser?.isMod){
 						announcement = `${fullArgs}`

@@ -61,7 +61,7 @@ export class IdentityService {
 	    lastMessage: new Date(0),
 		isAfk: false
 	};
-
+	
 	this.users.set(newGuid, newIdentity);
 	this.registeredNicks.set(sanitizeNick, newGuid);
 	this.saveData();
@@ -69,7 +69,6 @@ export class IdentityService {
     }
 
     public getUser(guid: string): Identity {
-	
 		const user = this.users.get(guid);
 		if(!user){
 			throw new Error('No matching user found to GUID')
@@ -91,11 +90,25 @@ export class IdentityService {
 		return user;
     }
 
+	public deleteUser(guid: string): void {
+		const user = this.users.get(guid);
+		if(!user){
+			throw new Error('No matching user found to GUID')
+		}
+		const cleanNick = user.nick.substring(7);
+		this.registeredNicks.delete(cleanNick);
+		this.users.delete(guid);
+		this.saveData();
+		console.log(`GDPR: Deleted user ${cleanNick} (${guid})`);
+	}
+
+
     public nickAvailable(nick: string): boolean {
-	const clean = nick.replace(/[^\w\s]/gi, '').trim();
-	return !this.registeredNicks.has(clean);
-    }
-    private loadData() {
+		const clean = nick.replace(/[^\w\s]/gi, '').trim();
+		return !this.registeredNicks.has(clean);
+	}
+    
+	private loadData() {
 	try {
 	    if (!fs.existsSync(this.userList)) {
 		return;
@@ -117,6 +130,7 @@ export class IdentityService {
 	    console.error('Failed to load user data', `${e.message}`);
 	}
     }
+
     private saveData() {
 	try {
 	    const dir = path.dirname(this.userList);

@@ -117,21 +117,25 @@
 		#messages > .s-li {
 			padding: 0.2rem 0.5rem; 
 			color: red;
+			white-space: pre-wrap;
 		}
 
 		#messages > .i-li {
 			padding: 0.2rem 0.5rem; 
 			color: darkslategrey;
+			white-space: pre-wrap;
 		}
 
 		#messages > .w-li {
 			padding: 0.2rem 0.5rem; 
 			color: darkblue;
+			white-space: pre-wrap;
 		}
 
 		#messages > .a-li {
 			padding: 0.2rem 0.5rem; 
 			color: #6eab6e;
+			white-space: pre-wrap;
 		}
 
 		#messages .user-name {
@@ -234,8 +238,13 @@
 
 		//Identity events
 		socket.on('identity', (identity) => {
-		    console.log('Identity synced:', identity);
-		    localStorage.setItem('ratGUID', identity.guid);
+			if (identity && identity.guid) {
+				console.log('Identity synced:', identity);
+				localStorage.setItem('ratGUID', identity.guid);
+			} else {
+				console.log('Identity cleared from local storage');
+				localStorage.removeItem('ratGUID');
+			}
 		});
 
 		//User list events

@@ -218,7 +218,7 @@
        				systemMessage("you ain't got no ID, you ain't gettin in this bar.", 's-li');
        				return;
 				}
-				systemMessage(`Your GUID is: ${oldGUID}`, 'w-li')
+				systemMessage(`Your GUID is: ${oldGUID}`, 'i-li')
 				input.value = '';
 				return;
 			}
@@ -332,5 +332,4 @@
 		socket.on('toClientAnnouncement', renderMessage);
 	</script>
 	</body>
-
 </html>

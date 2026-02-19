@@ -158,6 +158,3 @@ export class IdentityService {
 	}
     }
 }
-
-
-

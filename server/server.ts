@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { writeFileSync, readFileSync } from 'fs';
 import type { Identity, ChatMessage, MessageType } from '../shared/types.ts';
 import { IdentityService } from './services/identity.ts'
+import { CommandService } from './services/command.ts';
 import { mType } from '../shared/types.ts';
 
-//TODO: refactor command handling
 //TODO: ip collection
 //TODO: timeout enforcement
 //TODO: ban enforcement
@@ -28,7 +28,17 @@ const io = new Server(httpserver, {connectionStateRecovery:{}});
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const usersPath = join(__dirname, 'data', 'users.json');
 
+//Sys message shorthand
+const sendSys = (to: Target, type: MessageType, text: string) => send(to, type, createMsg(true,'system',text,type as any));
+
 const identityService = new IdentityService(usersPath);
+const commandService = new CommandService({
+    identityService: identityService,
+    send: send,
+    sendSys: sendSys,
+    updateSocketUser: updateSocketUser,
+    setAnnouncement: (text: string) => { announcement = text; }
+});
 const socketUsers = new Map<string, Identity>();
 const chatHistory = new Map<number, ChatMessage>();
 
@@ -41,15 +51,12 @@ type UserSum = Pick<Identity, "nick" | "status" | "isAfk">
 type Target = Server | Socket;
 type Payload = ChatMessage | Identity | UserSum[];
 
-
-
 //Send helper function
 function send(to: Target, metype: MessageType, msg: Payload): void {	
 	//double check target
 	if (!(to instanceof Server) && !(to instanceof Socket)){
 		throw new Error('Invalid emit target')
 	}
-
 	//Confirm payload typing
 	if (metype === mType.identity) {
 			// Check if msg has Identity properties
@@ -102,9 +109,6 @@ function createMsg(
 		type: metype
 	};
 }
-
-//Sys message shorthand
-const sendSys = (to: Target, type: MessageType, text: string) => send(to, type, createMsg(true,'system',text,type as any));
 
 //Helper function for socketUsers updates
 function updateSocketUser(socketID: string, identity: Identity, updateType: 'update' | 'delete'): void {
@@ -173,341 +177,20 @@ io.on('connection', (socket) => {
 
 		// Check if it's a command
 		if (msg.startsWith('/')) {
-		    
-			// Split into command
 			const args = msg.slice(1).trim().split(/ +/);
-			const command = args.shift().toLowerCase(); // Get the first word and remove from args array
-			const fullArgs = args.join(' '); // Rejoin the rest for messages/targets
+			const commandName = args.shift()?.toLowerCase() || '';
 			let commandUser: Identity | null = null;
-			commandUser = socketUsers.get(socket.id) || null;
-			if (!commandUser && clientGUID) {
-				try {
-					commandUser = identityService.getUser(clientGUID);
-				} catch (error: any) {
-					console.warn(`${error.message}`);
-				}
-			}
-			switch (command) {
-				//List all commands
-				case 'help':
-				case 'commands':
-				case 'h':
-					const helpMessages = [
-						'/help, /h, or /commands : View this list.',
-						'/chrat or /nick <nickname> : Change your nickname to <nickname>.',
-						"/color <#RRGGBB> : Change your nickname's color to hex #RRGGBB.",
-						'/clear or /clr : removes all visible messsages on your screen. (others can still see them)',
-						//export is handled client side
-						"/export : returns your GUID for later importing on other devices. if you like your name don't share it :)",
-						'/import : import a GUID exported earlier to reclaim your nickname on another device or browser. must match exactly!',
-						'/afk : toggle AFK status in the user listing',
-						'/status or /me : set your status in the user listing',
-						'/gdpr <flag> : <info> for more information, <export> for a copy of your data, and <delete> to wipe your data.'
-						
-					];
-					//Show moderator commands only if user is a mod
-					if(commandUser?.isMod){
-						helpMessages.push(
-							'--- Moderator Commands ---',
-							'/ban <user> : Permanently bans a user with nickname "user"',
-							'/timeout or /to <user> : Deletes recent messages from nickname "user" and mutes them for the timeout period. (default 5 min)',
-							'/delete <1> : Delete a message with ID 1. Find message IDs by hovering the relevant message.',
-							'/announce or /announcement <text> : Send an announcement to all users. New users who join will see the most recent announcement.')
-					}
-						helpMessages.forEach(helpMsg => sendSys(socket,mType.info, helpMsg));
-
-					if (typeof callback === 'function') callback();
-					return;
-				
-				//Change nickname
-				case 'nick':
-				case 'chrat':
-					if (!args[0] || args[0].length < 2 || args[0].length > 15) {
-						sendSys(socket,mType.error,'system: please provide a username with at least 2 but less than 15 characters');
-					} else {
-						try {
-							const userGUID = user ? user.guid : (clientGUID || null);
-							const oldNick = user ? user.nick: null;
-							const updateUser = identityService.userResolve(userGUID, args[0]);
-							updateSocketUser(socket.id, updateUser,'update');
-							send(socket,mType.identity,updateUser);
-							if (oldNick) {
-								sendSys(io, mType.ann, `${oldNick.substring(7)} changed their username to ${updateUser.nick.substring(7)}`);
-								if (typeof callback === 'function') callback();
-							} else {
-								sendSys(io, mType.ann, `${updateUser.nick.substring(7)} has joined teh ratchat`);
-								if (typeof callback === 'function') callback();
-							}
-						} catch (e: any) {
-							sendSys(socket, mType.error, `system error: ${e.message}`);
-						}
-					}
-					return;
-
-				//Change nickname color
-				case 'color':
-					if (!user) {
-						sendSys(socket, mType.error, "system: please use /chrat <nickname> before trying to set a color");
-						return;
-					}
-					if (args.length === 0) {
-						sendSys(socket, mType.error, "system: provide a hex value for the color you want to set e.g. /color #000000");
-					} else {
-						try {
-							const trimNick = user.nick.substring(7);
-							const updateUser = identityService.userResolve(user.guid, trimNick, args[0]);
-							updateSocketUser(socket.id, updateUser, 'update');
-							send(socket, mType.identity, updateUser);
-							sendSys(socket, mType.info, `system: your color has been updated to ${args[0]}`);
-						} catch (e: any) {
-						    sendSys(socket, mType.error, `system error: ${e.message}`);
-						}
-					}
-					if (typeof callback === 'function') callback();
-					return;	
-				case 'colour':
-					sendSys(socket, mType.error, "system: lern to speak american")
-					return;
-
-				//Import GUID that has been previously exported
-				case 'import':
-					//Verify legitimate GUID via regex
-					const GUIDregex = new RegExp("^[{]?[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}[}]?$");
-					const newGUID = args[0]
-					if(!GUIDregex.test(newGUID)){
-						sendSys(socket, mType.error, "system: not a valid GUID");
-						return;
-					}
-					//Call identity service to handle new GUID
-					if(GUIDregex.test(newGUID)){
-						let updateUser: Identity | null = null;
-						try{
-							updateUser = identityService.getUser(newGUID);
-							updateSocketUser(socket.id, updateUser, 'update');
-							send(socket, mType.identity, updateUser);
-							sendSys(socket, mType.info, `system: identity changed to ${updateUser.nick.substring(7)}`);
-
-							//Announce disconnect if user was listed previously
-							if(commandUser?.nick !== undefined){
-								sendSys(io, mType.ann, `${commandUser?.nick.substring(7)} disconnected`);
-							}
-							
-							//Announce new user connection
-							sendSys(io, mType.ann, `${updateUser.nick.substring(7)} connected`);
-							if (typeof callback === 'function') callback();
-							return;
-						} catch (e: any) {
-							sendSys(socket, mType.error, `system error: ${e.message}`);
-							return;
-						}
-					}
-					return;
-
-				//Toggle AFK status in user listing
-				case 'afk':
-					if (!user) {
-						sendSys(socket, mType.error, "system: please use /chrat <nickname> before trying to go afk lmao");
-						return;
-					}
-					try {
-							const afkUser = identityService.toggleAfk(user.guid);
-							if (afkUser.isAfk){
-								sendSys(socket, mType.info, "you've gone afk");
-							}
-							else{
-								sendSys(socket, mType.info, `welcome back, ${afkUser.nick.substring(7)}`);
-							}
-							updateSocketUser(socket.id, afkUser, 'update');
-													
-						} catch (e: any) {
-						    sendSys(socket, mType.error, `system error: ${e.message}`);
-							return;
-						}
-					if (typeof callback === 'function') callback();
-					return;
-				
-				//Set status for user listing
-				case 'status':
-				case 'me':
-					
-					const rawStatus = fullArgs
-					//Sanitize :)
-					const noHtml = rawStatus.replace(/<[^>]*>?/gm, '');
-					//ASCII filter
-					const newStatus = noHtml.replace(/[^\x20-\x7E]/g, '');
-					if(newStatus.length > 32){
-						sendSys(socket, mType.error, 'system: tl;dr - set something shorter');
-						return;
-					}
-					if(commandUser){
-						try{
-							const updatedUser = identityService.setStatus(commandUser.guid, newStatus);
-							updateSocketUser(socket.id, updatedUser, "update");
-							sendSys(socket, mType.info, `your status is now: ${updatedUser.status}`);
-							if (typeof callback === 'function') callback();
-							return;
-						} catch (e: any) {
-							sendSys(socket, mType.error, `system error: ${e.message}`);
-						}
-					}else{
-						sendSys(socket, mType.error, "system: please use /chrat <nickname> before trying to facebook post");
-						if (typeof callback === 'function') callback();
-					}
-					return;
-
-				//GDPR command so the EU doesn't disappear us
-				case 'gdpr':
-					if (args.length === 0 ){
-						sendSys(socket, mType.error, "system: please use with 'info', 'export' or 'delete' after /gdpr");
-						return;
-					}
-					const subComm = args[0]
-					
-					//GDPR switch
-					switch (subComm){
-						case 'info':
-							const gdprMessages = [
-							'---------------------------------------------------------------------------------------------',
-							'We store the following data server side:',
-							'guid			|	Unique identifier and allows multiple sessions to have the same nickname',
-							'nick			|	Chosen nickname and color set by the /nick and /color commands',
-							'status			|	Chosen status displayed in user listing set by /status command',
-							'isMod			|	Flag for allowing moderator actions',
-							'lastMessage	|	Timestamp of last message sent fortimeout enforcement and nickname cleanup',
-							'isAfk			|	AFK flag for user listing set by /afk command',
-							'ip				|	Last known ip address for ban enforcement if necessary',
-							'---------------------------------------------------------------------------------------------',
-							'We store the following information locally:',
-							'ratGUID		|	a local copy of the GUID for message construction',
-							'---------------------------------------------------------------------------------------------',
-							'Use /gdpr export to see a copy of your data stored on the server, if any.',
-							'Use /gdpr delete to permanently remove your data from the server. this will prevent you from utilizing the application.'
-							]	
-							gdprMessages.forEach(helpMsg => sendSys(socket, mType.info, helpMsg));
-							if (typeof callback === 'function') callback();
-							return;
-						case 'export':
-							if (!commandUser) {
-								sendSys(socket, mType.error, "system: no server stored data");
-								if (typeof callback === 'function') callback();
-								return;
-							}
-							else{
-								sendSys(socket, mType.info, `Server stored info: ${JSON.stringify(commandUser, null, 4)}`);
-								if (typeof callback === 'function') callback();
-								return;
-							}
-						case 'delete':
-							if (!commandUser){
-								sendSys(socket, mType.error, "system: no server stored data");
-								if (typeof callback === 'function') callback();
-								return;
-							}
-							else{
-								try{
-									identityService.deleteUser(commandUser.guid);
-									updateSocketUser(socket.id, commandUser, 'delete');
-
-									//local deletion ID
-									const sentinelId = {guid: 'RESET_IDENTITY'} as Identity;
-									send(socket, mType.identity, sentinelId);
-
-									sendSys(socket, mType.info, 'goodbye is ur data');
-									sendSys(io, mType.ann, `${commandUser.nick.substring(7)} disconnected`)
-									if (typeof callback === 'function') callback();
-								}
-								catch(e: any) {
-						    	sendSys(socket, mType.error, `system error: ${e.message}`);
-								return;
-								}
-							return;
-							}
-							
-						default:
-							sendSys(socket, mType.error, "system: please use with 'info', 'export' or 'delete' after /gdpr");
-					return;
-					}
-
-				// ------------------------
-				// MODERATOR COMMANDS BELOW:
-				// ------------------------
-
-				//IP ban a user via nickname
-				case 'ban':
-					if(!commandUser?.isMod){
-						if (typeof callback === 'function') callback();
-						sendSys(socket, mType.error, "system: naughty naughty");
-						return;
-					}
-					if(commandUser?.isMod){
-						if (args.length === 0){
-							sendSys(socket, mType.error, "missing target");
-							return;
-						}
-
-						sendSys(io, mType.info, `system: ${fullArgs} has been banned.`);
-						if (typeof callback === 'function') callback();
-						return;
-					}
-					return;
-				
-				//Timeout a user preventing further chatting for 5 min
-				case 'timeout':
-				case 'to':
-					if(!commandUser?.isMod){
-						if (typeof callback === 'function') callback();
-						sendSys(socket, mType.error, "system: naughty naughty");
-						return;
-					}
-					if(commandUser?.isMod){
-						if (args.length === 0){
-							sendSys(socket, mType.error, "missing target");
-							return;
-						}
-
-						sendSys(io, mType.info, `system: ${fullArgs} has been timed out.`);
-						if (typeof callback === 'function') callback();
-						return;
-					}
-					return;
-				
-				//Deletes a message from message history buffer and asks clients nicely to remove from screen
-				case 'delete':
-					if(!commandUser?.isMod){
-						if (typeof callback === 'function') callback();
-						sendSys(socket, mType.error, "system: naughty naughty");
-						return;
-					}
-					if(commandUser?.isMod){
-						if (args.length === 0 || isNaN(Number(args[0]))){
-							sendSys(socket, mType.error, "please provide message id");
-							return;
-						}
-						sendSys(socket, mType.info, `system: deleted message ID ${fullArgs}`);
-						if (typeof callback === 'function') callback();
-						return;
-					}
-					return;
-
-				//Send a global announcement that is stored until server reset
-				case 'announce':
-				case 'announcement':
-					if(!commandUser?.isMod){
-						if (typeof callback === 'function') callback();
-						sendSys(socket, mType.error, "system: naughty naughty");
-						return;
-					}
-					if(commandUser?.isMod){
-						announcement = `${fullArgs}`
-						sendSys(io, mType.ann, `announcement: ${announcement}`);
-						if (typeof callback === 'function') callback();
-						return;
-					}
-				
-				//Failcase
-				default:
-					sendSys(socket, mType.error, "system: that's not a command lol");
-			}
+			try {
+				commandUser = identityService.getUser(socket.handshake.auth.token);
+			} catch { /* Guest user */ }
+			commandService.execute(commandName, {
+				socket,
+				io,
+				args,
+				fullArgs: args.join(' '),
+				commandUser
+			});
+			if (typeof callback === 'function') callback();
 			return;
 		}
 

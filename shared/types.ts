@@ -1,3 +1,5 @@
+import{Server, Socket} from 'socket.io';
+
 export interface Identity {
     guid: string;
     nick: string;
@@ -35,4 +37,12 @@ export interface ServerConfig {
     maxNickLen: number;
     msgArrayLen: number;
     PORT: number;
+}
+
+export interface Command {
+    socket: Socket;
+    io: Server;
+    args: string[];
+    fullArgs: string;
+    commandUser: Identity | null;
 }

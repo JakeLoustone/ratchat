@@ -7,15 +7,17 @@ export interface Identity {
     isAfk: boolean;
 }
 
-export enum messageType{
-    chat = "chat message",
-    info = "toClientInfo",
-    error = "toClientError",
-    announcement = "toClientAnnouncement",
-    welcome = "toClientWelcome",
-    identity = "identity",
-    list = "userlist"
-}
+export const messageTypeObj = {
+    chat: "chat message",
+    info: "toClientInfo",
+    error: "toClientError",
+    announcement: "toClientAnnouncement",
+    welcome: "toClientWelcome",
+    identity: "identity",
+    list: "userlist"
+} as const;
+
+export type messageType = typeof messageTypeObj[keyof typeof messageTypeObj];
 
 export interface ChatMessage {
     id: number;

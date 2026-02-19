@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { writeFileSync, readFileSync } from 'fs';
 import type { Identity, ChatMessage } from '../shared/types.ts';
 import { IdentityService } from './services/identity.ts'
-import { error } from 'node:console';
+import { messageTypeObj } from '../shared/types.ts';
 
 
 const config = JSON.parse(readFileSync('./config.json', 'utf-8'));
@@ -435,7 +435,7 @@ io.on('connection', (socket) => {
 			author: user.nick,
 			content: msg,
 			timestamp: Date.now(),
-			type: "chat message"
+			type: messageTypeObj.chat
 		};
 		//Save message to array and delete oldest if necessary
 		chatHistory.set(chatmsg.id, chatmsg)

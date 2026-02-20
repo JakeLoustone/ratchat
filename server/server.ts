@@ -129,11 +129,15 @@ function updateSocketUser(socketID: string, identity: Identity, updateType: 'upd
 		socketUsers.delete(socketID)
 	}
 	else throw new Error(`bad update type ${updateType}`);
-	uList = Array.from(socketUsers.values()).map(({ nick, status, isAfk }) => ({
-		nick,
-		status,
-		isAfk
-	}));
+	
+	uList = Array.from(socketUsers.values())
+		.map(({ nick, status, isAfk }) => ({ nick, status, isAfk }))
+		.sort((a,b) =>{
+			if(a.isAfk !== b.isAfk){
+				return a.isAfk ? 1 : -1;
+			}
+			return a.nick.substring(7).localeCompare(b.nick.substring(7), 'en', {sensitivity: 'base'});
+		});
 	send(io, mType.list, uList);
 	return;
 }

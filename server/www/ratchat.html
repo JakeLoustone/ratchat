@@ -254,21 +254,46 @@
 			const userListElement = document.getElementById('user-list');
 			userListElement.innerHTML = ''; // Clear current list
 
-			uList.forEach(user => {
+			//build consolidated listing
+			const consolidate = new Map();
+			uList.forEach(user =>{
+				if (consolidate.has(user.nick)){
+					consolidate.get(user.nick).count++;
+				}
+				else{
+					consolidate.set(user.nick, {...user, count: 1})
+				}
+			});
+
+
+			consolidate.forEach(user => {
 				const li = document.createElement('li');
 				li.style.marginBottom = "0.125rem";
 				
 				const userColor = user.nick.substring(0, 7);
 				const userName = user.nick.substring(7);
+
 				const orb = user.isAfk ? 'orb-afk' : 'orb-online';
 				const orbLabel = user.isAfk ? 'AFK' : 'Online'
+
 				const statusText = user.status ? `<div style="font-size:small; color: #444; margin-left: 0.375rem;">${user.status}</div>` : '';
 
+				let displayCount = ''
+
+				if(user.count >9){
+					//no hiscores
+					displayCount = '&nbsp;&nbsp;(a lot)';
+				}
+				else if(user.count > 1){
+					displayCount = `&nbsp;&nbsp;(${user.count})`;
+				}
+
 				li.innerHTML = `
-					<span class="status-orb ${orb}" title="${orbLabel}"></span><span style="color: ${userColor}; font-weight: bold;">${userName}</span>
+					<span class="status-orb ${orb}" title="${orbLabel}"></span><span style="color: ${userColor}; font-weight: bold;">${userName}</span><span style="color: darkslategrey; font-size: medium;">${displayCount}</span>
 					${statusText}
 				`;
 				userListElement.appendChild(li);
+
 					});
 		});
 

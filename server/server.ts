@@ -28,6 +28,9 @@ const io = new Server(httpserver, {connectionStateRecovery:{}});
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const usersPath = join(__dirname, 'data', 'users.json');
 
+const socketUsers = new Map<string, Identity>();
+const chatHistory = new Map<number, ChatMessage>();
+
 //Sys message shorthand
 const sendSys = (to: Target, type: MessageType, text: string) => send(to, type, createMsg(true,'system',text,type as any));
 
@@ -37,10 +40,10 @@ const commandService = new CommandService({
     send: send,
     sendSys: sendSys,
     updateSocketUser: updateSocketUser,
-    setAnnouncement: (text: string) => { announcement = text; }
+    setAnnouncement: (text: string) => { announcement = text; },
+	chatHistory: chatHistory,
 });
-const socketUsers = new Map<string, Identity>();
-const chatHistory = new Map<number, ChatMessage>();
+
 
 let messageCounter = {val: 0};
 
@@ -49,7 +52,7 @@ var uList: UserSum[] = [];
 
 type UserSum = Pick<Identity, "nick" | "status" | "isAfk">
 type Target = Server | Socket;
-type Payload = ChatMessage | Identity | UserSum[];
+type Payload = ChatMessage | Identity | UserSum[] | number[];
 
 //Send helper function
 function send(to: Target, metype: MessageType, msg: Payload): void {	
@@ -70,6 +73,11 @@ function send(to: Target, metype: MessageType, msg: Payload): void {
 				throw new Error(`payload mismatch: ${metype} requires a userSum array.`);
 			}
 		} 
+		else if (metype === mType.delmsg){
+			if (!Array.isArray(msg)){
+				throw new Error(`payload mismatch: ${metype} requires a number array.`);
+			}
+		}
 		else {
 			if (!msg || typeof msg !== 'object' || !('content' in msg)) {
 				throw new Error(`payload mismatch: ${metype} requires a ChatMessage object.`);
@@ -211,9 +219,6 @@ io.on('connection', (socket) => {
 	
 		console.log('message: ' + msg);
 
-		//Build message JSON Object
-		const chatmsg = createMsg(false, user, msg, mType.chat);
-
 		//slowmode check
 		const timeoutUser = returningUser?.lastMessage
 		if(timeoutUser){
@@ -225,6 +230,9 @@ io.on('connection', (socket) => {
 				sendSys(socket, mType.error, `system: you're doing that too fast, wait ${Math.ceil(waitTime)} seconds.`);
 				return;
 			}else{
+				//Build message JSON Object
+				const chatmsg = createMsg(false, user, msg, mType.chat);
+
 				//Save message to array and delete oldest if necessary
 				chatHistory.set(chatmsg.id, chatmsg);
 				identityService.setLastMessage(user.guid, chatmsg.timestamp);

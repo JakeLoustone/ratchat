@@ -272,6 +272,20 @@
 					});
 		});
 
+		//Delete message events
+		socket.on('deleteMsg', (msgArray) => {
+			if(!Array.isArray(msgArray)){
+				return;
+			}
+			msgArray.forEach(id => {
+				const target  = document.querySelector(`li[data-id="${id}"]`)
+				if(target){
+					target.remove();
+				}
+			});
+		});
+
+
 		//message type to css class
 		const toClass = {
 			'toClientChat': '',
@@ -310,8 +324,9 @@
 				nameSpan.style.setProperty('--user-color', userColor);
 				nameSpan.textContent = userName + ": ";
 			item.appendChild(nameSpan)
-			//set hover msg ID
+			//set hover msg ID and data ID
 			item.setAttribute('title', `Msg ID: ${msg.id}`);
+			item.setAttribute('data-id', msg.id);
 			}
 
 			//Message content

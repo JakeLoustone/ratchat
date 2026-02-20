@@ -17,7 +17,8 @@ export const mType = {
     welcome: "toClientWelcome",
     identity: "identity",
     list: "userlist",
-    schat: "toServerChat"
+    schat: "toServerChat",
+    delmsg: "deleteMsg"
 } as const;
 
 export type MessageType = typeof mType[keyof typeof mType];

@@ -1,6 +1,7 @@
 import { Server, Socket } from 'socket.io';
-import { type Command, type Identity, mType } from '../../shared/types.ts';
+import { type Command, type Identity, type ChatMessage, mType } from '../../shared/types.ts';
 import { IdentityService } from '../services/identity.ts';
+import { arrayBuffer } from 'node:stream/consumers';
 
 export interface CommandServiceDependencies {
     identityService: IdentityService;
@@ -8,6 +9,7 @@ export interface CommandServiceDependencies {
     sendSys: (to: Server | Socket, type: any, text: string) => void;
     updateSocketUser: (socketID: string, identity: Identity, updateType: 'update' | 'delete') => void;
     setAnnouncement: (text: string) => void;
+    chatHistory: Map<number, ChatMessage>;
 }
 
 export class CommandService {
@@ -26,18 +28,21 @@ export class CommandService {
         // ------------------------------------------------------------------
         
         this.commands['help'] = (ctx) => {
+
             const helpMessages = [
                 '/help, /h, or /commands : View this list.',
                 '/chrat or /nick <nickname> : Change your nickname to <nickname>.',
-                "/color <#RRGGBB> : Change your nickname's color to hex #RRGGBB.",
+                "/color or /colour <#RRGGBB> : Change your nickname's color to hex #RRGGBB.",
+                //./clear and /clr are handled client side
                 '/clear or /clr : removes all visible messsages on your screen. (others can still see them)',
+                //./export is handled client side
                 "/export : returns your GUID for later importing on other devices. if you like your name don't share it :)",
                 '/import : import a GUID exported earlier to reclaim your nickname. must match exactly!',
                 '/afk : toggle AFK status in the user listing',
                 '/status or /me : set your status in the user listing',
                 '/gdpr <flag> : <info> for more information, <export> for a copy of your data, and <delete> to wipe your data.'
             ];
-            
+
             if (ctx.commandUser?.isMod) {
                 helpMessages.push(
                     '--- Moderator Commands ---',
@@ -47,26 +52,32 @@ export class CommandService {
                     '/announce or /announcement <text> : Send an announcement to all users.'
                 );
             }
+
             helpMessages.forEach(msg => this.deps.sendSys(ctx.socket, mType.info, msg));
         };
 
         this.commands['nick'] = (ctx) => {
+            if (this.isTimedOut(ctx)) return this.deps.sendSys(ctx.socket, mType.error, "system: you're in timeout rn");
+
             const newNick = ctx.args[0];
-            if (!newNick || newNick.length < 2 || newNick.length > 15) {
+
+            if (!newNick || newNick.length < 2 || newNick.length > 16) {
                 return this.deps.sendSys(ctx.socket, mType.error, 'system: please provide a username with at least 2 but less than 15 characters');
             }
+
             try {
                 // If they have no commandUser, extract the GUID from the handshake token directly
                 const guid = ctx.commandUser?.guid || ctx.socket.handshake.auth.token;
                 const oldNick = ctx.commandUser?.nick;
-                
                 const updatedUser = this.deps.identityService.userResolve(guid, newNick);
+
                 this.deps.updateSocketUser(ctx.socket.id, updatedUser, 'update');
                 this.deps.send(ctx.socket, mType.identity, updatedUser);
                 
                 if (oldNick) {
                     this.deps.sendSys(ctx.io, mType.ann, `${oldNick.substring(7)} changed their username to ${updatedUser.nick.substring(7)}`);
-                } else {
+                } 
+                else {
                     this.deps.sendSys(ctx.io, mType.ann, `${updatedUser.nick.substring(7)} has joined teh ratchat`);
                 }
             } catch (e: any) {
@@ -76,37 +87,48 @@ export class CommandService {
 
         this.commands['color'] = (ctx) => {
             if (!ctx.commandUser) return this.deps.sendSys(ctx.socket, mType.error, "system: please use /chrat <nickname> before trying to set a color");
+            if (this.isTimedOut(ctx)) return this.deps.sendSys(ctx.socket, mType.error, "system: you're in timeout rn");
+            
             const hex = ctx.args[0];            
             try {
                 const trimNick = ctx.commandUser.nick.substring(7);
                 const updatedUser = this.deps.identityService.userResolve(ctx.commandUser.guid, trimNick, hex);
+
                 this.deps.updateSocketUser(ctx.socket.id, updatedUser, 'update');
                 this.deps.send(ctx.socket, mType.identity, updatedUser);
                 this.deps.sendSys(ctx.socket, mType.info, `system: your color has been updated to ${hex}`);
+
             } catch (e: any) {
                 this.deps.sendSys(ctx.socket, mType.error, `system error: ${e.message}`);
             }
         };
-
+        
+        //anti-canadian trap
         this.commands['colour'] = (ctx) => this.deps.sendSys(ctx.socket, mType.error, "system: lern to speak american");
 
         this.commands['import'] = (ctx) => {
+            //check arg is legitimate GUID
             const newGUID = ctx.args[0];
             const GUIDregex = new RegExp("^[{]?[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}[}]?$");
-            
             if (!GUIDregex.test(newGUID)) {
                 return this.deps.sendSys(ctx.socket, mType.error, "system: not a valid GUID");
             }
+
             try {
                 const updatedUser = this.deps.identityService.getUser(newGUID);
+
+
                 this.deps.updateSocketUser(ctx.socket.id, updatedUser, 'update');
                 this.deps.send(ctx.socket, mType.identity, updatedUser);
                 this.deps.sendSys(ctx.socket, mType.info, `system: identity changed to ${updatedUser.nick.substring(7)}`);
-
+                
+                //if existing user show them disconnecting
                 if (ctx.commandUser) {
                     this.deps.sendSys(ctx.io, mType.ann, `${ctx.commandUser.nick.substring(7)} disconnected`);
                 }
+
                 this.deps.sendSys(ctx.io, mType.ann, `${updatedUser.nick.substring(7)} connected`);
+
             } catch (e: any) {
                 this.deps.sendSys(ctx.socket, mType.error, `system error: ${e.message}`);
             }
@@ -114,10 +136,14 @@ export class CommandService {
 
         this.commands['afk'] = (ctx) => {
             if (!ctx.commandUser) return this.deps.sendSys(ctx.socket, mType.error, "system: please use /chrat <nickname> before trying to go afk lmao");
+            if (this.isTimedOut(ctx)) return this.deps.sendSys(ctx.socket, mType.error, "system: you're in timeout rn");
+            
             try {
                 const afkUser = this.deps.identityService.toggleAfk(ctx.commandUser.guid);
+
                 this.deps.updateSocketUser(ctx.socket.id, afkUser, 'update');
                 this.deps.sendSys(ctx.socket, mType.info, afkUser.isAfk ? "you've gone afk" : `welcome back, ${afkUser.nick.substring(7)}`);
+
             } catch (e: any) {
                 this.deps.sendSys(ctx.socket, mType.error, `system error: ${e.message}`);
             }
@@ -125,6 +151,7 @@ export class CommandService {
 
         this.commands['status'] = (ctx) => {
             if (!ctx.commandUser) return this.deps.sendSys(ctx.socket, mType.error, "system: please use /chrat <nickname> before trying to facebook post");
+            if (this.isTimedOut(ctx)) return this.deps.sendSys(ctx.socket, mType.error, "system: you're in timeout rn");
             
             //Sanitize
             const noHtml = ctx.fullArgs.replace(/<[^>]*>?/gm, '');
@@ -134,8 +161,10 @@ export class CommandService {
             
             try {
                 const updatedUser = this.deps.identityService.setStatus(ctx.commandUser.guid, newStatus);
+
                 this.deps.updateSocketUser(ctx.socket.id, updatedUser, "update");
                 this.deps.sendSys(ctx.socket, mType.info, `your status is now: ${updatedUser.status}`);
+                
             } catch (e: any) {
                 this.deps.sendSys(ctx.socket, mType.error, `system error: ${e.message}`);
             }
@@ -164,12 +193,16 @@ export class CommandService {
                     ];
                     infoMsgs.forEach(msg => this.deps.sendSys(ctx.socket, mType.info, msg));
                     break;
+
                 case 'export':
                     if (!ctx.commandUser) return this.deps.sendSys(ctx.socket, mType.error, "system: no server stored data");
+
                     this.deps.sendSys(ctx.socket, mType.info, `Server stored info: ${JSON.stringify(ctx.commandUser, null, 4)}`);
                     break;
+
                 case 'delete':
                     if (!ctx.commandUser) return this.deps.sendSys(ctx.socket, mType.error, "system: no server stored data");
+
                     try {
                         this.deps.identityService.deleteUser(ctx.commandUser.guid);
                         this.deps.updateSocketUser(ctx.socket.id, ctx.commandUser, 'delete');
@@ -180,10 +213,13 @@ export class CommandService {
                         
                         this.deps.sendSys(ctx.socket, mType.info, 'goodbye is ur data');
                         this.deps.sendSys(ctx.io, mType.ann, `${ctx.commandUser.nick.substring(7)} disconnected`);
+
                     } catch (e: any) {
                         this.deps.sendSys(ctx.socket, mType.error, `system error: ${e.message}`);
                     }
+
                     break;
+
                 default:
                     this.deps.sendSys(ctx.socket, mType.error, "system: please use with 'info', 'export' or 'delete' after /gdpr");
             }
@@ -195,17 +231,23 @@ export class CommandService {
 
         this.commands['announce'] = (ctx) => {
             if (!ctx.commandUser?.isMod) return this.deps.sendSys(ctx.socket, mType.error, "naughty naughty");
+            if (this.isTimedOut(ctx)) return this.deps.sendSys(ctx.socket, mType.error, "system: you're in timeout rn");
+
+            //Sanitize
             const noHtml = ctx.fullArgs.replace(/<[^>]*>?/gm, '');
             const newAnnounce = noHtml.replace(/[^\x20-\x7E]/g, '');
+
             if (newAnnounce.trim().length > 0) {
                 this.deps.setAnnouncement(newAnnounce);
                 this.deps.sendSys(ctx.io, mType.ann, `announcement: ${newAnnounce}`);
-            } else {
+            } 
+            else {
                 // Clear announcement
                 this.deps.setAnnouncement('');
                 this.deps.sendSys(ctx.socket, mType.info, 'announcement cleared');
             }
         };
+         
         this.commands['ban'] = (ctx) => {
             if (!ctx.commandUser?.isMod) return this.deps.sendSys(ctx.socket, mType.error, "naughty naughty");
             if (!ctx.args[0]) return this.deps.sendSys(ctx.socket, mType.error, "missing target");
@@ -215,18 +257,55 @@ export class CommandService {
         this.commands['timeout'] = (ctx) => {
             if (!ctx.commandUser?.isMod) return this.deps.sendSys(ctx.socket, mType.error, "naughty naughty");
             if (!ctx.args[0]) return this.deps.sendSys(ctx.socket, mType.error, "missing target");
-            this.deps.sendSys(ctx.io, mType.info, `${ctx.fullArgs} has been timed out.`);
+            
+            const targetNick = ctx.args[0]
+            try{
+                const targetUser = this.deps.identityService.getUserByNick(targetNick)
+                
+                //set duration in seconds
+                const durationInput = parseInt(ctx.args[1]);
+                const duration = isNaN(durationInput) || durationInput <0 ? 300 : durationInput;
+                const now = Date.now();
+
+                //apply the timeout to the future
+                const unMute = now + (duration * 1000);
+                this.deps.identityService.setLastMessage(targetUser.guid, unMute);
+
+                //messages to delete
+                const msgArray: number[] = []
+                for (const [id, msg] of this.deps.chatHistory){
+                    const msgNick = msg.author.substring(7);
+                    if(msgNick === targetNick){
+                        msgArray.push(id);
+                    }
+                }
+
+                //delete messages if any
+                if (msgArray.length > 0){
+                    this.delMessage(ctx, msgArray);
+                }
+
+                this.deps.sendSys(ctx.io, mType.info, `${targetNick} has been timed out.`);
+            
+            } catch(error: any){
+                return this.deps.sendSys(ctx.socket, mType.error, `${error.message}`);   
+            }
         };
 
         this.commands['delete'] = (ctx) => {
             if (!ctx.commandUser?.isMod) return this.deps.sendSys(ctx.socket, mType.error, "naughty naughty");
             if (!ctx.args[0] || isNaN(Number(ctx.args[0]))) return this.deps.sendSys(ctx.socket, mType.error, "please provide message id");
-            this.deps.sendSys(ctx.socket, mType.info, `deleted message ID ${ctx.fullArgs}`);
+
+            const delArray : number[] = [];
+            delArray.push(Number(ctx.args[0]));
+
+            this.delMessage(ctx,delArray);
         };
 
         // ------------------------------------------------------------------
         // ALIASES
         // ------------------------------------------------------------------
+
         this.commands['h'] = this.commands['commands'] = this.commands['help'];
         this.commands['chrat'] = this.commands['nick'];
         this.commands['me'] = this.commands['status'];
@@ -234,6 +313,7 @@ export class CommandService {
         this.commands['announcement'] = this.commands['announce'];
     }
 
+    //Bad command catch
     public execute(name: string, ctx: Command) {
         const handler = this.commands[name];
         if (handler) {
@@ -241,5 +321,21 @@ export class CommandService {
         } else {
             this.deps.sendSys(ctx.socket, mType.error, "system: that's not a command lol");
         }
+    }
+
+    //Deletion helper function
+    private delMessage(ctx: Command, msgArray: number[]): void {
+            this.deps.send(ctx.io, mType.delmsg, msgArray);
+            msgArray.forEach(id => { 
+                this.deps.chatHistory.delete(id);
+                this.deps.sendSys(ctx.socket, mType.info, `message ID ${id} deleted.`)
+        });
+    }
+
+    //Timeout check to prevent command abuse
+    private isTimedOut(ctx: Command): boolean {
+        if (!ctx.commandUser) return false;
+        const lastMsg = new Date(ctx.commandUser.lastMessage).getTime();
+        return lastMsg > Date.now();
     }
 }

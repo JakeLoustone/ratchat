@@ -10,62 +10,62 @@ export class IdentityService {
     private userList: string;
 
     constructor(storagePath: string) {
-	this.userList = storagePath;
-	this.loadData();
+		this.userList = storagePath;
+		this.loadData();
     }
 
     public userResolve(guid: string | null, nick: string, color?: string): Identity{
-	const sanitizeNick = nick.replace(/[^\w\s]/gi,  '').trim();
+		const sanitizeNick = nick.replace(/[^\w\s]/gi,  '').trim();
 
-	const validColor = ( color && /^#[0-9A-F]{6}$/i.test(color));
+		const validColor = ( color && /^#[0-9A-F]{6}$/i.test(color));
 
-	if (color && !validColor) {
-	    throw new Error('invalid hex code. please use format #RRGGBB');
-	}
+		if (color && !validColor) {
+			throw new Error('invalid hex code. please use format #RRGGBB');
+		}
 
-	if (sanitizeNick.length < 2 || sanitizeNick.length > 15) {
-	    throw new Error('nickname must be between 2 and 15 characters')
-	}
+		if (sanitizeNick.length < 2 || sanitizeNick.length > 15) {
+			throw new Error('nickname must be between 2 and 15 characters')
+		}
 
 
-	//Returning user check
-	if (guid && this.users.has(guid)) {
-	    const user = this.users.get(guid)!;
-	    const oldNick = user.nick.substring(7);
-	    // Changing nickname check
-	    if(sanitizeNick !== oldNick) {
+		//Returning user check
+		if (guid && this.users.has(guid)) {
+			const user = this.users.get(guid)!;
+			const oldNick = user.nick.substring(7);
+			// Changing nickname check
+			if(sanitizeNick !== oldNick) {
+			if (this.registeredNicks.has(sanitizeNick)) {
+				throw new Error('nickname is already in use');
+			}
+
+			this.registeredNicks.delete(oldNick);
+			this.registeredNicks.set(sanitizeNick, guid);
+			}
+			const oldColor = user.nick.substring(0,7)
+
+			const newColor = validColor ? color! : oldColor;
+			user.nick = newColor + sanitizeNick;
+			this.saveData();
+			return user;
+		}
 		if (this.registeredNicks.has(sanitizeNick)) {
-		    throw new Error('nickname is already in use');
+			throw new Error('nickname is already in use');
 		}
 
-		this.registeredNicks.delete(oldNick);
-		this.registeredNicks.set(sanitizeNick, guid);
-		}
-		const oldColor = user.nick.substring(0,7)
-
-		const newColor = validColor ? color! : oldColor;
-		user.nick = newColor + sanitizeNick;
+		const newGuid = guid || uuidv4();
+		const newIdentity: Identity = {
+			guid: newGuid,
+			nick: (color || '#000000') + sanitizeNick,
+			status: 'online',
+			isMod: false,
+			lastMessage: new Date(0),
+			isAfk: false
+		};
+		
+		this.users.set(newGuid, newIdentity);
+		this.registeredNicks.set(sanitizeNick, newGuid);
 		this.saveData();
-		return user;
-	}
-	if (this.registeredNicks.has(sanitizeNick)) {
-	    throw new Error('nickname is already in use');
-	}
-
-	const newGuid = guid || uuidv4();
-	const newIdentity: Identity = {
-	    guid: newGuid,
-	    nick: (color || '#000000') + sanitizeNick,
-	    status: 'online',
-	    isMod: false,
-	    lastMessage: new Date(0),
-		isAfk: false
-	};
-	
-	this.users.set(newGuid, newIdentity);
-	this.registeredNicks.set(sanitizeNick, newGuid);
-	this.saveData();
-	return newIdentity;
+		return newIdentity;
     }
 
     public getUser(guid: string): Identity {
@@ -104,14 +104,26 @@ export class IdentityService {
 	}
 
 	public setLastMessage(guid: string, msgdate: number): Identity {
-	const user = this.users.get(guid);
-	const newDate = msgdate;
-	if(!user){
-		throw new Error('No matching user found to GUID')
+		const user = this.users.get(guid);
+		const newDate = msgdate;
+		if(!user){
+			throw new Error('No matching user found to GUID')
+		}
+		user.lastMessage = new Date(newDate);
+		this.saveData();
+		return user;
 	}
-	user.lastMessage = new Date(newDate);
-	this.saveData();
-	return user;
+
+	public getUserByNick(cleanNick: string): Identity {
+		const guid = this.registeredNicks.get(cleanNick.trim());
+		if(!guid){
+			throw new Error(`couldn't find user with nickname ${cleanNick}`);
+		}
+		const user = this.users.get(guid);
+		if(!user){
+			throw new Error(`couldn't find user with nickname ${cleanNick}`);
+		}
+		return user;
 	}
 
 	public deleteUser(guid: string): void {
@@ -133,39 +145,39 @@ export class IdentityService {
 	}
     
 	private loadData() {
-	try {
-	    if (!fs.existsSync(this.userList)) {
-		return;
-	    }
+		try {
+			if (!fs.existsSync(this.userList)) {
+			return;
+			}
 
-	    const data = fs.readFileSync(this.userList, 'utf-8');
-	    const parseData: [string, Identity][] = JSON.parse(data);
+			const data = fs.readFileSync(this.userList, 'utf-8');
+			const parseData: [string, Identity][] = JSON.parse(data);
 
-	    this.users = new Map(parseData);
-	    this.registeredNicks.clear();
+			this.users = new Map(parseData);
+			this.registeredNicks.clear();
 
 
-	    for (const [guid, identity] of this.users.entries()) {
-		const existingNick = identity.nick.substring(7)
-		this.registeredNicks.set(existingNick, guid);
-	    }
-	    console.log(`loaded ${this.users.size} users`);
-	} catch (e: any) {
-	    console.error('Failed to load user data', `${e.message}`);
-	}
+			for (const [guid, identity] of this.users.entries()) {
+			const existingNick = identity.nick.substring(7)
+			this.registeredNicks.set(existingNick, guid);
+			}
+			console.log(`loaded ${this.users.size} users`);
+		} catch (e: any) {
+			console.error('Failed to load user data', `${e.message}`);
+		}
     }
 
     private saveData() {
-	try {
-	    const dir = path.dirname(this.userList);
-	    if (!fs.existsSync(dir)) {
-		fs.mkdirSync(dir, {recursive: true});
-	    }
+		try {
+			const dir = path.dirname(this.userList);
+			if (!fs.existsSync(dir)) {
+			fs.mkdirSync(dir, {recursive: true});
+			}
 
-	    const data = Array.from(this.users.entries());
-	    fs.writeFileSync(this.userList, JSON.stringify(data, null, 4));
-	} catch (e: any) {
-	    console.error('failed to save user data', `${e.message}`);
-	}
+			const data = Array.from(this.users.entries());
+			fs.writeFileSync(this.userList, JSON.stringify(data, null, 4));
+		} catch (e: any) {
+			console.error('failed to save user data', `${e.message}`);
+		}
     }
 }

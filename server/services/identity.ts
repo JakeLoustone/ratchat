@@ -103,6 +103,17 @@ export class IdentityService {
 		return user;
 	}
 
+	public setLastMessage(guid: string, msgdate: number): Identity {
+	const user = this.users.get(guid);
+	const newDate = msgdate;
+	if(!user){
+		throw new Error('No matching user found to GUID')
+	}
+	user.lastMessage = new Date(newDate);
+	this.saveData();
+	return user;
+	}
+
 	public deleteUser(guid: string): void {
 		const user = this.users.get(guid);
 		if(!user){

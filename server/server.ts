@@ -152,7 +152,9 @@ io.on('connection', (socket) => {
 	    updateSocketUser(socket.id, returningUser, 'update');
 		send(socket, mType.identity, returningUser);
 		sendSys(socket, mType.info, `welcome back, ${returningUser.nick.substring(7)}`);
-	} else {
+	} 
+	//New user flow
+	else {
 	    sendSys(socket,mType.error,"system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
 		//GDPR warning
 		sendSys(socket,mType.error,"system: be aware either command will store data regarding your session. type '/gdpr info' for more info");
@@ -208,24 +210,39 @@ io.on('connection', (socket) => {
 		}
 	
 		console.log('message: ' + msg);
-		
+
 		//Build message JSON Object
-		const chatmsg = createMsg(false, user, msg, mType.chat)
+		const chatmsg = createMsg(false, user, msg, mType.chat);
 
-		//Save message to array and delete oldest if necessary
-		chatHistory.set(chatmsg.id, chatmsg)
-		if (chatHistory.size > config.msgArrayLen){
-			const oldestMessage = chatHistory.keys().next().value;
-			if (oldestMessage  !== undefined) {
-       			chatHistory.delete(oldestMessage);
-    		}
-		}
-		//Send message JSON object to all connected sockets
-		send(io, mType.chat, chatmsg);
+		//slowmode check
+		const timeoutUser = returningUser?.lastMessage
+		if(timeoutUser){
+			const timeoutTime = new Date(timeoutUser).getTime() + (config.slowMode*1000);
+			const now = Date.now();
+			const waitTime = (timeoutTime - now)/1000;
 
-		//Send callback for input clearing
-		if (typeof callback === 'function') {
-			callback();
+			if(now < timeoutTime){
+				sendSys(socket, mType.error, `system: you're doing that too fast, wait ${Math.ceil(waitTime)} seconds.`);
+				return;
+			}else{
+				//Save message to array and delete oldest if necessary
+				chatHistory.set(chatmsg.id, chatmsg);
+				identityService.setLastMessage(user.guid, chatmsg.timestamp);
+				if (chatHistory.size > config.msgArrayLen){
+					const oldestMessage = chatHistory.keys().next().value;
+					if (oldestMessage  !== undefined) {
+						chatHistory.delete(oldestMessage);
+					}
+				}
+
+			//Send message JSON object to all connected sockets
+			send(io, mType.chat, chatmsg);
+
+			//Send callback for input clearing
+			if (typeof callback === 'function') {
+				callback();
+			}
+			}
 		}
     });
 

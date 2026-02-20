@@ -10,6 +10,7 @@ export interface CommandServiceDependencies {
     updateSocketUser: (socketID: string, identity: Identity, updateType: 'update' | 'delete') => void;
     setAnnouncement: (text: string) => void;
     chatHistory: Map<number, ChatMessage>;
+    socketUsers: Map<string, Identity>;
 }
 
 export class CommandService {
@@ -204,15 +205,26 @@ export class CommandService {
                     if (!ctx.commandUser) return this.deps.sendSys(ctx.socket, mType.error, "system: no server stored data");
 
                     try {
-                        this.deps.identityService.deleteUser(ctx.commandUser.guid);
-                        this.deps.updateSocketUser(ctx.socket.id, ctx.commandUser, 'delete');
-                        
+                        const targetGuid = ctx.commandUser.guid;
+                        const targetNick = ctx.commandUser.nick;
+                
                         // Local deletion ID
                         const sentinelId = { guid: 'RESET_IDENTITY' } as Identity;
-                        this.deps.send(ctx.socket, mType.identity, sentinelId);
                         
-                        this.deps.sendSys(ctx.socket, mType.info, 'goodbye is ur data');
-                        this.deps.sendSys(ctx.io, mType.ann, `${ctx.commandUser.nick.substring(7)} disconnected`);
+                        //iterate through all sockets to find matches
+                        const allSockets = ctx.io.sockets.sockets;
+                        allSockets.forEach((socket) => {
+                            const mappedUser = this.deps.socketUsers.get(socket.id);
+                            if(mappedUser && mappedUser.guid === targetGuid){
+                                this.deps.send(socket, mType.identity, sentinelId);
+                                this.deps.updateSocketUser(socket.id, ctx.commandUser!, 'delete');
+                                this.deps.sendSys(socket, mType.info, 'goodbye is ur data');
+                            }
+
+                        });
+
+                        this.deps.identityService.deleteUser(targetGuid);
+                        this.deps.sendSys(ctx.io, mType.ann, `${targetNick.substring(7)} disconnected`);
 
                     } catch (e: any) {
                         this.deps.sendSys(ctx.socket, mType.error, `system error: ${e.message}`);

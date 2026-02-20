@@ -10,13 +10,10 @@ import { CommandService } from './services/command.ts';
 import { mType } from '../shared/types.ts';
 
 //TODO: ip collection
-//TODO: timeout enforcement
 //TODO: ban enforcement
 //TODO: add /nick timing restriction
-//TODO: message deletion
 //TODO: nickname protection
 //TODO: bad word enforcement
-//TODO: announcement santiziation
 //TODO: client 7tv integration?
 //TODO: client background changing?
 //TODO: MIT licenses?
@@ -42,8 +39,8 @@ const commandService = new CommandService({
     updateSocketUser: updateSocketUser,
     setAnnouncement: (text: string) => { announcement = text; },
 	chatHistory: chatHistory,
+	socketUsers: socketUsers,
 });
-
 
 let messageCounter = {val: 0};
 
@@ -121,7 +118,12 @@ function createMsg(
 //Helper function for socketUsers updates
 function updateSocketUser(socketID: string, identity: Identity, updateType: 'update' | 'delete'): void {
 	if(updateType === 'update'){
-		socketUsers.set(socketID, identity)
+		socketUsers.set(socketID, identity);
+		for (const [sId, user] of socketUsers.entries()) {
+            if (user.guid === identity.guid && sId !== socketID) {
+                socketUsers.set(sId, identity); 
+            }
+        }
 	}
 	else if(updateType === 'delete'){
 		socketUsers.delete(socketID)
@@ -198,7 +200,7 @@ io.on('connection', (socket) => {
 				io,
 				args,
 				fullArgs: args.join(' '),
-				commandUser
+				commandUser: user || commandUser
 			});
 			if (typeof callback === 'function') callback();
 			return;
@@ -219,8 +221,8 @@ io.on('connection', (socket) => {
 	
 		console.log('message: ' + msg);
 
-		//slowmode check
-		const timeoutUser = returningUser?.lastMessage
+		//slowmode and timeout check
+		const timeoutUser = user?.lastMessage
 		if(timeoutUser){
 			const timeoutTime = new Date(timeoutUser).getTime() + (config.slowMode*1000);
 			const now = Date.now();
@@ -235,21 +237,25 @@ io.on('connection', (socket) => {
 
 				//Save message to array and delete oldest if necessary
 				chatHistory.set(chatmsg.id, chatmsg);
-				identityService.setLastMessage(user.guid, chatmsg.timestamp);
-				if (chatHistory.size > config.msgArrayLen){
-					const oldestMessage = chatHistory.keys().next().value;
-					if (oldestMessage  !== undefined) {
-						chatHistory.delete(oldestMessage);
+				try{
+					identityService.setLastMessage(user.guid, chatmsg.timestamp);
+					if (chatHistory.size > config.msgArrayLen){
+						const oldestMessage = chatHistory.keys().next().value;
+						if (oldestMessage  !== undefined) {
+							chatHistory.delete(oldestMessage);
+						}
 					}
+				} catch (error: any){
+					console.warn(`${error.message}`);
 				}
 
 			//Send message JSON object to all connected sockets
 			send(io, mType.chat, chatmsg);
 
 			//Send callback for input clearing
-			if (typeof callback === 'function') {
-				callback();
-			}
+				if (typeof callback === 'function') {
+					callback();
+				}
 			}
 		}
     });

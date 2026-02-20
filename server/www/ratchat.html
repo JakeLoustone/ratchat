@@ -14,7 +14,7 @@
 		}
 
 		.window-body {
-    		display: flex;
+			display: flex;
 			flex-direction: column;
 			height: calc(100vh - 2rem);
 			margin: 0 !important;
@@ -84,7 +84,7 @@
 
 		.orb-afk {
 			background: radial-gradient(circle at 0.1875rem 0.1875rem, #ffb84d, #ff8c00);
-    		box-shadow: 0.0625rem 0.0625rem 0.0625rem rgba(0,0,0,0.3);
+			box-shadow: 0.0625rem 0.0625rem 0.0625rem rgba(0,0,0,0.3);
 		}
 
 		#messages-container {
@@ -153,41 +153,41 @@
 	</head>
 
 	<body>
-    <div class="window" style="width: 99.7%; height: 100vh; display: flex; flex-direction: column;">
-        <div class="title-bar">
-            <div class="title-bar-text">ratchat</div>
-            <div class="title-bar-controls">
-                <button aria-label="Minimize"></button>
-                <button aria-label="Maximize"></button>
-                <button aria-label="Close"></button>
-            </div>
-        </div>
+	<div class="window" style="width: 99.7%; height: 100vh; display: flex; flex-direction: column;">
+		<div class="title-bar">
+			<div class="title-bar-text">ratchat</div>
+			<div class="title-bar-controls">
+				<button aria-label="Minimize"></button>
+				<button aria-label="Maximize"></button>
+				<button aria-label="Close"></button>
+			</div>
+		</div>
 
-        <div class="window-body">
-            <div style="display: flex; flex-direction: row; flex-grow: 1; overflow: hidden; gap: 0.25rem;">
-                <div id="messages-container">
-                    <ul id="messages"></ul>
-                </div>
-                
-                <div id="user-sidebar" class="user-sidebar">
-                    <ul id="user-list" class="user-list"></ul>
-                </div>
-            </div>
+		<div class="window-body">
+			<div style="display: flex; flex-direction: row; flex-grow: 1; overflow: hidden; gap: 0.25rem;">
+				<div id="messages-container">
+					<ul id="messages"></ul>
+				</div>
+				
+				<div id="user-sidebar" class="user-sidebar">
+					<ul id="user-list" class="user-list"></ul>
+				</div>
+			</div>
 
-            <form id="form" action="">
-                <input id="input" type="text" autocomplete="off" />
-                <button type="submit">Send</button>
-            </form>
-        </div>
-    </div>
+			<form id="form" action="">
+				<input id="input" type="text" autocomplete="off" />
+				<button type="submit">Send</button>
+			</form>
+		</div>
+	</div>
 	<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script> 
 
 	<script>
 		const localGUID = localStorage.getItem('ratGUID');
 		const socket = io({
-		    auth: {
+			auth: {
 			token: localGUID
-		    }
+			}
 		});
 		const form = document.getElementById('form');
 		const input = document.getElementById('input');
@@ -215,8 +215,8 @@
 			if (val.startsWith('/export') && val.length === 7) {
 				const oldGUID = localStorage.getItem('ratGUID');
 				if (!oldGUID) {
-       				systemMessage("you ain't got no ID, you ain't gettin in this bar.", 's-li');
-       				return;
+	   				systemMessage("you ain't got no ID, you ain't gettin in this bar.", 's-li');
+	   				return;
 				}
 				systemMessage(`Your GUID is: ${oldGUID}`, 'i-li')
 				input.value = '';
@@ -345,7 +345,7 @@
 			const userName = msg.author.substring(7);
 			const userColor = msg.author.substring(0,7);
 			const nameSpan = document.createElement('span');
-            nameSpan.className = "user-name";
+			nameSpan.className = "user-name";
 				nameSpan.style.setProperty('--user-color', userColor);
 				nameSpan.textContent = userName + ": ";
 			item.appendChild(nameSpan)

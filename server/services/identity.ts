@@ -5,16 +5,16 @@ import * as path from 'path';
 
 
 export class IdentityService {
-    private users: Map<string, Identity> = new Map();
-    private registeredNicks: Map<string, string> = new Map();
-    private userList: string;
+	private users: Map<string, Identity> = new Map();
+	private registeredNicks: Map<string, string> = new Map();
+	private userList: string;
 
-    constructor(storagePath: string) {
+	constructor(storagePath: string) {
 		this.userList = storagePath;
 		this.loadData();
-    }
+	}
 
-    public userResolve(guid: string | null, nick: string, color?: string): Identity{
+	public userResolve(guid: string | null, nick: string, color?: string): Identity{
 		const sanitizeNick = nick.replace(/[^\w\s]/gi,  '').trim();
 
 		const validColor = ( color && /^#[0-9A-F]{6}$/i.test(color));
@@ -66,15 +66,15 @@ export class IdentityService {
 		this.registeredNicks.set(sanitizeNick, newGuid);
 		this.saveData();
 		return newIdentity;
-    }
+	}
 
-    public getUser(guid: string): Identity {
+	public getUser(guid: string): Identity {
 		const user = this.users.get(guid);
 		if(!user){
 			throw new Error('No matching user found to GUID')
 		}
 		return user;
-    }
+	}
 
 	public toggleAfk(guid: string): Identity {
 		const user = this.users.get(guid);
@@ -90,7 +90,7 @@ export class IdentityService {
 			this.saveData();
 		}
 		return user;
-    }
+	}
 
 	public setStatus(guid: string, status: string): Identity {
 		const user = this.users.get(guid);
@@ -139,11 +139,11 @@ export class IdentityService {
 	}
 
 
-    public nickAvailable(nick: string): boolean {
+	public nickAvailable(nick: string): boolean {
 		const clean = nick.replace(/[^\w\s]/gi, '').trim();
 		return !this.registeredNicks.has(clean);
 	}
-    
+	
 	private loadData() {
 		try {
 			if (!fs.existsSync(this.userList)) {
@@ -165,9 +165,9 @@ export class IdentityService {
 		} catch (e: any) {
 			console.error('Failed to load user data', `${e.message}`);
 		}
-    }
+	}
 
-    private saveData() {
+	private saveData() {
 		try {
 			const dir = path.dirname(this.userList);
 			if (!fs.existsSync(dir)) {
@@ -179,5 +179,5 @@ export class IdentityService {
 		} catch (e: any) {
 			console.error('failed to save user data', `${e.message}`);
 		}
-    }
+	}
 }

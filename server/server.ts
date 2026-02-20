@@ -33,11 +33,11 @@ const sendSys = (to: Target, type: MessageType, text: string) => send(to, type, 
 
 const identityService = new IdentityService(usersPath);
 const commandService = new CommandService({
-    identityService: identityService,
-    send: send,
-    sendSys: sendSys,
-    updateSocketUser: updateSocketUser,
-    setAnnouncement: (text: string) => { announcement = text; },
+	identityService: identityService,
+	send: send,
+	sendSys: sendSys,
+	updateSocketUser: updateSocketUser,
+	setAnnouncement: (text: string) => { announcement = text; },
 	chatHistory: chatHistory,
 	socketUsers: socketUsers,
 });
@@ -120,10 +120,10 @@ function updateSocketUser(socketID: string, identity: Identity, updateType: 'upd
 	if(updateType === 'update'){
 		socketUsers.set(socketID, identity);
 		for (const [sId, user] of socketUsers.entries()) {
-            if (user.guid === identity.guid && sId !== socketID) {
-                socketUsers.set(sId, identity); 
-            }
-        }
+			if (user.guid === identity.guid && sId !== socketID) {
+				socketUsers.set(sId, identity); 
+			}
+		}
 	}
 	else if(updateType === 'delete'){
 		socketUsers.delete(socketID)
@@ -163,13 +163,13 @@ io.on('connection', (socket) => {
 
 	//Returning user check
 	if (returningUser) {
-	    updateSocketUser(socket.id, returningUser, 'update');
+		updateSocketUser(socket.id, returningUser, 'update');
 		send(socket, mType.identity, returningUser);
 		sendSys(socket, mType.info, `welcome back, ${returningUser.nick.substring(7)}`);
 	} 
 	//New user flow
 	else {
-	    sendSys(socket,mType.error,"system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
+		sendSys(socket,mType.error,"system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
 		//GDPR warning
 		sendSys(socket,mType.error,"system: be aware either command will store data regarding your session. type '/gdpr info' for more info");
 	}
@@ -195,32 +195,42 @@ io.on('connection', (socket) => {
 		if (msg.startsWith('/')) {
 			const args = msg.slice(1).trim().split(/ +/);
 			const commandName = args.shift()?.toLowerCase() || '';
+
 			let commandUser: Identity | null = null;
 			try {
 				commandUser = identityService.getUser(socket.handshake.auth.token);
-			} catch { /* Guest user */ }
-			commandService.execute(commandName, {
+			} catch {
+			}
+
+			const success = commandService.execute(commandName, {
 				socket,
 				io,
 				args,
 				fullArgs: args.join(' '),
 				commandUser: user || commandUser
 			});
-			if (typeof callback === 'function') callback();
+
+			if(success && typeof callback === 'function'){
+				callback();
+			}
+
 			return;
 		}
 
 		//Prevent users from chatting without an identity
 		if (!user) {
-		    sendSys(socket, mType.error, "system: please set your nickname with /chrat <nickname> before chatting");
-		    if (typeof callback === 'function') callback();
-		    return;
+			sendSys(socket, mType.error, "system: please set your nickname with /chrat <nickname> before chatting");
+			if (typeof callback === 'function') callback();
+			return;
 		}
 
 		//Check message length	
 		if (msg.length > config.maxMsgLen) {
-	    	sendSys(socket, mType.error, 'system: sorry your message is too long lmao');
-	    	return;
+			sendSys(socket, mType.error, 'system: sorry your message is too long lmao');
+			return;
+		}
+		else if (msg.trim().length === 0){
+			return;
 		}
 	
 		console.log('message: ' + msg);
@@ -262,27 +272,27 @@ io.on('connection', (socket) => {
 				}
 			}
 		}
-    });
+	});
 
 	//On socket discconect flow
-    socket.on('disconnect', () => {
+	socket.on('disconnect', () => {
 	console.log('a user disconnected');
 	const disuser =socketUsers.get(socket.id)
 	if(disuser){
 	updateSocketUser(socket.id, disuser, 'delete');
 	sendSys(io, mType.ann, `${disuser.nick.substring(7)} disconnected`);
 	}
-    });
+	});
 });
 
 //Get HTML file
 app.get('/ratchat', (req, res) => {
 	res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-    res.sendFile('www/ratchat.html', { root : __dirname });
+	res.sendFile('www/ratchat.html', { root : __dirname });
 });
 
 //Server standup
 httpserver.listen(config.PORT, () => {
-    console.log(JSON.stringify(config));
-    console.log(`server running at http://localhost:${config.PORT}`);
+	console.log(JSON.stringify(config));
+	console.log(`server running at http://localhost:${config.PORT}`);
 });

@@ -3,10 +3,12 @@ import{Server, Socket} from 'socket.io';
 export interface Identity {
 	guid: string;
 	nick: string;
+	lastChanged: Date;
 	status: string;
 	isMod: boolean;
 	lastMessage: Date;
 	isAfk: boolean;
+	ip: string
 }
 
 export const mType = {
@@ -18,7 +20,8 @@ export const mType = {
 	identity: "identity",
 	list: "userlist",
 	schat: "toServerChat",
-	delmsg: "deleteMsg"
+	delmsg: "deleteMsg",
+	emote: "emote"
 } as const;
 
 export type MessageType = typeof mType[keyof typeof mType];
@@ -37,6 +40,7 @@ export interface ServerConfig {
 	maxMsgLen: number;
 	maxNickLen: number;
 	msgArrayLen: number;
+	stvurl: string;
 	PORT: number;
 }
 

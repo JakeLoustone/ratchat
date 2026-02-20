@@ -56,10 +56,12 @@ export class IdentityService {
 		const newIdentity: Identity = {
 			guid: newGuid,
 			nick: (color || '#000000') + sanitizeNick,
+			lastChanged: new Date(0),
 			status: 'online',
 			isMod: false,
 			lastMessage: new Date(0),
-			isAfk: false
+			isAfk: false,
+			ip: '0'
 		};
 		
 		this.users.set(newGuid, newIdentity);

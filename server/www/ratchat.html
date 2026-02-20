@@ -101,7 +101,11 @@
 			display: flex;
 			flex-direction: column;
 		}
-
+		.emote {
+			height: 1.5rem;
+			vertical-align: bottom;
+			margin: -0.1rem;
+		}
 		#messages {
 			list-style-type: none;
 			margin: 0;
@@ -181,7 +185,7 @@
 		</div>
 	</div>
 	<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script> 
-
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.3/purify.min.js"></script>
 	<script>
 		const localGUID = localStorage.getItem('ratGUID');
 		const socket = io({
@@ -192,6 +196,7 @@
 		const form = document.getElementById('form');
 		const input = document.getElementById('input');
 		const messages = document.getElementById('messages');
+		let emotes = {};
 
 		//Helper function for non user messages
 		const systemMessage = (msg, className) => {
@@ -249,10 +254,15 @@
 			}
 		});
 
+		//Emote events
+		socket.on('emote', (payload) =>{
+			emotes = payload;
+		});
+
 		//User list events
 		socket.on('userlist', (uList) => {
 			const userListElement = document.getElementById('user-list');
-			userListElement.innerHTML = ''; // Clear current list
+			userListElement.replaceChildren();
 
 			//build consolidated listing
 			const consolidate = new Map();
@@ -264,7 +274,6 @@
 					consolidate.set(user.nick, {...user, count: 1})
 				}
 			});
-
 
 			consolidate.forEach(user => {
 				const li = document.createElement('li');
@@ -288,12 +297,18 @@
 					displayCount = `&nbsp;&nbsp;(${user.count})`;
 				}
 
-				li.innerHTML = `
+				const dirty = (`
 					<span class="status-orb ${orb}" title="${orbLabel}"></span><span style="color: ${userColor}; font-weight: bold;">${userName}</span><span style="color: darkslategrey; font-size: medium;">${displayCount}</span>
 					${statusText}
-				`;
+				`);
+				if (window.DOMPurify){
+					li.innerHTML = DOMPurify.sanitize(dirty);
+				}
+				else{
+					li.textContent = `${userName}${user.status ? ` (${user.status})` : ''}`;
+					li.style.color = userColor	
+				}
 				userListElement.appendChild(li);
-
 					});
 		});
 
@@ -328,7 +343,7 @@
 
 			//message type classification
 			const className = toClass[msg.type];
-   			if (className) item.classList.add(className);
+			if (className) item.classList.add(className);
 
 			//Date constructor
 			if(msg.id !== -1){
@@ -349,14 +364,33 @@
 				nameSpan.style.setProperty('--user-color', userColor);
 				nameSpan.textContent = userName + ": ";
 			item.appendChild(nameSpan)
+
 			//set hover msg ID and data ID
 			item.setAttribute('title', `Msg ID: ${msg.id}`);
 			item.setAttribute('data-id', msg.id);
 			}
 
+			//emotify function
+			const emotify = (text) =>{
+				return text.split(' ').map(word => {
+					if (emotes[word]) {
+						return `<img src="${emotes[word]}" title="${word}" alt="${word}" class="emote">`;
+					}
+				return word;
+				}).join(' ');
+			};
+
 			//Message content
 			const contentSpan = document.createElement('span')
+			const raw = emotify(msg.content)
+
+			if(window.DOMPurify){
+				contentSpan.innerHTML = DOMPurify.sanitize(raw);
+			}
+			else{
 				contentSpan.textContent = msg.content;
+			}
+			
 			item.appendChild(contentSpan);
 
 			//finalize

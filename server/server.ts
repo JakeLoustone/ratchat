@@ -3,7 +3,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'node:url';
-import { writeFileSync, readFileSync } from 'fs';
+import { readFileSync } from 'fs';
 import type { Identity, ChatMessage, MessageType } from '../shared/types.ts';
 import { IdentityService } from './services/identity.ts'
 import { CommandService } from './services/command.ts';
@@ -11,9 +11,12 @@ import { mType } from '../shared/types.ts';
 
 //TODO: ip collection
 //TODO: ban enforcement
+
 //TODO: add /nick timing restriction
 //TODO: nickname protection
+
 //TODO: bad word enforcement
+
 //TODO: client 7tv integration?
 //TODO: client background changing?
 //TODO: MIT licenses?
@@ -27,6 +30,7 @@ const usersPath = join(__dirname, 'data', 'users.json');
 
 const socketUsers = new Map<string, Identity>();
 const chatHistory = new Map<number, ChatMessage>();
+const emotes = new Map<string, string>();
 
 //Sys message shorthand
 const sendSys = (to: Target, type: MessageType, text: string) => send(to, type, createMsg(true,'system',text,type as any));
@@ -40,6 +44,7 @@ const commandService = new CommandService({
 	setAnnouncement: (text: string) => { announcement = text; },
 	chatHistory: chatHistory,
 	socketUsers: socketUsers,
+	emotes: emotes,
 });
 
 let messageCounter = {val: 0};
@@ -49,7 +54,7 @@ var uList: UserSum[] = [];
 
 type UserSum = Pick<Identity, "nick" | "status" | "isAfk">
 type Target = Server | Socket;
-type Payload = ChatMessage | Identity | UserSum[] | number[];
+type Payload = ChatMessage | Identity | UserSum[] | number[] | Record <string,string>;
 
 //Send helper function
 function send(to: Target, metype: MessageType, msg: Payload): void {	
@@ -73,6 +78,11 @@ function send(to: Target, metype: MessageType, msg: Payload): void {
 		else if (metype === mType.delmsg){
 			if (!Array.isArray(msg)){
 				throw new Error(`payload mismatch: ${metype} requires a number array.`);
+			}
+		}
+		else if (metype === mType.emote) {
+			if (typeof msg !== 'object' || msg === null) {
+				throw new Error(`payload mismatch: ${metype} requires an object.`);
 			}
 		}
 		else {
@@ -146,10 +156,14 @@ function updateSocketUser(socketID: string, identity: Identity, updateType: 'upd
 
 io.on('connection', (socket) => {
 
-	//On connection welcome and announcement messages
+	//On connection welcome and announcement messages and emote payload
 	sendSys(socket, mType.welcome, `${config.welcomeMsg}`)
 	if (announcement){
 		sendSys(socket, mType.ann, `announcemet: ${announcement}`)
+	}
+	if(emotes){
+		const emotePayload = Object.fromEntries(emotes);
+		send(socket, mType.emote, emotePayload);
 	}
 
 	//identity service stuff
@@ -187,7 +201,7 @@ io.on('connection', (socket) => {
 	}
 
 	//When a message is recieved from a client
-	socket.on('toServerChat', (msg, callback) => {
+	socket.on('toServerChat', async (msg, callback) => {
 		// Set user context
 		const user = socketUsers.get(socket.id);
 
@@ -202,7 +216,7 @@ io.on('connection', (socket) => {
 			} catch {
 			}
 
-			const success = commandService.execute(commandName, {
+			const success = await commandService.execute(commandName, {
 				socket,
 				io,
 				args,
@@ -295,4 +309,14 @@ app.get('/ratchat', (req, res) => {
 httpserver.listen(config.PORT, () => {
 	console.log(JSON.stringify(config));
 	console.log(`server running at http://localhost:${config.PORT}`);
+});
+
+//Fetch emotes
+commandService.emoteLoad(io).then(success => {
+	if (success){
+		console.log('startup emotes loaded');
+	}
+	else{
+		console.warn('startup emotes failed')
+	}
 });

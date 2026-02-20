@@ -1,6 +1,7 @@
 import { Server, Socket } from 'socket.io';
 import { type Command, type Identity, type ChatMessage, mType } from '../../shared/types.ts';
 import { IdentityService } from '../services/identity.ts';
+import { readFileSync } from 'fs';
 
 export interface CommandServiceDependencies {
 	identityService: IdentityService;
@@ -10,10 +11,11 @@ export interface CommandServiceDependencies {
 	setAnnouncement: (text: string) => void;
 	chatHistory: Map<number, ChatMessage>;
 	socketUsers: Map<string, Identity>;
+	emotes: Map<string, string>;
 }
 
 export class CommandService {
-	private commands: Record<string, (ctx: Command) => boolean> = {};
+	private commands: Record<string, (ctx: Command) => boolean | Promise<boolean>> = {};
 	private deps: CommandServiceDependencies;
 
 	constructor(dependencies: CommandServiceDependencies) {
@@ -50,7 +52,8 @@ export class CommandService {
 					'/announce or /announcement <text> : Send an announcement to all users.',
 					'/ban <user> : Permanently bans a user with nickname "user"',
 					'/timeout or /to <user> : Mutes nickname "user" for 5 min.',
-					'/delete <1> : Delete a message with ID 1.'
+					'/delete <1> : Delete a message with ID 1.',
+					'/emotes : reload the emote cache from 7tv'
 				);
 			}
 
@@ -220,6 +223,7 @@ export class CommandService {
 						'We store the following data server side:',
 						'guid			|	Unique identifier and allows multiple sessions to have the same nickname',
 						'nick			|	Chosen nickname and color set by the /nick and /color commands',
+						'lastChanged	|	Timestamp of when nickname was last changed to prevent nick abuse',
 						'status			|	Chosen status displayed in user listing set by /status command',
 						'isMod			|	Flag for allowing moderator actions',
 						'lastMessage	|	Timestamp of last message sent for timeout enforcement and nickname cleanup',
@@ -394,6 +398,23 @@ export class CommandService {
 			return true;
 		};
 
+		this.commands['emotes'] = async (ctx) => {
+			if (!ctx.commandUser?.isMod){
+				this.deps.sendSys(ctx.socket, mType.error, "naughty naughty");
+				return true;
+			}
+			this.deps.sendSys(ctx.socket, mType.info, 'loading emotes...')
+			const status = await this.emoteLoad(ctx.io);
+			if(status){
+				this.deps.sendSys(ctx.socket, mType.info, 'emotes refreshed');
+				return true;
+			}
+			else{
+				this.deps.sendSys(ctx.socket, mType.error, 'error loading emotes');
+				return false;
+			}
+		}
+
 		// ------------------------------------------------------------------
 		// ALIASES
 		// ------------------------------------------------------------------
@@ -403,14 +424,15 @@ export class CommandService {
 		this.commands['me'] = this.commands['status'];
 		this.commands['to'] = this.commands['timeout'];
 		this.commands['announcement'] = this.commands['announce'];
+		this.commands['emote'] = this.commands ['emotes'];
 	}
 
 	//execute the command, true to clear 
-	public execute(name: string, ctx: Command): boolean {
+	public async execute(name: string, ctx: Command): Promise<boolean> {
 		const handler = this.commands[name];
 		if (handler) {
 			//true to clear input, false to keep
-			return handler(ctx);
+			return await handler(ctx);
 		} else {
 			this.deps.sendSys(ctx.socket, mType.error, "system: that's not a command lol");
 			return false;
@@ -432,4 +454,33 @@ export class CommandService {
 		const lastMsg = new Date(ctx.commandUser.lastMessage).getTime();
 		return lastMsg > Date.now();
 	}
+
+	//Emote fetcher
+	public async emoteLoad(io: Server): Promise<boolean>{
+		try {
+				const config = JSON.parse(readFileSync('./config.json', 'utf-8'));
+				if(config.stvurl === 0 || !config.stvurl){
+					console.log('no emote URL')
+					return false;
+				}
+				const response = await fetch(`https://api.7tv.app/v3/emote-sets/${config.stvurl}`);
+				const data = await response.json();
+
+				this.deps.emotes.clear()
+				data.emotes.forEach((e: any) => {
+					const name = e.name;
+					const hostUrl = e.data.host.url; 
+					this.deps.emotes.set(name, `https:${hostUrl}/1x.webp`);
+				});
+
+				console.log(`cached ${this.deps.emotes.size} global emotes.`);
+				const emotePayload = Object.fromEntries(this.deps.emotes);
+				this.deps.send(io, mType.emote, emotePayload);
+				return true;
+			} catch (err) {
+				console.error('failed to fetch emotes:', err);
+				return false;
+			}
+	}
+	
 }

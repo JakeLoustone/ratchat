@@ -4,5 +4,6 @@
 	"maxMsgLen": 255,
 	"maxNickLen": 16,
 	"msgArrayLen": 25,
+	"stvurl": "01GGEWQ46R0006ZFG1F0GCT6YW",
 	"PORT": 3000
 }

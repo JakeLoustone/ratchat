@@ -4,6 +4,7 @@
 	"license": "MIT",
 	"type": "module",
 	"dependencies": {
+		"@dsojevic/profanity-list": "^1.0.0",
 		"98.css": "^0.1.21",
 		"express": "^5.2.1",
 		"fs": "^0.0.1-security",
@@ -14,6 +15,6 @@
 		"uuid": "^13.0.0"
 	},
 	"devDependencies": {
-	"@types/express": "^5.0.6"
-}
+		"@types/express": "^5.0.6"
+	}
 }

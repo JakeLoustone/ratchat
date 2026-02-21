@@ -13,10 +13,7 @@ import { mType } from '../shared/types.ts';
 //TODO: socket protection
 //TODO: ban enforcement
 
-//TODO: bad word enforcement
-
 //TODO: client background changing?
-//TODO: MIT licenses?
 
 const config = JSON.parse(readFileSync('./config.json', 'utf-8'));
 const app = express();
@@ -149,6 +146,14 @@ function updateSocketUser(socketID: string, identity: Identity, updateType: 'upd
 	return;
 }
 
+//Profanity Filter
+const profList = JSON.parse(readFileSync('./profanityfilter.json', 'utf-8'));
+const profFilter: RegExp[] = Array.isArray(profList) 
+				? profList
+					.filter((item: any) => item.tags?.includes('racial') && item.severity > 2)
+					.map((item: any) => new RegExp(`\\b${item.match}\\b`, 'i')) // Extract the string to compare against
+				: [];
+
 //CONNECTION POINT
 
 io.on('connection', (socket) => {
@@ -243,7 +248,13 @@ io.on('connection', (socket) => {
 		else if (msg.trim().length === 0){
 			return;
 		}
-	
+
+		//Profanity check
+		if (profFilter.some(regex => regex.test(msg))){
+			sendSys(socket, mType.error, 'watch your profamity');
+			return;
+		}
+
 		console.log('message: ' + msg);
 
 		//slowmode and timeout check

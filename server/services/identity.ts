@@ -194,7 +194,7 @@ export class IdentityService {
 			console.error('nick filter load issue');
 			this.badNicks = [];
 		}
-    }
+	}
 	
 	private loadData() {
 		try {

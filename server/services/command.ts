@@ -42,6 +42,7 @@ export class CommandService {
 				'/import : import a GUID exported earlier to reclaim your nickname. must match exactly!',
 				'/afk : toggle AFK status in the user listing',
 				'/status or /me : set your status in the user listing',
+				'/background or /bg : set your background image. use /bgreset to clear',
 				'/gdpr <flag> : <info> for more information, <export> for a copy of your data, and <delete> to wipe your data.'
 			];
 

@@ -90,7 +90,11 @@
 		#messages-container {
 			flex-grow: 1;
 			overflow-y: auto;
-			background: white;
+			background-color: rgba(255, 255, 255, 0.5);
+			background-blend-mode: overlay;
+			background-repeat: 'repeat';
+			background-position: center;
+			background-size: 25%;
 			box-shadow: inset -0.0625rem -0.0625rem #fff,
 						inset 0.0625rem 0.0625rem #0a0a0a, 
 						inset -0.125rem -0.125rem #dfdfdf, 
@@ -118,7 +122,7 @@
 			padding: 0.2rem 0.5rem; 
 		}
 
-		#messages > .s-li {
+		#messages > .e-li {
 			padding: 0.2rem 0.5rem; 
 			color: red;
 			white-space: pre-wrap;
@@ -157,6 +161,7 @@
 	</head>
 
 	<body>
+	<input type="file" id="bg-upload" style="display: none;" accept="image/*">
 	<div class="window" style="width: 99.7%; height: 100vh; display: flex; flex-direction: column;">
 		<div class="title-bar">
 			<div class="title-bar-text">ratchat</div>
@@ -196,6 +201,8 @@
 		const form = document.getElementById('form');
 		const input = document.getElementById('input');
 		const messages = document.getElementById('messages');
+		const savedBG = localStorage.getItem('ratBG');
+
 		let emotes = {};
 
 		//Helper function for non user messages
@@ -208,6 +215,29 @@
 			msgContainer.scrollTop = msgContainer.scrollHeight;
 		};
 
+		//Background loader
+		document.getElementById('bg-upload').addEventListener('change', function(e) {
+			const file = e.target.files[0];
+			if (file) {
+				const reader = new FileReader();
+				
+				reader.onload = function(event) {
+					const imageData = event.target.result;
+					document.getElementById('messages-container').style.backgroundImage = `url('${imageData}')`;
+					
+					//local storage
+					try {
+						localStorage.setItem('ratBG', imageData);
+					} catch (e) {
+						systemMessage("oh fuk it's too big", 'e-li')
+						console.warn("image too large for localStorage");
+					}
+				};
+
+				reader.readAsDataURL(file);
+			}
+		});
+
 		//Client submission
 		form.addEventListener('submit', (e) => {
 			e.preventDefault();
@@ -217,10 +247,10 @@
 			if (!val) return;
 
 			//Export command
-			if (val.startsWith('/export') && val.length === 7) {
+			if (val === '/export') {
 				const oldGUID = localStorage.getItem('ratGUID');
 				if (!oldGUID) {
-					systemMessage("you ain't got no ID, you ain't gettin in this bar.", 's-li');
+					systemMessage("you ain't got no ID, you ain't gettin in this bar.", 'e-li');
 					return;
 				}
 				systemMessage(`Your GUID is: ${oldGUID}`, 'i-li')
@@ -229,8 +259,23 @@
 			}
 
 			//Clear command
-			if(val.startsWith('/clear') && val.length === 6 || val.startsWith('/clr') && val.length === 4){
+			if(val === '/clear' || val === '/clr'){
 				messages.replaceChildren();
+				input.value = '';
+				return;
+			}
+
+			//Background command
+			if (val === '/background' || val === '/bg') {
+				document.getElementById('bg-upload').click();
+				systemMessage("pick a file", 'i-li');
+				input.value = '';
+				return;
+			}
+
+			if (val === '/bgreset') {
+				localStorage.removeItem('ratBG');
+				document.getElementById('messages-container').style.backgroundImage = '';
 				input.value = '';
 				return;
 			}
@@ -246,6 +291,7 @@
 			if (identity && identity.guid === 'RESET_IDENTITY'){
 				console.log('Identity cleared from local storage');
 				localStorage.removeItem('ratGUID');
+				localStorage.removeItem('ratBG');
 			} else if(identity && identity.guid) {
 				console.log('Identity synced:', identity);
 				localStorage.setItem('ratGUID', identity.guid);
@@ -329,7 +375,7 @@
 		//message type to css class
 		const toClass = {
 			'toClientChat': '',
-			'toClientError': 's-li',
+			'toClientError': 'e-li',
 			'toClientInfo': 'i-li',
 			'toClientWelcome': 'w-li',
 			'toClientAnnouncement': 'a-li'
@@ -404,6 +450,11 @@
 		socket.on('toClientInfo', renderMessage);
 		socket.on('toClientWelcome', renderMessage);
 		socket.on('toClientAnnouncement', renderMessage);
+
+		//background load from storage
+		if (savedBG) {
+			document.getElementById('messages-container').style.backgroundImage = `url('${savedBG}')`;
+		}
 	</script>
 	</body>
 </html>

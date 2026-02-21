@@ -13,8 +13,6 @@ import { mType } from '../shared/types.ts';
 //TODO: socket protection
 //TODO: ban enforcement
 
-//TODO: client background changing?
-
 const config = JSON.parse(readFileSync('./config.json', 'utf-8'));
 const app = express();
 const httpserver = createServer(app);

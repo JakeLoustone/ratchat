@@ -12,6 +12,12 @@ import { mType } from '../shared/types.ts';
 //TODO: ip hashing
 //TODO: socket protection
 //TODO: ban enforcement
+//TODO: fix neutral background in client
+//TODO: improve GDPR warning
+//TODO: force a page reload after gdpr delete
+//TODO: unnamed users added to status list
+//TODO: client scrollbar update
+
 
 const config = JSON.parse(readFileSync('./config.json', 'utf-8'));
 const app = express();
@@ -25,7 +31,7 @@ const chatHistory = new Map<number, ChatMessage>();
 const emotes = new Map<string, string>();
 
 //Sys message shorthand
-const sendSys = (to: Target, type: MessageType, text: string) => send(to, type, createMsg(true,'system',text,type as any));
+const sendSys = (to: Target, type: TextPayload, text: string) => send(to, type, createMsg(true,'system',text,type as any));
 
 const identityService = new IdentityService(usersPath);
 const commandService = new CommandService({
@@ -46,68 +52,32 @@ var uList: UserSum[] = [];
 
 type UserSum = Pick<Identity, "nick" | "status" | "isAfk">
 type Target = Server | Socket;
-type Payload = ChatMessage | Identity | UserSum[] | number[] | Record <string,string>;
+type TextPayload = typeof mType.chat | typeof mType.ann | typeof mType.error | typeof mType.info | typeof mType.welcome;
 
 //Send helper function
-function send(to: Target, metype: MessageType, msg: Payload): void {	
+//payload typing overload
+function send(to: Target, metype: typeof mType.identity, msg: Identity): void;
+function send(to: Target, metype: typeof mType.list, msg: UserSum[]): void;
+function send(to: Target, metype: typeof mType.delmsg, msg: number[]): void;
+function send(to: Target, metype: typeof mType.emote, msg: Record<string, string>): void;
+function send(to: Target, metype: TextPayload, msg: ChatMessage): void;
+//function
+function send(to: Target, metype: MessageType, msg: any): void {
 	//double check target
 	if (!(to instanceof Server) && !(to instanceof Socket)){
 		throw new Error('Invalid emit target')
 	}
-	//Confirm payload typing
-	if (metype === mType.identity) {
-			// Check if msg has Identity properties
-			if (!msg || typeof msg !== 'object' || !('guid' in msg)) {
-				throw new Error(`payload mismatch: ${metype} requires an Identity object.`);
-			}
-		} 
-		else if (metype === mType.list) {
-			// Check if msg is an array (userSum[])
-			if (!Array.isArray(msg)) {
-				throw new Error(`payload mismatch: ${metype} requires a userSum array.`);
-			}
-		} 
-		else if (metype === mType.delmsg){
-			if (!Array.isArray(msg)){
-				throw new Error(`payload mismatch: ${metype} requires a number array.`);
-			}
-		}
-		else if (metype === mType.emote) {
-			if (typeof msg !== 'object' || msg === null) {
-				throw new Error(`payload mismatch: ${metype} requires an object.`);
-			}
-		}
-		else {
-			if (!msg || typeof msg !== 'object' || !('content' in msg)) {
-				throw new Error(`payload mismatch: ${metype} requires a ChatMessage object.`);
-			}
-		}
+
 	//Fire it off
 	to.emit(metype, msg)
 }
 
 //Helper function for ChatMessage construction
-//Function overload: if sys is false, require an identity
-function createMsg(
-	sys: false, 
-	author: Identity,
-	content: string,
-	metype: Exclude<MessageType, typeof mType.identity | typeof mType.list>
-): ChatMessage;
-//if sys is true, use the system string
-function createMsg(
-	sys: true,
-	author: string,
-	content: string,
-	metype: Exclude<MessageType, typeof mType.identity | typeof mType.list>
-): ChatMessage;
-//final overload
-function createMsg(
-	sys: boolean = false,
-	author: Identity | string = 'system',
-	content: string,
-	metype: Exclude<MessageType, typeof mType.identity | typeof mType.list>
-	): ChatMessage {
+//sys message overload
+function createMsg(sys: false, author: Identity, content: string, metype: TextPayload): ChatMessage;
+function createMsg(sys: true, author: string, content: string, metype: TextPayload): ChatMessage;
+//function
+function createMsg(sys: boolean = false, author: Identity | string = 'system', content: string, metype: Exclude<MessageType, typeof mType.identity | typeof mType.list | typeof mType.emote>): ChatMessage {
 		return {
 		id: sys? -1: messageCounter.val++,
 		author: typeof author === 'string' ? author : author.nick,
@@ -146,11 +116,17 @@ function updateSocketUser(socketID: string, identity: Identity, updateType: 'upd
 
 //Profanity Filter
 const profList = JSON.parse(readFileSync('./profanityfilter.json', 'utf-8'));
-const profFilter: RegExp[] = Array.isArray(profList) 
-				? profList
-					.filter((item: any) => item.tags?.includes('racial') && item.severity > 2)
-					.map((item: any) => new RegExp(`\\b${item.match}\\b`, 'i')) // Extract the string to compare against
-				: [];
+const profFilter: RegExp[] = Array.isArray(profList)
+	? profList
+		.filter((item: any) => item.tags?.includes('racial') && item.severity > 2)
+		.map((item: any) => new RegExp(
+            `\\b${(item.match.includes('|') ? `(?:${item.match})` : item.match)
+                .replace(/\*/g, '.*')
+                .replace(/([a-zA-Z0-9.])(?=[a-zA-Z0-9.])/g, '$1[\\s\\-_.]*')
+            }\\b`, 
+            'i'
+        ))
+	: [];
 
 //CONNECTION POINT
 
@@ -248,8 +224,11 @@ io.on('connection', (socket) => {
 		}
 
 		//Profanity check
-		if (profFilter.some(regex => regex.test(msg))){
+		const badWord = profFilter.find(regex => regex.test(msg));
+		
+		if(badWord){
 			sendSys(socket, mType.error, 'watch your profamity');
+			console.log(`prof filter "${msg}" from ${user.nick.substring(7)} because it matched pattern: ${badWord.source}`);
 			return;
 		}
 

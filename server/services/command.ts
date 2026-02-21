@@ -67,7 +67,12 @@ export class CommandService {
 			if (this.isTimedOut(ctx)){
 				this.deps.sendSys(ctx.socket, mType.error, "system: you're in timeout rn");
 				return false;
-			} 
+			}
+
+			if (ctx.args.length > 1){
+				this.deps.sendSys(ctx.socket, mType.error, 'system: no spaces in usernames');
+				return false;
+			}
 
 			const newNick = ctx.args[0];
 
@@ -75,7 +80,7 @@ export class CommandService {
 				this.deps.sendSys(ctx.socket, mType.error, 'system: please provide a username with at least 2 but less than 15 characters');
 				return false;
 			}
-
+			
 			try {
 				// If they have no commandUser, extract the GUID from the handshake token directly
 				const guid = ctx.commandUser?.guid || ctx.socket.handshake.auth.token;

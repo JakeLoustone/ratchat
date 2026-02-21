@@ -8,7 +8,8 @@ export class IdentityService {
 	private users: Map<string, Identity> = new Map();
 	private registeredNicks: Map<string, string> = new Map();
 	private userList: string;
-	private badNicks: RegExp[] = []
+	private badNicks: RegExp[] = [];
+	private profFilter: RegExp[] = [];
 
 	constructor(storagePath: string) {
 		this.userList = storagePath;
@@ -20,7 +21,8 @@ export class IdentityService {
 		//Nick santization and validation
 		const sanitizeNick = nick.replace(/[^\w\s]/gi, '').trim();
 		
-		if (this.badNicks.some(regex => regex.test(sanitizeNick))) {
+		if (this.badNicks.find(regex => regex.test(nick) || regex.test(sanitizeNick))) {
+			console.log(`nick prof filter "${nick}" because it matched pattern: ${this.badNicks.find(r => r.test(nick) || r.test(sanitizeNick))?.source}`);
 			throw new Error(`can't be named that`);
 		}
 		if (sanitizeNick.length < 2 || sanitizeNick.length > 15) {
@@ -128,9 +130,16 @@ export class IdentityService {
 	public setStatus(guid: string, status: string): Identity {
 		const user = this.users.get(guid);
 		const newStatus = status;
+
 		if(!user){
 			throw new Error('No matching user found to GUID')
 		}
+
+		if (this.profFilter.find(regex => regex.test(status))) {
+			console.log(`status prof filter "${status}" for user ${user.nick.substring(7)} because it matched pattern: ${this.badNicks.find(r => r.test(status))?.source}`);
+			throw new Error(`watch your profamity`);
+		}
+		
 		user.status = newStatus;
 		this.saveData();
 		return user;
@@ -181,15 +190,24 @@ export class IdentityService {
 		try {
 			const nickFilter = JSON.parse(fs.readFileSync('./nickfilter.json', 'utf-8')).usernames || [];
 			const profList = JSON.parse(fs.readFileSync('./profanityfilter.json', 'utf-8'));
-			const profFilter = Array.isArray(profList) 
+			this.profFilter = Array.isArray(profList) 
 				? profList
 					.filter((item: any) => item.tags?.includes('racial') && item.severity > 2)
-					.map((item: any) => item.match) // Extract the string to compare against
+					.map((item: any) => 
+						`\\b${(item.match.includes('|') ? `(?:${item.match})` : item.match)
+							.replace(/\*/g, '.*')
+							.replace(/([a-zA-Z0-9.])(?=[a-zA-Z0-9.])/g, '$1[\\s\\-_.]*')
+						}\\b`
+					)
+					.map(pattern => new RegExp(pattern, 'i'))
 				: [];
 			const configFilter = JSON.parse(fs.readFileSync('./config.json', 'utf-8')).nickres || [];
-			const regFilter = [...nickFilter, ...profFilter, ...configFilter].filter(Boolean);
+			const regFilter = [...nickFilter, ...configFilter].filter(Boolean);
 
-			this.badNicks = regFilter.map(pattern => new RegExp(pattern, 'i'));
+			this.badNicks = [
+				...regFilter.map(pattern => new RegExp(pattern, 'i')),
+				...this.profFilter
+			];
 		} catch (e) {
 			console.error('nick filter load issue');
 			this.badNicks = [];

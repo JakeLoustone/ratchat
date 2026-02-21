@@ -10,9 +10,22 @@
 		body {
 			height: 100%;
 			margin: 0;
+			padding: 0rem;
+			box-sizing: border-box;
 			overflow: hidden;
 		}
+		.window{
+			top: 0.25rem;
+			left: 0.25rem;
+			right: 0.25rem;
+			bottom: 0.25rem;
 
+			display: flex;
+			flex-direction: column;
+			margin: 0 !important;
+			width: auto !important;
+
+		}
 		.window-body {
 			display: flex;
 			flex-direction: column;
@@ -23,28 +36,29 @@
 
 		#form{
 			display: flex;
-			gap: 0.25rem;
+			gap: 0;
 			padding-top: 0.25rem;
 		}
 
 		#input {
 			border: none;
 			height: 2rem;
-			padding: 0 1rem;
+			padding: 0, 0.5rem;
 			flex-grow: 1;
-			margin: 0.25rem;
 			font-size: large;
+			margin-right: 0.3rem;
 		}
 		
 		#input:focus {
 			outline: none;
 		}
 
-		.user-sidebar {
+		#user-sidebar {
 			width: 10%;
 			min-width: 10rem;
 			background: white;
-			box-shadow: inset -0.0625rem -0.0625rem #fff, 
+			box-shadow: 
+						inset -0.0625rem -0.0625rem #fff, 
 						inset 0.0625rem 0.0625rem #0a0a0a, 
 						inset -0.125rem -0.125rem #dfdfdf, 
 						inset 0.125rem 0.125rem #808080;
@@ -53,15 +67,31 @@
 			margin-bottom: 0.25rem;			
 			overflow-y: auto;
 			flex-shrink: 0;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+			scrollbar-width: none; /* Firefox */
+			-ms-overflow-style: none; /* IE/Edge */
+		}
+
+		#user-sidebar::-webkit-scrollbar {
+			display: none; /* Chrome/Safari */
 		}
 
 		#user-list {
+			flex-grow: 1; /* Pushes the lurker div down */
+			overflow-y: auto; /* Only the names scroll */
 			list-style: none;
 			padding: 0;
 			margin: 0.25rem;
-			font-size: large
+			font-size: large;
+			scrollbar-width: none;
+			-ms-overflow-style: none; /* IE/Edge */
 		}
 
+		#user-list::-webkit-scrollbar {
+			display: none;
+		}
 		.user-status {
 			font-size: larger;
 			color: #444;
@@ -86,12 +116,18 @@
 			background: radial-gradient(circle at 0.1875rem 0.1875rem, #ffb84d, #ff8c00);
 			box-shadow: 0.0625rem 0.0625rem 0.0625rem rgba(0,0,0,0.3);
 		}
+		#lurker-status{
+			font-size: small;
+			min-height: 1rem;
+			flex-shrink: 0;
+			text-align: center;
+		}
 
 		#messages-container {
 			flex-grow: 1;
 			overflow-y: auto;
-			background-color: rgba(255, 255, 255, 0.5);
-			background-blend-mode: overlay;
+			background-color: white;
+			background-blend-mode: normal;
 			background-repeat: 'repeat';
 			background-position: center;
 			background-size: 25%;
@@ -104,6 +140,12 @@
 			margin-bottom: 0.25rem;
 			display: flex;
 			flex-direction: column;
+			overflow-y: auto;
+			scrollbar-width: none; /* Firefox */
+			-ms-overflow-style: none; /* IE/Edge */
+		}
+		#messages-container::-webkit-scrollbar {
+			display: none; /* Chrome/Safari */
 		}
 		.emote {
 			height: 1.5rem;
@@ -148,21 +190,79 @@
 
 		#messages .user-name {
 			font-weight: bold;
-			margin-right: 0.15rem;
-			margin-left: 0.15rem;
 			color: var(--user-color, black);
+			margin-right: .15rem;
 		}
 
 		#messages > li:hover {
 			cursor: pointer;
 			background-color: rgba(0, 0, 0, 0.05);
 		}
+		.fake-scrollbar {
+			width: 1.2rem;
+			background: #dfdfdf;
+			display: flex;
+			flex-direction: column;
+			box-shadow: inset 0.0625rem 0.0625rem #808080, inset -0.0625rem -0.0625rem #fff;
+			flex-shrink: 0;
+			margin: 0.25rem 0.125rem;
+		}
+
+		.fake-scroll-button {
+			width: 1.2rem;
+			height: 1.2rem;
+			padding: 0;
+			min-width: 1.2rem;
+			min-height: 1.2rem;
+			font-size: 0.6rem;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			background: #c0c0c0;
+			border: none;
+
+			box-shadow: 
+				inset 0.0625rem 0.0625rem #fff,
+				inset -0.0625rem -0.0625rem #424242,
+				inset 0.125rem 0.125rem #dfdfdf,
+				inset -0.125rem -0.125rem #808080
+		}
+
+		.fake-scroll-track {
+			flex-grow: 1;
+			position: relative;
+			background-image: 
+								linear-gradient(45deg, #e0e0e0 25%, transparent 25%), 
+								linear-gradient(-45deg, #e0e0e0 25%, transparent 25%), 
+								linear-gradient(45deg, transparent 75%, #e0e0e0 75%), 
+								linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
+			background-size: 0.2rem 0.2rem;
+			background-position: 0 0, 0 0.1rem, 0.1rem -0.1rem, -0.1rem 0rem;
+			background-color: #bcbcbc; 
+			box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #fff;
+			}
+
+		#fake-scroll-thumb {
+			width: 90%;
+			height: 2rem;
+			background: #c0c0c0;
+			position: absolute;
+			left: 50%;
+			transform: translateX(-50%);
+			border: none; 
+			
+			box-shadow: 
+				inset 0.0625rem 0.0625rem #fff,
+				inset -0.0625rem -0.0625rem #424242,
+				inset 0.125rem 0.125rem #dfdfdf,
+				inset -0.125rem -0.125rem #808080
+		}
 		</style>
 	</head>
 
 	<body>
 	<input type="file" id="bg-upload" style="display: none;" accept="image/*">
-	<div class="window" style="width: 99.7%; height: 100vh; display: flex; flex-direction: column;">
+	<div class="window">
 		<div class="title-bar">
 			<div class="title-bar-text">ratchat</div>
 			<div class="title-bar-controls">
@@ -173,13 +273,22 @@
 		</div>
 
 		<div class="window-body">
-			<div style="display: flex; flex-direction: row; flex-grow: 1; overflow: hidden; gap: 0.25rem;">
+			<div style="display: flex; flex-direction: row; flex-grow: 1; overflow: hidden; gap: 0rem;">
 				<div id="messages-container">
 					<ul id="messages"></ul>
 				</div>
+
+				<div class="fake-scrollbar">
+					<button class="fake-scroll-button" id="btn-up">▲</button>
+					<div class="fake-scroll-track" id="track">
+						<div id="fake-scroll-thumb"></div>
+					</div>
+					<button class="fake-scroll-button" id="btn-down">▼</button>
+				</div>
 				
-				<div id="user-sidebar" class="user-sidebar">
-					<ul id="user-list" class="user-list"></ul>
+				<div id="user-sidebar">
+					<ul id="user-list"></ul>
+					<div id="lurker-status"></div>
 				</div>
 			</div>
 
@@ -224,6 +333,8 @@
 				reader.onload = function(event) {
 					const imageData = event.target.result;
 					document.getElementById('messages-container').style.backgroundImage = `url('${imageData}')`;
+					document.getElementById('messages-container').style.backgroundColor = 'rgba(255, 255, 255, 0.5)';
+					document.getElementById('messages-container').style.backgroundBlendMode = 'overlay';
 					
 					//local storage
 					try {
@@ -238,7 +349,47 @@
 			}
 		});
 
-		//Client submission
+		//Fake scrollbar
+		//sync thumb position to scroll
+		document.getElementById('messages-container').onscroll = function() {
+			document.getElementById('fake-scroll-thumb').style.top = 
+				(this.scrollTop / (this.scrollHeight - this.clientHeight || 1)) * (document.getElementById('track').clientHeight - document.getElementById('fake-scroll-thumb').clientHeight) + 'px';
+		};
+
+		document.getElementById('btn-up').onclick = () => document.getElementById('messages-container').scrollBy(0, -50);
+		document.getElementById('btn-down').onclick = () => document.getElementById('messages-container').scrollBy(0, 50);
+
+		//dynamic thumb resizing using a self-executing function for the MutationObserver
+		new MutationObserver(() => {
+			document.getElementById('fake-scroll-thumb').style.height = 
+				Math.max((document.getElementById('messages-container').clientHeight / document.getElementById('messages-container').scrollHeight) * document.getElementById('track').clientHeight, 20) + 'px';
+		}).observe(document.getElementById('messages'), { childList: true });
+
+		//sync resize event
+		window.onresize = () => {
+			document.getElementById('fake-scroll-thumb').style.height = 
+				Math.max((document.getElementById('messages-container').clientHeight / document.getElementById('messages-container').scrollHeight) * document.getElementById('track').clientHeight, 20) + 'px';
+		};
+		
+		//click and drag thumb
+		document.getElementById('fake-scroll-thumb').addEventListener('mousedown', (e) => {
+			document.onmousemove = (event) => {
+				document.getElementById('messages-container').scrollTop = 
+					((event.pageY - e.pageY) * (document.getElementById('messages-container').scrollHeight / document.getElementById('track').clientHeight)) + 
+					(document.getElementById('messages-container').scrollTop);
+				e = event;
+			};
+			document.onmouseup = () => {
+				document.onmousemove = null;
+				document.onmouseup = null;
+			};
+			e.preventDefault();
+		});
+
+		/////////////////////
+		//Client submission//
+		/////////////////////
+
 		form.addEventListener('submit', (e) => {
 			e.preventDefault();
 			
@@ -274,10 +425,19 @@
 			}
 
 			if (val === '/bgreset') {
-				localStorage.removeItem('ratBG');
-				document.getElementById('messages-container').style.backgroundImage = '';
-				input.value = '';
-				return;
+				if(localStorage.getItem('ratBG')){
+					localStorage.removeItem('ratBG');
+					document.getElementById('messages-container').style.backgroundImage = '';
+					document.getElementById('messages-container').style.backgroundColor = 'white';
+					document.getElementById('messages-container').style.backgroundBlendMode = 'normal';
+					systemMessage("background reset", 'i-li');
+					input.value = '';
+					return;
+				}
+				else{
+					systemMessage('no background to reset', 'e-li');
+					return;
+				}
 			}
 
 			//Send message
@@ -289,9 +449,10 @@
 		//Identity events
 		socket.on('identity', (identity) => {
 			if (identity && identity.guid === 'RESET_IDENTITY'){
-				console.log('Identity cleared from local storage');
-				localStorage.removeItem('ratGUID');
-				localStorage.removeItem('ratBG');
+				console.log('cleared from local storage');
+				localStorage.clear();
+				setTimeout(() =>{systemMessage('reloading...', 'i-li');}, 200);
+				setTimeout(() =>{window.location.reload();}, 2000);
 			} else if(identity && identity.guid) {
 				console.log('Identity synced:', identity);
 				localStorage.setItem('ratGUID', identity.guid);
@@ -308,11 +469,18 @@
 		//User list events
 		socket.on('userlist', (uList) => {
 			const userListElement = document.getElementById('user-list');
+			const lurkerElement = document.getElementById('lurker-status');
 			userListElement.replaceChildren();
+
+			let lurkerData = null;
 
 			//build consolidated listing
 			const consolidate = new Map();
 			uList.forEach(user =>{
+				if (user.nick.startsWith('#NONVAL')) {
+					lurkerData = user;
+					return;
+				}
 				if (consolidate.has(user.nick)){
 					consolidate.get(user.nick).count++;
 				}
@@ -355,7 +523,9 @@
 					li.style.color = userColor	
 				}
 				userListElement.appendChild(li);
-					});
+			});
+
+			lurkerElement.textContent = `lurkers: ${lurkerData.status}`;
 		});
 
 		//Delete message events
@@ -408,7 +578,7 @@
 			const nameSpan = document.createElement('span');
 			nameSpan.className = "user-name";
 				nameSpan.style.setProperty('--user-color', userColor);
-				nameSpan.textContent = userName + ": ";
+				nameSpan.textContent = userName + ":";
 			item.appendChild(nameSpan)
 
 			//set hover msg ID and data ID
@@ -454,7 +624,11 @@
 		//background load from storage
 		if (savedBG) {
 			document.getElementById('messages-container').style.backgroundImage = `url('${savedBG}')`;
+			document.getElementById('messages-container').style.backgroundColor = 'rgba(255, 255, 255, 0.5)';
+			document.getElementById('messages-container').style.backgroundBlendMode = 'overlay';
 		}
+		
+		input.focus();
 	</script>
 	</body>
 </html>

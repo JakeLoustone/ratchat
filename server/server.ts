@@ -12,12 +12,6 @@ import { mType } from '../shared/types.ts';
 //TODO: ip hashing
 //TODO: socket protection
 //TODO: ban enforcement
-//TODO: fix neutral background in client
-//TODO: improve GDPR warning
-//TODO: force a page reload after gdpr delete
-//TODO: unnamed users added to status list
-//TODO: client scrollbar update
-
 
 const config = JSON.parse(readFileSync('./config.json', 'utf-8'));
 const app = express();
@@ -110,6 +104,15 @@ function updateSocketUser(socketID: string, identity: Identity, updateType: 'upd
 			}
 			return a.nick.substring(7).localeCompare(b.nick.substring(7), 'en', {sensitivity: 'base'});
 		});
+	
+	const socketCount = io.sockets.sockets.size;
+	const lurkers = socketCount - socketUsers.size;
+	uList.push({
+		nick: '#NONVALlurkers',
+		status: `${lurkers}`,
+		isAfk: true
+	})
+
 	send(io, mType.list, uList);
 	return;
 }
@@ -162,6 +165,8 @@ io.on('connection', (socket) => {
 		sendSys(socket,mType.error,"system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
 		//GDPR warning
 		sendSys(socket,mType.error,"system: be aware either command will store data regarding your session. type '/gdpr info' for more info");
+		//force update socket users for lurkers check
+		updateSocketUser('refresh-trigger', {} as Identity, 'delete');
 	}
 
 	//A new user has connected	
@@ -278,8 +283,12 @@ io.on('connection', (socket) => {
 	console.log('a user disconnected');
 	const disuser =socketUsers.get(socket.id)
 	if(disuser){
-	updateSocketUser(socket.id, disuser, 'delete');
-	sendSys(io, mType.ann, `${disuser.nick.substring(7)} disconnected`);
+		updateSocketUser(socket.id, disuser, 'delete');
+		sendSys(io, mType.ann, `${disuser.nick.substring(7)} disconnected`);
+	}
+	else{
+		//lurker disconnect
+		updateSocketUser('refresh-trigger', {} as Identity, 'delete');
 	}
 	});
 });

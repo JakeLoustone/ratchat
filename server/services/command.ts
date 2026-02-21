@@ -237,12 +237,30 @@ export class CommandService {
 						'---------------------------------------------------------------------------------------------',
 						'We store the following information locally:',
 						'ratGUID		|	a local copy of the GUID for message construction',
+						'ratBG			|	a local version of image selected for background image (not sent to server)',
 						'---------------------------------------------------------------------------------------------',
+						'Use /gdpr info to see this message again',
+						'Use /gdpr ip to see specific information on how and why we use IP addresses',
 						'Use /gdpr export to see a copy of your data stored on the server, if any.',
-						'Use /gdpr delete to permanently remove your data from the server. this will prevent you from utilizing the application.'
+						'Use /gdpr delete to permanently remove your data from the server. this will prevent you from utilizing the application.',
+						'---------------------------------------------------------------------------------------------',
 					];
 					const formatTable = infoMsgs.join('\n');
 					this.deps.sendSys(ctx.socket, mType.info, formatTable);
+					return true;
+				case 'ip':
+					const ipMsgs = [
+						'---------------------------------------------------------------------------------------------',
+						'We utilize IP addresses for ban enforcement and system protection as allowed under Article 6(1)(f) of the GDPR.',
+						'These IP addresses are only stored long term in the event of a ban from bad behavior.',
+						'An IP address is stored only with a timestamp. This timestamp is to allow a review process to reverse bans after an amount of time.',
+						'If an IP address is stored, it is rendered human unreadable by a one way salted cryptography hash. A "plain-text" IP address is never stored.',
+						'Any time a user connects, their IP is hashed in the same way and compared to the stored bans.',
+						'An IP address is only linked to a user at the instant of banning in order to select the correct IP to ban. This linkage is not stored.',
+						'---------------------------------------------------------------------------------------------'
+					];
+					const formatIpTable = ipMsgs.join('\n');
+					this.deps.sendSys(ctx.socket, mType.info, formatIpTable);
 					return true;
 
 				case 'export':
@@ -289,7 +307,7 @@ export class CommandService {
 					}
 
 				default:
-					this.deps.sendSys(ctx.socket, mType.error, "system: please use with 'info', 'export' or 'delete' after /gdpr");
+					this.deps.sendSys(ctx.socket, mType.error, "system: please use with 'info', 'ip', 'export' or 'delete' after /gdpr");
 					return false;
 			}
 		};

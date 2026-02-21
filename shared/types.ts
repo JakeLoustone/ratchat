@@ -8,7 +8,6 @@ export interface Identity {
 	isMod: boolean;
 	lastMessage: Date;
 	isAfk: boolean;
-	ip: string
 }
 
 export const mType = {

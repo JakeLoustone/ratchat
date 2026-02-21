@@ -53,7 +53,7 @@ export class CommandService {
 					'/ban <user> : Permanently bans a user with nickname "user"',
 					'/timeout or /to <user> : Mutes nickname "user" for 5 min.',
 					'/delete <1> : Delete a message with ID 1.',
-					'/emotes : reload the emote cache from 7tv'
+					'/emotes <emotesetID> : adds an emote set from 7tv. leave blank to reload from config'
 				);
 			}
 
@@ -228,7 +228,6 @@ export class CommandService {
 						'isMod			|	Flag for allowing moderator actions',
 						'lastMessage	|	Timestamp of last message sent for timeout enforcement and nickname cleanup',
 						'isAfk			|	AFK flag for user listing set by /afk command',
-						'ip				|	Last known ip address for ban enforcement if necessary',
 						'---------------------------------------------------------------------------------------------',
 						'We store the following information locally:',
 						'ratGUID		|	a local copy of the GUID for message construction',
@@ -399,21 +398,48 @@ export class CommandService {
 		};
 
 		this.commands['emotes'] = async (ctx) => {
-			if (!ctx.commandUser?.isMod){
+			if (!ctx.commandUser?.isMod) {
 				this.deps.sendSys(ctx.socket, mType.error, "naughty naughty");
-				return true;
+			return true;
 			}
-			this.deps.sendSys(ctx.socket, mType.info, 'loading emotes...')
-			const status = await this.emoteLoad(ctx.io);
-			if(status){
-				this.deps.sendSys(ctx.socket, mType.info, 'emotes refreshed');
-				return true;
+
+			let targetUrl = ctx.args[0];
+
+			// If no argument, pull from config.json
+			if (!targetUrl) {
+				try {
+					const config = JSON.parse(readFileSync('./config.json', 'utf-8'));
+					targetUrl = config.stvurl;
+					this.deps.sendSys(ctx.socket, mType.info, 'reloading emotes from config...');
+				} 
+				catch {
+					this.deps.sendSys(ctx.socket, mType.error, 'failed to read config.json');
+					return false;
+				}
+			} 
+			else {
+				//check if 7tv looking url
+				const isValidId = /^[a-z0-9_-]+$/i.test(targetUrl);
+
+				if (!isValidId) {
+					this.deps.sendSys(ctx.socket, mType.error, "doesn't look like a 7tv ID");
+					return false;
+				}
+			this.deps.sendSys(ctx.socket, mType.info, `fetching new emote set ${targetUrl}...`);
 			}
-			else{
-				this.deps.sendSys(ctx.socket, mType.error, 'error loading emotes');
+
+			// Execute the fetch
+			const success = await this.emoteLoad(ctx.io, targetUrl);
+
+			if (success) {
+				this.deps.sendSys(ctx.socket, mType.info, 'emotes loaded');
+				return true;
+			} 
+			else {
+				this.deps.sendSys(ctx.socket, mType.error, 'load failed');
 				return false;
 			}
-		}
+		};
 
 		// ------------------------------------------------------------------
 		// ALIASES
@@ -456,17 +482,15 @@ export class CommandService {
 	}
 
 	//Emote fetcher
-	public async emoteLoad(io: Server): Promise<boolean>{
-		try {
-				const config = JSON.parse(readFileSync('./config.json', 'utf-8'));
-				if(config.stvurl === 0 || !config.stvurl){
+	public async emoteLoad(io: Server, url: string): Promise<boolean>{
+		try {;
+				if(url === '0'|| !url){
 					console.log('no emote URL')
 					return false;
 				}
-				const response = await fetch(`https://api.7tv.app/v3/emote-sets/${config.stvurl}`);
+				const response = await fetch(`https://api.7tv.app/v3/emote-sets/${url}`);
 				const data = await response.json();
-
-				this.deps.emotes.clear()
+				
 				data.emotes.forEach((e: any) => {
 					const name = e.name;
 					const hostUrl = e.data.host.url; 

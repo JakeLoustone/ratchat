@@ -220,8 +220,8 @@
 			if (val.startsWith('/export') && val.length === 7) {
 				const oldGUID = localStorage.getItem('ratGUID');
 				if (!oldGUID) {
-	   				systemMessage("you ain't got no ID, you ain't gettin in this bar.", 's-li');
-	   				return;
+					systemMessage("you ain't got no ID, you ain't gettin in this bar.", 's-li');
+					return;
 				}
 				systemMessage(`Your GUID is: ${oldGUID}`, 'i-li')
 				input.value = '';
@@ -318,7 +318,7 @@
 				return;
 			}
 			msgArray.forEach(id => {
-				const target  = document.querySelector(`li[data-id="${id}"]`)
+				const target = document.querySelector(`li[data-id="${id}"]`)
 				if(target){
 					target.remove();
 				}
@@ -382,9 +382,9 @@
 
 			//Message content
 			const contentSpan = document.createElement('span')
-			const raw = emotify(msg.content)
 
-			if(window.DOMPurify){
+			if(window.DOMPurify && msg.id !== -1){
+				const raw = emotify(msg.content)
 				contentSpan.innerHTML = DOMPurify.sanitize(raw);
 			}
 			else{

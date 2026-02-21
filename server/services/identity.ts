@@ -61,7 +61,6 @@ export class IdentityService {
 			isMod: false,
 			lastMessage: new Date(0),
 			isAfk: false,
-			ip: '0'
 		};
 		
 		this.users.set(newGuid, newIdentity);

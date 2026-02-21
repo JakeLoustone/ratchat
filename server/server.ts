@@ -17,7 +17,6 @@ import { mType } from '../shared/types.ts';
 
 //TODO: bad word enforcement
 
-//TODO: client 7tv integration?
 //TODO: client background changing?
 //TODO: MIT licenses?
 
@@ -269,7 +268,7 @@ io.on('connection', (socket) => {
 					identityService.setLastMessage(user.guid, chatmsg.timestamp);
 					if (chatHistory.size > config.msgArrayLen){
 						const oldestMessage = chatHistory.keys().next().value;
-						if (oldestMessage  !== undefined) {
+						if (oldestMessage !== undefined) {
 							chatHistory.delete(oldestMessage);
 						}
 					}
@@ -312,7 +311,7 @@ httpserver.listen(config.PORT, () => {
 });
 
 //Fetch emotes
-commandService.emoteLoad(io).then(success => {
+commandService.emoteLoad(io, config.stvurl).then(success => {
 	if (success){
 		console.log('startup emotes loaded');
 	}

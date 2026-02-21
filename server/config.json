@@ -5,5 +5,6 @@
 	"maxNickLen": 16,
 	"msgArrayLen": 25,
 	"stvurl": "01GGEWQ46R0006ZFG1F0GCT6YW",
+	"nickres": ["ecto","jakeloustone"],
 	"PORT": 3000
 }

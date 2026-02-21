@@ -79,7 +79,7 @@ export class CommandService {
 				// If they have no commandUser, extract the GUID from the handshake token directly
 				const guid = ctx.commandUser?.guid || ctx.socket.handshake.auth.token;
 				const oldNick = ctx.commandUser?.nick;
-				const updatedUser = this.deps.identityService.userResolve(guid, newNick);
+				const updatedUser = this.deps.identityService.setNick(guid, newNick);
 
 				this.deps.updateSocketUser(ctx.socket.id, updatedUser, 'update');
 				this.deps.send(ctx.socket, mType.identity, updatedUser);
@@ -92,7 +92,7 @@ export class CommandService {
 				}
 				return true;
 			} catch (e: any) {
-				this.deps.sendSys(ctx.socket, mType.error, `system error: ${e.message}`);
+				this.deps.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
 				return false;
 			}
 		};
@@ -110,7 +110,7 @@ export class CommandService {
 			const hex = ctx.args[0];			
 			try {
 				const trimNick = ctx.commandUser.nick.substring(7);
-				const updatedUser = this.deps.identityService.userResolve(ctx.commandUser.guid, trimNick, hex);
+				const updatedUser = this.deps.identityService.setColor(ctx.commandUser.guid, hex);
 
 				this.deps.updateSocketUser(ctx.socket.id, updatedUser, 'update');
 				this.deps.send(ctx.socket, mType.identity, updatedUser);
@@ -118,7 +118,7 @@ export class CommandService {
 
 				return true;
 			} catch (e: any) {
-				this.deps.sendSys(ctx.socket, mType.error, `system error: ${e.message}`);
+				this.deps.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
 				return false;
 			}
 		};
@@ -154,7 +154,7 @@ export class CommandService {
 				
 				return true;
 			} catch (e: any) {
-				this.deps.sendSys(ctx.socket, mType.error, `system error: ${e.message}`);
+				this.deps.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
 				return false;
 			}
 		};
@@ -177,7 +177,7 @@ export class CommandService {
 
 				return true;
 			} catch (e: any) {
-				this.deps.sendSys(ctx.socket, mType.error, `system error: ${e.message}`);
+				this.deps.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
 				return false;
 			}
 		};
@@ -209,7 +209,7 @@ export class CommandService {
 				
 				return true;
 			} catch (e: any) {
-				this.deps.sendSys(ctx.socket, mType.error, `system error: ${e.message}`);
+				this.deps.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
 				return false;
 			}
 		};
@@ -278,7 +278,7 @@ export class CommandService {
 						return true;
 
 					} catch (e: any) {
-						this.deps.sendSys(ctx.socket, mType.error, `system error: ${e.message}`);
+						this.deps.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
 						return false;
 					}
 

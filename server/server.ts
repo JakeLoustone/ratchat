@@ -9,11 +9,9 @@ import { IdentityService } from './services/identity.ts'
 import { CommandService } from './services/command.ts';
 import { mType } from '../shared/types.ts';
 
-//TODO: ip collection
+//TODO: ip hashing
+//TODO: socket protection
 //TODO: ban enforcement
-
-//TODO: add /nick timing restriction
-//TODO: nickname protection
 
 //TODO: bad word enforcement
 
@@ -253,9 +251,9 @@ io.on('connection', (socket) => {
 		if(timeoutUser){
 			const timeoutTime = new Date(timeoutUser).getTime() + (config.slowMode*1000);
 			const now = Date.now();
-			const waitTime = (timeoutTime - now)/1000;
 
 			if(now < timeoutTime){
+				const waitTime = (timeoutTime - now)/1000;
 				sendSys(socket, mType.error, `system: you're doing that too fast, wait ${Math.ceil(waitTime)} seconds.`);
 				return;
 			}else{

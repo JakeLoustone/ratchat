@@ -40,6 +40,7 @@ export interface ServerConfig {
 	maxNickLen: number;
 	msgArrayLen: number;
 	stvurl: string;
+	nickres: string[];
 	PORT: number;
 }
 

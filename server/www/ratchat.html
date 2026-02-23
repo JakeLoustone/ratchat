@@ -402,6 +402,7 @@
 				const oldGUID = localStorage.getItem('ratGUID');
 				if (!oldGUID) {
 					systemMessage("you ain't got no ID, you ain't gettin in this bar.", 'e-li');
+					input.value = '';
 					return;
 				}
 				systemMessage(`Your GUID is: ${oldGUID}`, 'i-li')

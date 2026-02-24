@@ -25,6 +25,14 @@ export const mType = {
 
 export type MessageType = typeof mType[keyof typeof mType];
 
+export const tType = {
+	chat: "chat",
+	nick: "nick",
+	other:"other"
+}
+
+export type TimeType = typeof tType[keyof typeof tType];
+
 export interface ChatMessage {
 	id: number;
 	author: Identity['nick'];
@@ -36,6 +44,9 @@ export interface ChatMessage {
 export interface ServerConfig {
 	welcomeMsg: string;
 	slowMode: number;
+	nickSlow: number;
+	otherSlow: number;
+	timeoutDef: number;
 	maxMsgLen: number;
 	maxNickLen: number;
 	msgArrayLen: number;

@@ -1,30 +1,41 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { Identity } from '../../shared/types.ts'
-import * as fs from 'fs';
-import * as path from 'path';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { dirname } from 'path';
 
+import type { Identity, ServerConfig } from '../../shared/types.ts'
+
+import { OrchestrationService } from './orchestration.ts';
+
+
+export interface IdentityServiceDependencies{
+	orchestrationService: OrchestrationService;
+	
+	config: ServerConfig;
+	usersPath: string;
+}
 
 export class IdentityService {
 	private users: Map<string, Identity> = new Map();
 	private registeredNicks: Map<string, string> = new Map();
-	private userList: string;
-	private badNicks: RegExp[] = [];
-	private profFilter: RegExp[] = [];
+	private deps: IdentityServiceDependencies;
 
-	constructor(storagePath: string) {
-		this.userList = storagePath;
-		this.loadFilters();
-		this.loadData();
+	constructor(dependencies: IdentityServiceDependencies) {
+		this.deps = dependencies;
+		this.loadUsers();
 	}
 
 	public setNick(guid: string | null, nick: string): Identity{
 		//Nick santization and validation
 		const sanitizeNick = nick.replace(/[^\w\s]/gi, '').trim();
 		
-		if (this.badNicks.find(regex => regex.test(nick) || regex.test(sanitizeNick))) {
-			console.log(`nick prof filter "${nick}" because it matched pattern: ${this.badNicks.find(r => r.test(nick) || r.test(sanitizeNick))?.source}`);
-			throw new Error(`can't be named that`);
+		try{
+			this.deps.orchestrationService.nickCheck(nick);
+			this.deps.orchestrationService.nickCheck(sanitizeNick);
 		}
+		catch(error){
+				throw error;
+		}
+
 		if (sanitizeNick.length < 2 || sanitizeNick.length > 15) {
 			throw new Error('nickname must be between 2 and 15 characters')
 		}
@@ -43,19 +54,13 @@ export class IdentityService {
 				throw new Error('nickname is already in use');
 			}
 
-			const changeOk = new Date(user.lastChanged).getTime() + (30 * 1000);
-			const now = Date.now();
-			if(now < changeOk){
-				const waitTime = (changeOk- now)/1000;
-				throw new Error(`you're doing that too fast, wait ${Math.ceil(waitTime)} seconds.`);
-			}
 			this.registeredNicks.delete(oldNick.toLowerCase());
 			this.registeredNicks.set(sanitizeNick.toLowerCase(), guid);
 
 			const color = user.nick.substring(0,7)
 			user.nick = color + sanitizeNick;
-			user.lastChanged = new Date(now);
-			this.saveData();
+			user.lastChanged = new Date();
+			this.saveUsers();
 			return user;
 		}
 		//New user flow
@@ -77,7 +82,7 @@ export class IdentityService {
 
 		this.users.set(newGuid, newIdentity);
 		this.registeredNicks.set(sanitizeNick.toLowerCase(), newGuid);
-		this.saveData();
+		this.saveUsers();
 		return newIdentity;
 		}
 	}
@@ -89,17 +94,9 @@ export class IdentityService {
 			throw new Error('invalid hex code. please use format #RRGGBB');
 		}
 
-		const changeOk = new Date(user.lastChanged).getTime() + (5 * 1000);
-		const now = Date.now();
-
-		if(now < changeOk){
-			const waitTime = (changeOk- now)/1000;
-			throw new Error(`you're doing that too fast, wait ${Math.ceil(waitTime)} seconds.`);
-		}
-
 		user.nick = color.toUpperCase() + user.nick.substring(7)
-		user.lastChanged = new Date(now);
-		this.saveData();
+		user.lastChanged = new Date();
+		this.saveUsers();
 		return user;
 	}
 
@@ -118,30 +115,31 @@ export class IdentityService {
 		}
 		if(user.isAfk){
 			user.isAfk = false;
-			this.saveData();
+			this.saveUsers();
 		}
 		else{
 			user.isAfk = true;
-			this.saveData();
+			this.saveUsers();
 		}
 		return user;
 	}
 
 	public setStatus(guid: string, status: string): Identity {
 		const user = this.users.get(guid);
-		const newStatus = status;
 
 		if(!user){
 			throw new Error('No matching user found to GUID')
 		}
 
-		if (this.profFilter.find(regex => regex.test(status))) {
-			console.log(`status prof filter "${status}" for user ${user.nick.substring(7)} because it matched pattern: ${this.badNicks.find(r => r.test(status))?.source}`);
-			throw new Error(`watch your profamity`);
+		try{
+			this.deps.orchestrationService.profCheck(status);
 		}
-		
-		user.status = newStatus;
-		this.saveData();
+		catch(error){
+			throw (error);
+		}
+
+		user.status = status;
+		this.saveUsers();
 		return user;
 	}
 
@@ -152,7 +150,7 @@ export class IdentityService {
 			throw new Error('No matching user found to GUID')
 		}
 		user.lastMessage = new Date(newDate);
-		this.saveData();
+		this.saveUsers();
 		return user;
 	}
 
@@ -176,51 +174,17 @@ export class IdentityService {
 		const cleanNick = user.nick.substring(7);
 		this.registeredNicks.delete(cleanNick.toLowerCase());
 		this.users.delete(guid);
-		this.saveData();
+		this.saveUsers();
 		console.log(`GDPR: Deleted user ${cleanNick} (${guid})`);
 	}
 
-
-	public nickAvailable(nick: string): boolean {
-		const clean = nick.replace(/[^\w\s]/gi, '').trim();
-		return !this.registeredNicks.has(clean.toLowerCase());
-	}
-
-	private loadFilters() {
-		try {
-			const nickFilter = JSON.parse(fs.readFileSync('./nickfilter.json', 'utf-8')).usernames || [];
-			const profList = JSON.parse(fs.readFileSync('./profanityfilter.json', 'utf-8'));
-			this.profFilter = Array.isArray(profList) 
-				? profList
-					.filter((item: any) => item.tags?.includes('racial') && item.severity > 2)
-					.map((item: any) => 
-						`\\b${(item.match.includes('|') ? `(?:${item.match})` : item.match)
-							.replace(/\*/g, '.*')
-							.replace(/([a-zA-Z0-9.])(?=[a-zA-Z0-9.])/g, '$1[\\s\\-_.]*')
-						}\\b`
-					)
-					.map(pattern => new RegExp(pattern, 'i'))
-				: [];
-			const configFilter = JSON.parse(fs.readFileSync('./config.json', 'utf-8')).nickres || [];
-			const regFilter = [...nickFilter, ...configFilter].filter(Boolean);
-
-			this.badNicks = [
-				...regFilter.map(pattern => new RegExp(pattern, 'i')),
-				...this.profFilter
-			];
-		} catch (e) {
-			console.error('nick filter load issue');
-			this.badNicks = [];
-		}
-	}
-	
-	private loadData() {
-		try {
-			if (!fs.existsSync(this.userList)) {
+	private loadUsers() {
+	try {
+		if (!existsSync(this.deps.usersPath)) {
 			return;
 			}
 
-			const data = fs.readFileSync(this.userList, 'utf-8');
+			const data = readFileSync(this.deps.usersPath, 'utf-8');
 			const parseData: [string, Identity][] = JSON.parse(data);
 
 			this.users = new Map(parseData);
@@ -235,19 +199,19 @@ export class IdentityService {
 		} catch (e: any) {
 			console.error('Failed to load user data', `${e.message}`);
 		}
-	}
+	};
 
-	private saveData() {
+	private saveUsers() {
 		try {
-			const dir = path.dirname(this.userList);
-			if (!fs.existsSync(dir)) {
-			fs.mkdirSync(dir, {recursive: true});
+			const dir = dirname(this.deps.usersPath);
+			if (!existsSync(dir)) {
+			mkdirSync(dir, {recursive: true});
 			}
 
 			const data = Array.from(this.users.entries());
-			fs.writeFileSync(this.userList, JSON.stringify(data, null, 4));
+			writeFileSync(this.deps.usersPath, JSON.stringify(data, null, 4));
 		} catch (e: any) {
 			console.error('failed to save user data', `${e.message}`);
 		}
-	}
+	};
 }

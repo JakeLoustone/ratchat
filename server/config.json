@@ -1,6 +1,9 @@
 {
-	"welcomeMsg": "Large Rat Testicles",
+	"welcomeMsg": "welcome to the ratchat, ratter",
 	"slowMode": 1,
+	"nickSlow": 30,
+	"otherSlow": 5,
+	"timeoutDef": 300,
 	"maxMsgLen": 255,
 	"maxNickLen": 16,
 	"msgArrayLen": 25,

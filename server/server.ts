@@ -4,40 +4,62 @@ import { createServer } from 'http';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'fs';
-import type { Identity, ChatMessage, MessageType } from '../shared/types.ts';
+
+import type { Identity, ChatMessage, MessageType, ServerConfig } from '../shared/types.ts';
+import { tType, mType } from '../shared/types.ts';
+
 import { IdentityService } from './services/identity.ts'
 import { CommandService } from './services/command.ts';
-import { mType } from '../shared/types.ts';
+import { OrchestrationService } from './services/orchestration.ts';	
 
 //TODO: ip hashing
 //TODO: socket protection
 //TODO: ban enforcement
 
-const config = JSON.parse(readFileSync('./config.json', 'utf-8'));
 const app = express();
 const httpserver = createServer(app);
 const io = new Server(httpserver, {connectionStateRecovery:{}});
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const usersPath = join(__dirname, 'data', 'users.json');
+const configPath = join(__dirname, 'config.json');
 
+
+const config = {} as ServerConfig;
+const emotes = new Map<string, string>();
 const socketUsers = new Map<string, Identity>();
 const chatHistory = new Map<number, ChatMessage>();
-const emotes = new Map<string, string>();
 
-//Sys message shorthand
-const sendSys = (to: Target, type: TextPayload, text: string) => send(to, type, createMsg(true,'system',text,type as any));
+//console.log("CONFIG PATH:", configPath);
+const orchestrationService = new OrchestrationService({ 
+	configPath: configPath,
+	config: config,
+	emotes: emotes,
+	
+	send: send
+});
+//orchestrationService.init();
 
-const identityService = new IdentityService(usersPath);
+const identityService = new IdentityService({
+	orchestrationService: orchestrationService,
+	
+	usersPath: usersPath,
+	config: config
+});
+
 const commandService = new CommandService({
 	identityService: identityService,
+	orchestrationService: orchestrationService,
+	
 	send: send,
 	sendSys: sendSys,
 	updateSocketUser: updateSocketUser,
 	setAnnouncement: (text: string) => { announcement = text; },
+	
+	config: config,
 	chatHistory: chatHistory,
 	socketUsers: socketUsers,
-	emotes: emotes,
 });
+
 
 let messageCounter = {val: 0};
 
@@ -47,16 +69,17 @@ var uList: UserSum[] = [];
 type UserSum = Pick<Identity, "nick" | "status" | "isAfk">
 type Target = Server | Socket;
 type TextPayload = typeof mType.chat | typeof mType.ann | typeof mType.error | typeof mType.info | typeof mType.welcome;
+type MessagePayloadMap = {
+[T in MessageType]: 
+	T extends typeof mType.identity ? Identity :
+	T extends typeof mType.list ? UserSum[] :
+	T extends typeof mType.delmsg ? number[] :
+	T extends typeof mType.emote ? Record<string, string> :
+	ChatMessage;
+};
 
 //Send helper function
-//payload typing overload
-function send(to: Target, metype: typeof mType.identity, msg: Identity): void;
-function send(to: Target, metype: typeof mType.list, msg: UserSum[]): void;
-function send(to: Target, metype: typeof mType.delmsg, msg: number[]): void;
-function send(to: Target, metype: typeof mType.emote, msg: Record<string, string>): void;
-function send(to: Target, metype: TextPayload, msg: ChatMessage): void;
-//function
-function send(to: Target, metype: MessageType, msg: any): void {
+function send<T extends MessageType>(to: Target, metype: T, msg: MessagePayloadMap[T]): void {
 	//double check target
 	if (!(to instanceof Server) && !(to instanceof Socket)){
 		throw new Error('Invalid emit target')
@@ -66,12 +89,18 @@ function send(to: Target, metype: MessageType, msg: any): void {
 	to.emit(metype, msg)
 }
 
+//Sys message function
+function sendSys(to: Target, type: TextPayload, text: string) {
+	return send(to, type, createMsg(true,'system',text, type));
+}
+
+
 //Helper function for ChatMessage construction
 //sys message overload
 function createMsg(sys: false, author: Identity, content: string, metype: TextPayload): ChatMessage;
 function createMsg(sys: true, author: string, content: string, metype: TextPayload): ChatMessage;
 //function
-function createMsg(sys: boolean = false, author: Identity | string = 'system', content: string, metype: Exclude<MessageType, typeof mType.identity | typeof mType.list | typeof mType.emote>): ChatMessage {
+function createMsg(sys: boolean = false, author: Identity | string = 'system', content: string, metype: TextPayload): ChatMessage {
 		return {
 		id: sys? -1: messageCounter.val++,
 		author: typeof author === 'string' ? author : author.nick,
@@ -229,67 +258,59 @@ io.on('connection', (socket) => {
 		}
 
 		//Profanity check
-		const badWord = profFilter.find(regex => regex.test(msg));
-		
-		if(badWord){
-			sendSys(socket, mType.error, 'watch your profamity');
-			console.log(`prof filter "${msg}" from ${user.nick.substring(7)} because it matched pattern: ${badWord.source}`);
-			return;
+		try{
+			orchestrationService.profCheck(msg);
 		}
-
+		catch(error){
+			sendSys(socket, mType.error, `${error}`)
+		}
 		console.log('message: ' + msg);
 
-		//slowmode and timeout check
-		const timeoutUser = user?.lastMessage
-		if(timeoutUser){
-			const timeoutTime = new Date(timeoutUser).getTime() + (config.slowMode*1000);
-			const now = Date.now();
+		try{
+			orchestrationService.timeCheck(user, tType.chat);
+					
+			//Build message JSON Object
+			const chatmsg = createMsg(false, user, msg, mType.chat);
 
-			if(now < timeoutTime){
-				const waitTime = (timeoutTime - now)/1000;
-				sendSys(socket, mType.error, `system: you're doing that too fast, wait ${Math.ceil(waitTime)} seconds.`);
-				return;
-			}else{
-				//Build message JSON Object
-				const chatmsg = createMsg(false, user, msg, mType.chat);
-
-				//Save message to array and delete oldest if necessary
-				chatHistory.set(chatmsg.id, chatmsg);
-				try{
-					identityService.setLastMessage(user.guid, chatmsg.timestamp);
-					if (chatHistory.size > config.msgArrayLen){
-						const oldestMessage = chatHistory.keys().next().value;
-						if (oldestMessage !== undefined) {
-							chatHistory.delete(oldestMessage);
-						}
+			//Save message to array and delete oldest if necessary
+			chatHistory.set(chatmsg.id, chatmsg);
+			try{
+				identityService.setLastMessage(user.guid, chatmsg.timestamp);
+				if (chatHistory.size > config.msgArrayLen){
+					const oldestMessage = chatHistory.keys().next().value;
+					if (oldestMessage !== undefined) {
+						chatHistory.delete(oldestMessage);
 					}
-				} catch (error: any){
-					console.warn(`${error.message}`);
 				}
+			} catch (error: any){
+				console.warn(`${error.message}`);
+			}
 
 			//Send message JSON object to all connected sockets
 			send(io, mType.chat, chatmsg);
 
 			//Send callback for input clearing
-				if (typeof callback === 'function') {
-					callback();
-				}
+			if (typeof callback === 'function') {
+				callback();
 			}
+		}catch(error){
+			sendSys(socket, mType.error, `${error}`)
 		}
 	});
 
 	//On socket discconect flow
 	socket.on('disconnect', () => {
 	console.log('a user disconnected');
-	const disuser =socketUsers.get(socket.id)
-	if(disuser){
-		updateSocketUser(socket.id, disuser, 'delete');
-		sendSys(io, mType.ann, `${disuser.nick.substring(7)} disconnected`);
-	}
-	else{
-		//lurker disconnect
-		updateSocketUser('refresh-trigger', {} as Identity, 'delete');
-	}
+
+	const disuser = socketUsers.get(socket.id);
+		if(disuser){
+			updateSocketUser(socket.id, disuser, 'delete');
+			sendSys(io, mType.ann, `${disuser.nick.substring(7)} disconnected`);
+		}
+		else{
+			//lurker disconnect
+			updateSocketUser('refresh-trigger', {} as Identity, 'delete');
+		}
 	});
 });
 
@@ -306,7 +327,7 @@ httpserver.listen(config.PORT, () => {
 });
 
 //Fetch emotes
-commandService.emoteLoad(io, config.stvurl).then(success => {
+orchestrationService.emoteLoad(io, config.stvurl).then(success => {
 	if (success){
 		console.log('startup emotes loaded');
 	}

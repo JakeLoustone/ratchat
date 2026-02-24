@@ -1,17 +1,23 @@
-import { Server, Socket } from 'socket.io';
-import { type Command, type Identity, type ChatMessage, mType } from '../../shared/types.ts';
+import type { Server, Socket } from 'socket.io';
+
+import type { Command, Identity, ChatMessage, ServerConfig } from '../../shared/types.ts';
+import { tType, mType } from '../../shared/types.ts';
+
 import { IdentityService } from '../services/identity.ts';
-import { readFileSync } from 'fs';
+import { OrchestrationService } from './orchestration.ts';
 
 export interface CommandServiceDependencies {
 	identityService: IdentityService;
+	orchestrationService: OrchestrationService;
+
 	send: (to: Server | Socket, metype: any, msg: any) => void;
 	sendSys: (to: Server | Socket, type: any, text: string) => void;
 	updateSocketUser: (socketID: string, identity: Identity, updateType: 'update' | 'delete') => void;
 	setAnnouncement: (text: string) => void;
+	
+	config: ServerConfig;
 	chatHistory: Map<number, ChatMessage>;
 	socketUsers: Map<string, Identity>;
-	emotes: Map<string, string>;
 }
 
 export class CommandService {
@@ -64,9 +70,14 @@ export class CommandService {
 		};
 
 		this.commands['nick'] = (ctx) => {
-			if (this.isTimedOut(ctx)){
-				this.deps.sendSys(ctx.socket, mType.error, "system: you're in timeout rn");
-				return false;
+			if(ctx.commandUser){
+				try{
+					this.deps.orchestrationService.timeCheck(ctx.commandUser, tType.nick);
+				}
+				catch(error){
+					this.deps.sendSys(ctx.socket, mType.error, `${error}`)
+					return false;
+				}
 			}
 
 			if (ctx.args.length > 1){
@@ -108,10 +119,15 @@ export class CommandService {
 				this.deps.sendSys(ctx.socket, mType.error, "system: please use /chrat <nickname> before trying to set a color");
 				return true;
 			}
-			if (this.isTimedOut(ctx)){
-				this.deps.sendSys(ctx.socket, mType.error, "system: you're in timeout rn");
-				return false;
-			} 
+			if(ctx.commandUser){
+				try{
+					this.deps.orchestrationService.timeCheck(ctx.commandUser, tType.other);
+				}
+				catch(error){
+					this.deps.sendSys(ctx.socket, mType.error, `${error}`)
+					return false;
+				}
+			}
 			
 			const hex = ctx.args[0];			
 			try {
@@ -170,9 +186,14 @@ export class CommandService {
 				this.deps.sendSys(ctx.socket, mType.error, "system: please use /chrat <nickname> before trying to go afk lmao");
 				return true;
 			} 
-			if (this.isTimedOut(ctx)){
-				this.deps.sendSys(ctx.socket, mType.error, "system: you're in timeout rn");
-				return false;
+			if(ctx.commandUser){
+				try{
+					this.deps.orchestrationService.timeCheck(ctx.commandUser, tType.other);
+				}
+				catch(error){
+					this.deps.sendSys(ctx.socket, mType.error, `${error}`)
+					return false;
+				}
 			}
 			
 			try {
@@ -193,11 +214,16 @@ export class CommandService {
 				this.deps.sendSys(ctx.socket, mType.error, "system: please use /chrat <nickname> before trying to facebook post");
 				return true;
 			}
-			if (this.isTimedOut(ctx)){
-				this.deps.sendSys(ctx.socket, mType.error, "system: you're in timeout rn");
-				return false;
+			if(ctx.commandUser){
+				try{
+					this.deps.orchestrationService.timeCheck(ctx.commandUser, tType.other);
+				}
+				catch(error){
+					this.deps.sendSys(ctx.socket, mType.error, `${error}`)
+					return false;
+				}
 			}
-			
+
 			//Sanitize
 			const noHtml = ctx.fullArgs.replace(/<[^>]*>?/gm, '');
 			const newStatus = noHtml.replace(/[^\x20-\x7E]/g, '');
@@ -321,9 +347,14 @@ export class CommandService {
 				this.deps.sendSys(ctx.socket, mType.error, "naughty naughty");
 				return true;
 			}
-			if (this.isTimedOut(ctx)){
-				this.deps.sendSys(ctx.socket, mType.error, "system: you're in timeout rn");
-				return false;
+			if(ctx.commandUser){
+				try{
+					this.deps.orchestrationService.timeCheck(ctx.commandUser, tType.chat);
+				}
+				catch(error){
+					this.deps.sendSys(ctx.socket, mType.error, `${error}`)
+					return false;
+				}
 			}
 
 			//Sanitize
@@ -432,8 +463,7 @@ export class CommandService {
 			// If no argument, pull from config.json
 			if (!targetUrl) {
 				try {
-					const config = JSON.parse(readFileSync('./config.json', 'utf-8'));
-					targetUrl = config.stvurl;
+					targetUrl = this.deps.config.stvurl;
 					this.deps.sendSys(ctx.socket, mType.info, 'reloading emotes from config...');
 				} 
 				catch {
@@ -453,7 +483,7 @@ export class CommandService {
 			}
 
 			// Execute the fetch
-			const success = await this.emoteLoad(ctx.io, targetUrl);
+			const success = await this.deps.orchestrationService.emoteLoad(ctx.io, targetUrl);
 
 			if (success) {
 				this.deps.sendSys(ctx.socket, mType.info, 'emotes loaded');
@@ -497,38 +527,4 @@ export class CommandService {
 				this.deps.sendSys(ctx.socket, mType.info, `message ID ${id} deleted.`)
 		});
 	}
-
-	//Timeout check to prevent command abuse
-	private isTimedOut(ctx: Command): boolean {
-		if (!ctx.commandUser) return false;
-		const lastMsg = new Date(ctx.commandUser.lastMessage).getTime();
-		return lastMsg > Date.now();
-	}
-
-	//Emote fetcher
-	public async emoteLoad(io: Server, url: string): Promise<boolean>{
-		try {;
-				if(url === '0'|| !url){
-					console.log('no emote URL')
-					return false;
-				}
-				const response = await fetch(`https://api.7tv.app/v3/emote-sets/${url}`);
-				const data = await response.json();
-				
-				data.emotes.forEach((e: any) => {
-					const name = e.name;
-					const hostUrl = e.data.host.url; 
-					this.deps.emotes.set(name, `https:${hostUrl}/1x.webp`);
-				});
-
-				console.log(`cached ${this.deps.emotes.size} global emotes.`);
-				const emotePayload = Object.fromEntries(this.deps.emotes);
-				this.deps.send(io, mType.emote, emotePayload);
-				return true;
-			} catch (err) {
-				console.error('failed to fetch emotes:', err);
-				return false;
-			}
-	}
-	
 }

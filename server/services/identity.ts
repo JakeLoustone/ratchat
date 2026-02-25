@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 
-import type { Identity, ServerConfig } from '../../shared/types.ts'
+import type { Identity, ServerConfig } from '../../shared/schema.ts'
 
 import { ModerationService } from './moderation.ts';
 

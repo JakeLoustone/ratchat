@@ -1,7 +1,7 @@
 import { Server, Socket } from 'socket.io';
 
-import type { Command, Identity, ChatMessage } from '../../shared/types.ts';
-import { tType, mType } from '../../shared/types.ts';
+import type { Command, Identity, ChatMessage } from '../../shared/schema.ts';
+import { tType, mType } from '../../shared/schema.ts';
 
 import { StateService } from './state.ts';
 import { IdentityService } from '../services/identity.ts';

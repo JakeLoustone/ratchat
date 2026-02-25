@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import type { Server, Socket } from "socket.io";
 
-import type { ServerConfig, Identity, TimeType } from "../../shared/types.ts";
+import type { ServerConfig, Identity, TimeType } from "../../shared/schema.ts";
 
 export interface ModerationServiceDependencies{
 	config: ServerConfig;

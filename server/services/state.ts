@@ -1,8 +1,8 @@
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync } from "fs";
 import type { Server, Socket } from "socket.io";
 
-import type { ServerConfig } from "../../shared/types.ts";
-import { mType } from '../../shared/types.ts';
+import type { ServerConfig } from "../../shared/schema.ts";
+import { defaultServerConfig, mType } from '../../shared/schema.ts';
 
 export interface StateServiceDependencies{
 	configPath: string;
@@ -24,7 +24,49 @@ export class StateService {
 
 	
 	private loadConfig(){
- 		Object.assign(this.deps.config, JSON.parse(readFileSync(this.deps.configPath, 'utf-8')));
+		if(!existsSync(this.deps.configPath)){
+			writeFileSync(this.deps.configPath, JSON.stringify(defaultServerConfig, null, 4))
+			Object.assign(this.deps.config, defaultServerConfig);
+			console.log("created default config.json file")
+			return;
+		}
+
+		let loadedCfg: any;
+		try{
+			loadedCfg = JSON.parse(readFileSync(this.deps.configPath, 'utf-8'));
+		}
+ 		catch(e: any){
+			console.warn(`config load error: ${e.message}`);
+			loadedCfg = {};
+		}
+		for (const key of Object.keys(defaultServerConfig) as Array<keyof ServerConfig>){
+			const def = defaultServerConfig[key];
+			const cfg = loadedCfg[key];
+			if(cfg === undefined || cfg === null){
+				(this.deps.config as any)[key] = def;
+				console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`);
+				continue;
+			} 
+			if(typeof def === "number" && typeof cfg !== "number"){
+				(this.deps.config as any)[key] = def;
+				console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`)
+				continue; 
+			} 
+			if(typeof def === "string" && typeof cfg !== "string"){
+				(this.deps.config as any)[key] = def;
+				console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`)
+				continue; 
+			} 
+			if(Array.isArray(def)){
+				if(!Array.isArray(cfg) || !cfg.every(v => typeof v === "string")){
+					(this.deps.config as any)[key] = def;
+					console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`)
+					continue; 
+				} 
+			} 
+			(this.deps.config as any)[key] = cfg;
+			console.log(`${key} = ${JSON.stringify(cfg)}`);
+		}
 	}
 
 	public setAnnouncement(io: Server, str: string){

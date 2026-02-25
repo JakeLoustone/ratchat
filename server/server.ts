@@ -4,8 +4,8 @@ import { createServer } from 'http';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'node:url';
 
-import type { Identity, ChatMessage, MessageType, ServerConfig } from '../shared/types.ts';
-import { tType, mType } from '../shared/types.ts';
+import type { Identity, ChatMessage, MessageType, ServerConfig } from '../shared/schema.ts';
+import { tType, mType } from '../shared/schema.ts';
 
 import { IdentityService } from './services/identity.ts'
 import { CommandService } from './services/command.ts';
@@ -315,7 +315,6 @@ app.get('/ratchat', (req, res) => {
 
 //Server standup
 httpserver.listen(config.PORT, () => {
-	console.log(JSON.stringify(config));
 	console.log(`server running at http://localhost:${config.PORT}`);
 });
 

@@ -50,9 +50,22 @@ export interface ServerConfig {
 	maxMsgLen: number;
 	maxNickLen: number;
 	msgArrayLen: number;
-	stvurl: string;
+	stvurl?: string;
 	nickres: string[];
 	PORT: number;
+}
+export const defaultServerConfig: ServerConfig = {
+	welcomeMsg: 'Welcome!',
+	slowMode: 1,
+	nickSlow: 30,
+	otherSlow: 5,
+	timeoutDef: 300,
+	maxMsgLen: 255,
+	maxNickLen: 16,
+	msgArrayLen: 25,
+	stvurl: undefined,
+	nickres: [],
+	PORT: 3666,
 }
 
 export interface Command {

@@ -1,21 +1,23 @@
 import { readFileSync } from "fs";
 import type { Server, Socket } from "socket.io";
 
-import type { ServerConfig } from "../../shared/types";
+import type { ServerConfig } from "../../shared/types.ts";
 import { mType } from '../../shared/types.ts';
 
-export interface ConfigServiceDependencies{
+export interface StateServiceDependencies{
 	configPath: string;
 	config: ServerConfig;
 	emotes: Map<string, string>;
+    announcement: {val: string}
 
 	send: (to: Server | Socket, metype: any, msg: any) => void;
+	sendSys: (to: Server | Socket, type: any, text: string) => void;
 }
 
-export class ConfigService {
-	private deps: ConfigServiceDependencies;
+export class StateService {
+	private deps: StateServiceDependencies;
 
-	constructor(dependencies: ConfigServiceDependencies) {
+	constructor(dependencies: StateServiceDependencies) {
 		this.deps = dependencies;
 		this.loadConfig();
 	}
@@ -25,9 +27,15 @@ export class ConfigService {
  		Object.assign(this.deps.config, JSON.parse(readFileSync(this.deps.configPath, 'utf-8')));
 	}
 
-	public setAnnouncement(str: string){
+	public setAnnouncement(io: Server, str: string){
+		if (this.deps.announcement.val === str){
+			throw Error("that's already the announcement")
+		}
 
-
+        this.deps.announcement.val = str;
+		if(str){
+        	this.deps.sendSys(io, mType.ann,`announcement: ${str}`);
+		}
 	}
 	
 	public async emoteLoad(io: Server, url?: string){

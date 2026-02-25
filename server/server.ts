@@ -10,7 +10,7 @@ import { tType, mType } from '../shared/types.ts';
 import { IdentityService } from './services/identity.ts'
 import { CommandService } from './services/command.ts';
 import { ModerationService } from './services/moderation.ts';	
-import { ConfigService } from './services/config.ts';
+import { StateService } from './services/state.ts';
 
 //TODO: ip hashing
 //TODO: socket protection
@@ -28,15 +28,17 @@ const config = {} as ServerConfig;
 const emotes = new Map<string, string>();
 const socketUsers = new Map<string, Identity>();
 const chatHistory = new Map<number, ChatMessage>();
-let announcement = '';
+let announcement = {val: ''};
 
 
-const configService = new ConfigService({
+const stateService = new StateService({
 	configPath: configPath,
 	config: config,
 	emotes: emotes,
+	announcement: announcement,
 
-	send: send
+	send: send,
+	sendSys: sendSys,
 }); 
 
 const moderationService = new ModerationService({ 
@@ -53,16 +55,14 @@ const identityService = new IdentityService({
 });
 
 const commandService = new CommandService({
-	configService: configService,
+	stateService: stateService,
 	identityService: identityService,
 	moderationService: moderationService,
 	
 	send: send,
 	sendSys: sendSys,
 	updateSocketUser: updateSocketUser,
-	setAnnouncement: (text: string) => { announcement = text; },
-	
-	config: config,
+
 	chatHistory: chatHistory,
 	socketUsers: socketUsers
 });
@@ -157,8 +157,8 @@ io.on('connection', (socket) => {
 
 	//On connection welcome and announcement messages and emote payload
 	sendSys(socket, mType.welcome, `${config.welcomeMsg}`)
-	if (announcement){
-		sendSys(socket, mType.ann, `announcemet: ${announcement}`)
+	if (announcement.val){
+		sendSys(socket, mType.ann, `announcemet: ${announcement.val}`)
 	}
 	if(emotes.size > 0){
 		const emotePayload = Object.fromEntries(emotes);
@@ -321,7 +321,7 @@ httpserver.listen(config.PORT, () => {
 
 //Fetch emotes
 try{
-	await configService.emoteLoad(io)
+	await stateService.emoteLoad(io)
 	console.log('startup emotes loaded');
 }
 catch(e: any){

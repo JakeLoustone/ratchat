@@ -1,14 +1,14 @@
-import type { Server, Socket } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 
-import type { Command, Identity, ChatMessage, ServerConfig } from '../../shared/types.ts';
+import type { Command, Identity, ChatMessage } from '../../shared/types.ts';
 import { tType, mType } from '../../shared/types.ts';
 
-import { ConfigService } from './config.ts';
+import { StateService } from './state.ts';
 import { IdentityService } from '../services/identity.ts';
 import { ModerationService } from './moderation.ts';
 
 export interface CommandServiceDependencies {
-	configService: ConfigService;
+	stateService: StateService;
 	identityService: IdentityService;
 	moderationService: ModerationService;
 
@@ -16,9 +16,7 @@ export interface CommandServiceDependencies {
 	send: (to: Server | Socket, metype: any, msg: any) => void;
 	sendSys: (to: Server | Socket, type: any, text: string) => void;
 	updateSocketUser: (socketID: string, identity: Identity, updateType: 'update' | 'delete') => void;
-	setAnnouncement: (text: string) => void;
-	
-	config: ServerConfig;
+
 	chatHistory: Map<number, ChatMessage>;
 	socketUsers: Map<string, Identity>;
 }
@@ -365,15 +363,26 @@ export class CommandService {
 			const newAnnounce = noHtml.replace(/[^\x20-\x7E]/g, '');
 
 			if (newAnnounce.trim().length > 0) {
-				this.deps.setAnnouncement(newAnnounce);
-				this.deps.sendSys(ctx.io, mType.ann, `announcement: ${newAnnounce}`);
-				return true;
-			} 
+				try{
+					this.deps.stateService.setAnnouncement(ctx.io, newAnnounce);
+					return true;
+				}
+				catch(e: any){
+				this.deps.sendSys(ctx.socket, mType.error, `system: ${e.message}`)
+				return false;
+				}
+			}	
 			else {
 				// Clear announcement
-				this.deps.setAnnouncement('');
-				this.deps.sendSys(ctx.socket, mType.info, 'announcement cleared');
-				return true;
+				try{
+					this.deps.stateService.setAnnouncement(ctx.io, '');
+					this.deps.sendSys(ctx.socket, mType.info, 'announcement cleared');
+					return true;
+				}
+				catch(e: any){
+				this.deps.sendSys(ctx.socket, mType.error, `system: ${e.message}`)
+				return false;
+				}
 			}
 		};
 		 
@@ -476,7 +485,7 @@ export class CommandService {
 			}
 
 			try{
-				await this.deps.configService.emoteLoad(ctx.io, targetUrl);
+				await this.deps.stateService.emoteLoad(ctx.io, targetUrl);
 				this.deps.sendSys(ctx.socket, mType.info, 'emotes loaded');
 				return true;
 			} catch(e: any){

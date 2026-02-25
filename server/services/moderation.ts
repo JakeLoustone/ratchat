@@ -1,32 +1,23 @@
 import { readFileSync } from "fs";
 import type { Server, Socket } from "socket.io";
 
-import type { ServerConfig, Identity, TimeType } from "../../shared/types";
-import { mType } from '../../shared/types.ts';
+import type { ServerConfig, Identity, TimeType } from "../../shared/types.ts";
 
-export interface OrchestrationServiceDependencies{
-	configPath: string;
+export interface ModerationServiceDependencies{
 	config: ServerConfig;
-	emotes: Map<string, string>;
 
 	send: (to: Server | Socket, metype: any, msg: any) => void;
 }
 
-export class OrchestrationService {
-	private deps: OrchestrationServiceDependencies;
+export class ModerationService {
+	private deps: ModerationServiceDependencies;
 	private profFilter: RegExp[] = [];
 	private nickFilter: RegExp[] = [];
 
 
-	constructor(dependencies: OrchestrationServiceDependencies) {
+	constructor(dependencies: ModerationServiceDependencies) {
 		this.deps = dependencies;
-		this.loadConfig();
 		this.loadFilters(); 
-	}
-
-	
-	private loadConfig(){
- 		Object.assign(this.deps.config, JSON.parse(readFileSync(this.deps.configPath, 'utf-8')));
 	}
 
 	private loadFilters() {
@@ -56,31 +47,6 @@ export class OrchestrationService {
 			this.nickFilter = [];
 		}
 	};
-
-	public async emoteLoad(io: Server, url: string): Promise<boolean>{
-		try {;
-				if(url === '0'|| !url){
-					console.log('no emote URL')
-					return false;
-				}
-				const response = await fetch(`https://api.7tv.app/v3/emote-sets/${url}`);
-				const data = await response.json();
-				
-				data.emotes.forEach((e: any) => {
-					const name = e.name;
-					const hostUrl = e.data.host.url; 
-					this.deps.emotes.set(name, `https:${hostUrl}/1x.webp`);
-				});
-
-				console.log(`cached ${this.deps.emotes.size} global emotes.`);
-				const emotePayload = Object.fromEntries(this.deps.emotes);
-				this.deps.send(io, mType.emote, emotePayload);
-				return true;
-			} catch (err) {
-				console.error('failed to fetch emotes:', err);
-				return false;
-			}
-	}
 
 	public timeCheck(user: Identity, type: TimeType){
 		const now = Date.now();

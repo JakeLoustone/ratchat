@@ -3,12 +3,15 @@ import type { Server, Socket } from 'socket.io';
 import type { Command, Identity, ChatMessage, ServerConfig } from '../../shared/types.ts';
 import { tType, mType } from '../../shared/types.ts';
 
+import { ConfigService } from './config.ts';
 import { IdentityService } from '../services/identity.ts';
-import { OrchestrationService } from './orchestration.ts';
+import { ModerationService } from './moderation.ts';
 
 export interface CommandServiceDependencies {
+	configService: ConfigService;
 	identityService: IdentityService;
-	orchestrationService: OrchestrationService;
+	moderationService: ModerationService;
+
 
 	send: (to: Server | Socket, metype: any, msg: any) => void;
 	sendSys: (to: Server | Socket, type: any, text: string) => void;
@@ -72,10 +75,10 @@ export class CommandService {
 		this.commands['nick'] = (ctx) => {
 			if(ctx.commandUser){
 				try{
-					this.deps.orchestrationService.timeCheck(ctx.commandUser, tType.nick);
+					this.deps.moderationService.timeCheck(ctx.commandUser, tType.nick);
 				}
-				catch(error){
-					this.deps.sendSys(ctx.socket, mType.error, `${error}`)
+				catch(e: any){
+					this.deps.sendSys(ctx.socket, mType.error, `${e.message}`)
 					return false;
 				}
 			}
@@ -121,10 +124,10 @@ export class CommandService {
 			}
 			if(ctx.commandUser){
 				try{
-					this.deps.orchestrationService.timeCheck(ctx.commandUser, tType.other);
+					this.deps.moderationService.timeCheck(ctx.commandUser, tType.other);
 				}
-				catch(error){
-					this.deps.sendSys(ctx.socket, mType.error, `${error}`)
+				catch(e: any){
+					this.deps.sendSys(ctx.socket, mType.error, `${e.message}`)
 					return false;
 				}
 			}
@@ -188,10 +191,10 @@ export class CommandService {
 			} 
 			if(ctx.commandUser){
 				try{
-					this.deps.orchestrationService.timeCheck(ctx.commandUser, tType.other);
+					this.deps.moderationService.timeCheck(ctx.commandUser, tType.other);
 				}
-				catch(error){
-					this.deps.sendSys(ctx.socket, mType.error, `${error}`)
+				catch(e: any){
+					this.deps.sendSys(ctx.socket, mType.error, `${e.message}`)
 					return false;
 				}
 			}
@@ -216,10 +219,10 @@ export class CommandService {
 			}
 			if(ctx.commandUser){
 				try{
-					this.deps.orchestrationService.timeCheck(ctx.commandUser, tType.other);
+					this.deps.moderationService.timeCheck(ctx.commandUser, tType.other);
 				}
-				catch(error){
-					this.deps.sendSys(ctx.socket, mType.error, `${error}`)
+				catch(e: any){
+					this.deps.sendSys(ctx.socket, mType.error, `${e.message}`)
 					return false;
 				}
 			}
@@ -349,10 +352,10 @@ export class CommandService {
 			}
 			if(ctx.commandUser){
 				try{
-					this.deps.orchestrationService.timeCheck(ctx.commandUser, tType.chat);
+					this.deps.moderationService.timeCheck(ctx.commandUser, tType.chat);
 				}
-				catch(error){
-					this.deps.sendSys(ctx.socket, mType.error, `${error}`)
+				catch(e: any){
+					this.deps.sendSys(ctx.socket, mType.error, `${e.message}`)
 					return false;
 				}
 			}
@@ -427,8 +430,8 @@ export class CommandService {
 
 				this.deps.sendSys(ctx.io, mType.info, `${targetNick} has been timed out.`);
 				return true;
-			} catch(error: any){
-				this.deps.sendSys(ctx.socket, mType.error, `${error.message}`);
+			} catch(e: any){
+				this.deps.sendSys(ctx.socket, mType.error, `${e.message}`);
 				return false; 
 			}
 		};
@@ -460,37 +463,24 @@ export class CommandService {
 
 			let targetUrl = ctx.args[0];
 
-			// If no argument, pull from config.json
-			if (!targetUrl) {
-				try {
-					targetUrl = this.deps.config.stvurl;
-					this.deps.sendSys(ctx.socket, mType.info, 'reloading emotes from config...');
-				} 
-				catch {
-					this.deps.sendSys(ctx.socket, mType.error, 'failed to read config.json');
-					return false;
-				}
-			} 
-			else {
-				//check if 7tv looking url
+			if(targetUrl){
 				const isValidId = /^[a-z0-9_-]+$/i.test(targetUrl);
-
 				if (!isValidId) {
 					this.deps.sendSys(ctx.socket, mType.error, "doesn't look like a 7tv ID");
 					return false;
 				}
-			this.deps.sendSys(ctx.socket, mType.info, `fetching new emote set ${targetUrl}...`);
+				this.deps.sendSys(ctx.socket, mType.info, `fetching new emote set ${targetUrl}...`);
+			}
+			else{
+				this.deps.sendSys(ctx.socket, mType.info, 'reloading emotes from config...');
 			}
 
-			// Execute the fetch
-			const success = await this.deps.orchestrationService.emoteLoad(ctx.io, targetUrl);
-
-			if (success) {
+			try{
+				await this.deps.configService.emoteLoad(ctx.io, targetUrl);
 				this.deps.sendSys(ctx.socket, mType.info, 'emotes loaded');
 				return true;
-			} 
-			else {
-				this.deps.sendSys(ctx.socket, mType.error, 'load failed');
+			} catch(e: any){
+				this.deps.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
 				return false;
 			}
 		};

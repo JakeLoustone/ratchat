@@ -3,14 +3,14 @@ import express from 'express';
 import { createServer } from 'http';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'fs';
 
 import type { Identity, ChatMessage, MessageType, ServerConfig } from '../shared/types.ts';
 import { tType, mType } from '../shared/types.ts';
 
 import { IdentityService } from './services/identity.ts'
 import { CommandService } from './services/command.ts';
-import { OrchestrationService } from './services/orchestration.ts';	
+import { ModerationService } from './services/moderation.ts';	
+import { ConfigService } from './services/config.ts';
 
 //TODO: ip hashing
 //TODO: socket protection
@@ -28,27 +28,34 @@ const config = {} as ServerConfig;
 const emotes = new Map<string, string>();
 const socketUsers = new Map<string, Identity>();
 const chatHistory = new Map<number, ChatMessage>();
+let announcement = '';
 
-//console.log("CONFIG PATH:", configPath);
-const orchestrationService = new OrchestrationService({ 
+
+const configService = new ConfigService({
 	configPath: configPath,
 	config: config,
 	emotes: emotes,
+
+	send: send
+}); 
+
+const moderationService = new ModerationService({ 
+	config: config,
 	
 	send: send
 });
-//orchestrationService.init();
 
 const identityService = new IdentityService({
-	orchestrationService: orchestrationService,
+	moderationService: moderationService,
 	
 	usersPath: usersPath,
 	config: config
 });
 
 const commandService = new CommandService({
+	configService: configService,
 	identityService: identityService,
-	orchestrationService: orchestrationService,
+	moderationService: moderationService,
 	
 	send: send,
 	sendSys: sendSys,
@@ -57,13 +64,12 @@ const commandService = new CommandService({
 	
 	config: config,
 	chatHistory: chatHistory,
-	socketUsers: socketUsers,
+	socketUsers: socketUsers
 });
 
 
 let messageCounter = {val: 0};
 
-var announcement = '';
 var uList: UserSum[] = [];
 
 type UserSum = Pick<Identity, "nick" | "status" | "isAfk">
@@ -134,8 +140,7 @@ function updateSocketUser(socketID: string, identity: Identity, updateType: 'upd
 			return a.nick.substring(7).localeCompare(b.nick.substring(7), 'en', {sensitivity: 'base'});
 		});
 	
-	const socketCount = io.sockets.sockets.size;
-	const lurkers = socketCount - socketUsers.size;
+	const lurkers = io.sockets.sockets.size - socketUsers.size;
 	uList.push({
 		nick: '#NONVALlurkers',
 		status: `${lurkers}`,
@@ -146,20 +151,6 @@ function updateSocketUser(socketID: string, identity: Identity, updateType: 'upd
 	return;
 }
 
-//Profanity Filter
-const profList = JSON.parse(readFileSync('./profanityfilter.json', 'utf-8'));
-const profFilter: RegExp[] = Array.isArray(profList)
-	? profList
-		.filter((item: any) => item.tags?.includes('racial') && item.severity > 2)
-		.map((item: any) => new RegExp(
-            `\\b${(item.match.includes('|') ? `(?:${item.match})` : item.match)
-                .replace(/\*/g, '.*')
-                .replace(/([a-zA-Z0-9.])(?=[a-zA-Z0-9.])/g, '$1[\\s\\-_.]*')
-            }\\b`, 
-            'i'
-        ))
-	: [];
-
 //CONNECTION POINT
 
 io.on('connection', (socket) => {
@@ -169,7 +160,7 @@ io.on('connection', (socket) => {
 	if (announcement){
 		sendSys(socket, mType.ann, `announcemet: ${announcement}`)
 	}
-	if(emotes){
+	if(emotes.size > 0){
 		const emotePayload = Object.fromEntries(emotes);
 		send(socket, mType.emote, emotePayload);
 	}
@@ -259,15 +250,17 @@ io.on('connection', (socket) => {
 
 		//Profanity check
 		try{
-			orchestrationService.profCheck(msg);
+			moderationService.profCheck(msg);
 		}
-		catch(error){
-			sendSys(socket, mType.error, `${error}`)
+		catch(e: any){
+			sendSys(socket, mType.error, `${e.message}`)
+			return;
 		}
 		console.log('message: ' + msg);
 
 		try{
-			orchestrationService.timeCheck(user, tType.chat);
+			//Timeout check
+			moderationService.timeCheck(user, tType.chat);
 					
 			//Build message JSON Object
 			const chatmsg = createMsg(false, user, msg, mType.chat);
@@ -293,8 +286,8 @@ io.on('connection', (socket) => {
 			if (typeof callback === 'function') {
 				callback();
 			}
-		}catch(error){
-			sendSys(socket, mType.error, `${error}`)
+		}catch(e: any){
+			sendSys(socket, mType.error, `${e.message}`)
 		}
 	});
 
@@ -327,11 +320,10 @@ httpserver.listen(config.PORT, () => {
 });
 
 //Fetch emotes
-orchestrationService.emoteLoad(io, config.stvurl).then(success => {
-	if (success){
-		console.log('startup emotes loaded');
-	}
-	else{
-		console.warn('startup emotes failed')
-	}
-});
+try{
+	await configService.emoteLoad(io)
+	console.log('startup emotes loaded');
+}
+catch(e: any){
+	console.warn(`startup emotes failed: ${e.message}`);
+};

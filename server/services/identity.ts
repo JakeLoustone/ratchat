@@ -4,11 +4,11 @@ import { dirname } from 'path';
 
 import type { Identity, ServerConfig } from '../../shared/types.ts'
 
-import { OrchestrationService } from './orchestration.ts';
+import { ModerationService } from './moderation.ts';
 
 
 export interface IdentityServiceDependencies{
-	orchestrationService: OrchestrationService;
+	moderationService: ModerationService;
 	
 	config: ServerConfig;
 	usersPath: string;
@@ -29,8 +29,8 @@ export class IdentityService {
 		const sanitizeNick = nick.replace(/[^\w\s]/gi, '').trim();
 		
 		try{
-			this.deps.orchestrationService.nickCheck(nick);
-			this.deps.orchestrationService.nickCheck(sanitizeNick);
+			this.deps.moderationService.nickCheck(nick);
+			this.deps.moderationService.nickCheck(sanitizeNick);
 		}
 		catch(error){
 				throw error;
@@ -132,7 +132,7 @@ export class IdentityService {
 		}
 
 		try{
-			this.deps.orchestrationService.profCheck(status);
+			this.deps.moderationService.profCheck(status);
 		}
 		catch(error){
 			throw (error);

@@ -406,6 +406,7 @@
 					return;
 				}
 				systemMessage(`Your GUID is: ${oldGUID}`, 'i-li')
+				systemMessage(`don't share it!`, 'i-li')
 				input.value = '';
 				return;
 			}
@@ -455,8 +456,8 @@
 				setTimeout(() =>{systemMessage('reloading...', 'i-li');}, 200);
 				setTimeout(() =>{window.location.reload();}, 2000);
 			} else if(identity && identity.guid) {
-				console.log('Identity synced:', identity);
 				localStorage.setItem('ratGUID', identity.guid);
+				console.log('identity loaded')
 			} else{
 				console.log('identity load error')
 			}

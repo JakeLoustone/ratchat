@@ -15,10 +15,8 @@ export interface CommandServiceDependencies {
 
 	send: (to: Server | Socket, metype: any, msg: any) => void;
 	sendSys: (to: Server | Socket, type: any, text: string) => void;
-	updateSocketUser: (socketID: string, identity: Identity, updateType: 'update' | 'delete') => void;
 
 	chatHistory: Map<number, ChatMessage>;
-	socketUsers: Map<string, Identity>;
 }
 
 export class CommandService {
@@ -28,6 +26,18 @@ export class CommandService {
 	constructor(dependencies: CommandServiceDependencies) {
 		this.deps = dependencies;
 		this.registerCommands();
+	}
+
+	//execute the command, true to clear 
+	public async execute(name: string, ctx: Command): Promise<boolean> {
+		const handler = this.commands[name];
+		if (handler) {
+			//true to clear input, false to keep
+			return await handler(ctx);
+		} else {
+			this.deps.sendSys(ctx.socket, mType.error, "system: that's not a command lol");
+			return false;
+		}
 	}
 
 	private registerCommands() {
@@ -99,7 +109,7 @@ export class CommandService {
 				const oldNick = ctx.commandUser?.nick;
 				const updatedUser = this.deps.identityService.setNick(guid, newNick);
 
-				this.deps.updateSocketUser(ctx.socket.id, updatedUser, 'update');
+				this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, updatedUser);
 				this.deps.send(ctx.socket, mType.identity, updatedUser);
 				
 				if (oldNick) {
@@ -135,7 +145,7 @@ export class CommandService {
 				const trimNick = ctx.commandUser.nick.substring(7);
 				const updatedUser = this.deps.identityService.setColor(ctx.commandUser.guid, hex);
 
-				this.deps.updateSocketUser(ctx.socket.id, updatedUser, 'update');
+				this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, updatedUser,);
 				this.deps.send(ctx.socket, mType.identity, updatedUser);
 				this.deps.sendSys(ctx.socket, mType.info, `system: your color has been updated to ${hex}`);
 
@@ -164,7 +174,7 @@ export class CommandService {
 			try {
 				const updatedUser = this.deps.identityService.getUser(newGUID);
 
-				this.deps.updateSocketUser(ctx.socket.id, updatedUser, 'update');
+				this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, updatedUser);
 				this.deps.send(ctx.socket, mType.identity, updatedUser);
 				this.deps.sendSys(ctx.socket, mType.info, `system: identity changed to ${updatedUser.nick.substring(7)}`);
 				
@@ -200,7 +210,7 @@ export class CommandService {
 			try {
 				const afkUser = this.deps.identityService.toggleAfk(ctx.commandUser.guid);
 
-				this.deps.updateSocketUser(ctx.socket.id, afkUser, 'update');
+				this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, afkUser);
 				this.deps.sendSys(ctx.socket, mType.info, afkUser.isAfk ? "you've gone afk" : `welcome back, ${afkUser.nick.substring(7)}`);
 
 				return true;
@@ -237,7 +247,7 @@ export class CommandService {
 			try {
 				const updatedUser = this.deps.identityService.setStatus(ctx.commandUser.guid, newStatus);
 
-				this.deps.updateSocketUser(ctx.socket.id, updatedUser, "update");
+				this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, updatedUser);
 				this.deps.sendSys(ctx.socket, mType.info, `your status is now: ${updatedUser.status}`);
 				
 				return true;
@@ -315,10 +325,10 @@ export class CommandService {
 						//iterate through all sockets to find matches
 						const allSockets = ctx.io.sockets.sockets;
 						allSockets.forEach((socket) => {
-							const mappedUser = this.deps.socketUsers.get(socket.id);
+							const mappedUser = this.deps.stateService.getSocketUsers().get(socket.id);
 							if(mappedUser && mappedUser.guid === targetGuid){
 								this.deps.send(socket, mType.identity, sentinelId);
-								this.deps.updateSocketUser(socket.id, ctx.commandUser!, 'delete');
+								this.deps.stateService.updateSocketUser(ctx.io, socket.id, ctx.commandUser!);
 								this.deps.sendSys(socket, mType.info, 'goodbye is ur data');
 							}
 
@@ -485,7 +495,7 @@ export class CommandService {
 			}
 
 			try{
-				await this.deps.stateService.emoteLoad(ctx.io, targetUrl);
+				await this.deps.stateService.updateEmotes(ctx.io, targetUrl);
 				this.deps.sendSys(ctx.socket, mType.info, 'emotes loaded');
 				return true;
 			} catch(e: any){
@@ -504,18 +514,6 @@ export class CommandService {
 		this.commands['to'] = this.commands['timeout'];
 		this.commands['announcement'] = this.commands['announce'];
 		this.commands['emote'] = this.commands ['emotes'];
-	}
-
-	//execute the command, true to clear 
-	public async execute(name: string, ctx: Command): Promise<boolean> {
-		const handler = this.commands[name];
-		if (handler) {
-			//true to clear input, false to keep
-			return await handler(ctx);
-		} else {
-			this.deps.sendSys(ctx.socket, mType.error, "system: that's not a command lol");
-			return false;
-		}
 	}
 
 	//Deletion helper function

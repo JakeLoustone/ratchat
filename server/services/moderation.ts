@@ -1,11 +1,11 @@
 import { readFileSync } from "fs";
 import type { Server, Socket } from "socket.io";
 
-import type { ServerConfig, Identity, TimeType } from "../../shared/schema.ts";
+import type { Identity, TimeType } from "../../shared/schema.ts";
+import { StateService } from "./state.ts";
 
 export interface ModerationServiceDependencies{
-	config: ServerConfig;
-
+	stateService: StateService;
 	send: (to: Server | Socket, metype: any, msg: any) => void;
 }
 
@@ -35,7 +35,7 @@ export class ModerationService {
 					)
 					.map(pattern => new RegExp(pattern, 'i'))
 				: [];
-			const configLoad = this.deps.config.nickres || [];
+			const configLoad = this.deps.stateService.getConfig().nickres || [];
 			const nickFilter = [...nickLoad, ...configLoad].filter(Boolean);
 
 			this.nickFilter = [
@@ -56,11 +56,11 @@ export class ModerationService {
 		if(lastMessage > now){
 			throw new Error ('ur in timeout rn');
 		};
-
+		const config = this.deps.stateService.getConfig()
 		const limits: Record<TimeType, number> = {
-			chat: this.deps.config.slowMode * 1000,
-			nick: this.deps.config.nickSlow * 1000,
-			other: this.deps.config.otherSlow * 1000
+			chat: config.slowMode * 1000,
+			nick: config.nickSlow * 1000,
+			other: config.otherSlow * 1000
 		};
 
 		const last = type === "chat"? lastMessage : lastChanged;

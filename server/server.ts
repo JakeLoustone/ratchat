@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'node:url';
 
-import type { Identity, ChatMessage, MessageType, ServerConfig } from '../shared/schema.ts';
+import type { Identity, UserSum, ChatMessage, MessageType, ServerConfig } from '../shared/schema.ts';
 import { tType, mType } from '../shared/schema.ts';
 
 import { IdentityService } from './services/identity.ts'
@@ -22,28 +22,17 @@ const io = new Server(httpserver, {connectionStateRecovery:{}});
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const usersPath = join(__dirname, 'data', 'users.json');
 const configPath = join(__dirname, 'config.json');
-
-
-const config = {} as ServerConfig;
-const emotes = new Map<string, string>();
-const socketUsers = new Map<string, Identity>();
 const chatHistory = new Map<number, ChatMessage>();
-let announcement = {val: ''};
-
 
 const stateService = new StateService({
 	configPath: configPath,
-	config: config,
-	emotes: emotes,
-	announcement: announcement,
 
 	send: send,
 	sendSys: sendSys,
 }); 
 
-const moderationService = new ModerationService({ 
-	config: config,
-	
+const moderationService = new ModerationService({
+	stateService: stateService, 
 	send: send
 });
 
@@ -51,7 +40,6 @@ const identityService = new IdentityService({
 	moderationService: moderationService,
 	
 	usersPath: usersPath,
-	config: config
 });
 
 const commandService = new CommandService({
@@ -61,18 +49,13 @@ const commandService = new CommandService({
 	
 	send: send,
 	sendSys: sendSys,
-	updateSocketUser: updateSocketUser,
 
 	chatHistory: chatHistory,
-	socketUsers: socketUsers
 });
 
 
 let messageCounter = {val: 0};
 
-var uList: UserSum[] = [];
-
-type UserSum = Pick<Identity, "nick" | "status" | "isAfk">
 type Target = Server | Socket;
 type TextPayload = typeof mType.chat | typeof mType.ann | typeof mType.error | typeof mType.info | typeof mType.welcome;
 type MessagePayloadMap = {
@@ -116,53 +99,25 @@ function createMsg(sys: boolean = false, author: Identity | string = 'system', c
 	};
 }
 
-//Helper function for socketUsers updates
-function updateSocketUser(socketID: string, identity: Identity, updateType: 'update' | 'delete'): void {
-	if(updateType === 'update'){
-		socketUsers.set(socketID, identity);
-		for (const [sId, user] of socketUsers.entries()) {
-			if (user.guid === identity.guid && sId !== socketID) {
-				socketUsers.set(sId, identity); 
-			}
-		}
-	}
-	else if(updateType === 'delete'){
-		socketUsers.delete(socketID)
-	}
-	else throw new Error(`bad update type ${updateType}`);
-	
-	uList = Array.from(socketUsers.values())
-		.map(({ nick, status, isAfk }) => ({ nick, status, isAfk }))
-		.sort((a,b) =>{
-			if(a.isAfk !== b.isAfk){
-				return a.isAfk ? 1 : -1;
-			}
-			return a.nick.substring(7).localeCompare(b.nick.substring(7), 'en', {sensitivity: 'base'});
-		});
-	
-	const lurkers = io.sockets.sockets.size - socketUsers.size;
-	uList.push({
-		nick: '#NONVALlurkers',
-		status: `${lurkers}`,
-		isAfk: true
-	})
-
-	send(io, mType.list, uList);
-	return;
-}
-
 //CONNECTION POINT
 
 io.on('connection', (socket) => {
+	console.log('a user connected')
 
-	//On connection welcome and announcement messages and emote payload
-	sendSys(socket, mType.welcome, `${config.welcomeMsg}`)
-	if (announcement.val){
-		sendSys(socket, mType.ann, `announcemet: ${announcement.val}`)
+	//On connection welcome, announcement messages and emote payload
+	const welcomeMsg = stateService.getConfig().welcomeMsg;
+	const announcement = stateService.getAnnouncement();
+	const emotes = stateService.getEmotes();
+	sendSys(socket, mType.welcome, `${welcomeMsg}`)
+	if (announcement){
+		sendSys(socket, mType.ann, `announcement: ${announcement}`)
 	}
 	if(emotes.size > 0){
 		const emotePayload = Object.fromEntries(emotes);
 		send(socket, mType.emote, emotePayload);
+	}
+	for (const [id, msg] of chatHistory){
+		send(socket, mType.chat, msg)
 	}
 
 	//identity service stuff
@@ -176,35 +131,24 @@ io.on('connection', (socket) => {
 
 	//Returning user check
 	if (returningUser) {
-		updateSocketUser(socket.id, returningUser, 'update');
+		stateService.updateSocketUser(io, socket.id, returningUser);
 		send(socket, mType.identity, returningUser);
 		sendSys(socket, mType.info, `welcome back, ${returningUser.nick.substring(7)}`);
+		sendSys(io,mType.ann,`${returningUser.nick.substring(7)} connected`);
 	} 
 	//New user flow
 	else {
 		sendSys(socket,mType.error,"system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
 		//GDPR warning
 		sendSys(socket,mType.error,"system: be aware either command will store data regarding your session. type '/gdpr info' for more info");
-		//force update socket users for lurkers check
-		updateSocketUser('refresh-trigger', {} as Identity, 'delete');
-	}
-
-	//A new user has connected	
-	console.log('a user connected');
-	send(socket,mType.list, uList)
-	for (const [id, msg] of chatHistory){
-		send(socket, mType.chat, msg)
-	}
-
-	//Returning user announcement
-	if (returningUser){
-		sendSys(io,mType.ann,`${returningUser.nick.substring(7)} connected`);
+		//force broadcastUsers for lurkers check
+		stateService.broadcastUsers(io);
 	}
 
 	//When a message is recieved from a client
 	socket.on('toServerChat', async (msg, callback) => {
 		// Set user context
-		const user = socketUsers.get(socket.id);
+		const user = stateService.getSocketUsers().get(socket.id);
 
 		// Check if it's a command
 		if (msg.startsWith('/')) {
@@ -240,7 +184,7 @@ io.on('connection', (socket) => {
 		}
 
 		//Check message length	
-		if (msg.length > config.maxMsgLen) {
+		if (msg.length > stateService.getConfig().maxMsgLen) {
 			sendSys(socket, mType.error, 'system: sorry your message is too long lmao');
 			return;
 		}
@@ -269,7 +213,7 @@ io.on('connection', (socket) => {
 			chatHistory.set(chatmsg.id, chatmsg);
 			try{
 				identityService.setLastMessage(user.guid, chatmsg.timestamp);
-				if (chatHistory.size > config.msgArrayLen){
+				if (chatHistory.size > stateService.getConfig().msgArrayLen){
 					const oldestMessage = chatHistory.keys().next().value;
 					if (oldestMessage !== undefined) {
 						chatHistory.delete(oldestMessage);
@@ -295,14 +239,14 @@ io.on('connection', (socket) => {
 	socket.on('disconnect', () => {
 	console.log('a user disconnected');
 
-	const disuser = socketUsers.get(socket.id);
+	const disuser = stateService.getSocketUsers().get(socket.id);
 		if(disuser){
-			updateSocketUser(socket.id, disuser, 'delete');
+			stateService.deleteSocketUser(io, socket.id);
 			sendSys(io, mType.ann, `${disuser.nick.substring(7)} disconnected`);
 		}
 		else{
 			//lurker disconnect
-			updateSocketUser('refresh-trigger', {} as Identity, 'delete');
+			stateService.broadcastUsers(io);
 		}
 	});
 });
@@ -314,13 +258,13 @@ app.get('/ratchat', (req, res) => {
 });
 
 //Server standup
-httpserver.listen(config.PORT, () => {
-	console.log(`server running at http://localhost:${config.PORT}`);
+httpserver.listen(stateService.getConfig().PORT, () => {
+	console.log(`server running at http://localhost:${stateService.getConfig().PORT}`);
 });
 
 //Fetch emotes
 try{
-	await stateService.emoteLoad(io)
+	await stateService.updateEmotes(io)
 	console.log('startup emotes loaded');
 }
 catch(e: any){

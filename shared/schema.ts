@@ -10,6 +10,8 @@ export interface Identity {
 	isAfk: boolean;
 }
 
+export type UserSum = Pick<Identity, "nick" | "status" | "isAfk"> 
+
 export const mType = {
 	chat: "toClientChat",
 	info: "toClientInfo",

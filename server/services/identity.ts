@@ -9,8 +9,7 @@ import { ModerationService } from './moderation.ts';
 
 export interface IdentityServiceDependencies{
 	moderationService: ModerationService;
-	
-	config: ServerConfig;
+
 	usersPath: string;
 }
 
@@ -100,14 +99,6 @@ export class IdentityService {
 		return user;
 	}
 
-	public getUser(guid: string): Identity {
-		const user = this.users.get(guid);
-		if(!user){
-			throw new Error('No matching user found to GUID')
-		}
-		return user;
-	}
-
 	public toggleAfk(guid: string): Identity {
 		const user = this.users.get(guid);
 		if(!user){
@@ -154,6 +145,14 @@ export class IdentityService {
 		return user;
 	}
 
+	public getUser(guid: string): Identity {
+		const user = this.users.get(guid);
+		if(!user){
+			throw new Error('No matching user found to GUID')
+		}
+		return user;
+	}
+
 	public getUserByNick(cleanNick: string): Identity {
 		const guid = this.registeredNicks.get(cleanNick.trim().toLowerCase());
 		if(!guid){
@@ -165,6 +164,7 @@ export class IdentityService {
 		}
 		return user;
 	}
+	
 
 	public deleteUser(guid: string): void {
 		const user = this.users.get(guid);

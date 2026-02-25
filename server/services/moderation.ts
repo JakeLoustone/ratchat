@@ -1,12 +1,11 @@
 import { readFileSync } from "fs";
-import type { Server, Socket } from "socket.io";
 
 import type { Identity, TimeType } from "../../shared/schema.ts";
+
 import { StateService } from "./state.ts";
 
 export interface ModerationServiceDependencies{
 	stateService: StateService;
-	send: (to: Server | Socket, metype: any, msg: any) => void;
 }
 
 export class ModerationService {
@@ -56,7 +55,7 @@ export class ModerationService {
 		if(lastMessage > now){
 			throw new Error ('ur in timeout rn');
 		};
-		const config = this.deps.stateService.getConfig()
+		const config = this.deps.stateService.getConfig();
 		const limits: Record<TimeType, number> = {
 			chat: config.slowMode * 1000,
 			nick: config.nickSlow * 1000,

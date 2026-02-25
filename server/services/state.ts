@@ -4,11 +4,12 @@ import type { Server, Socket } from "socket.io";
 import type { ServerConfig, Identity, UserSum } from "../../shared/schema.ts";
 import { defaultServerConfig, mType } from '../../shared/schema.ts';
 
-export interface StateServiceDependencies{
-	configPath: string;
+import { MessageService } from "./message.ts";
 
-	send: (to: Server | Socket, metype: any, msg: any) => void;
-	sendSys: (to: Server | Socket, type: any, text: string) => void;
+export interface StateServiceDependencies{
+	messageService: MessageService;
+	
+	configPath: string;
 }
 
 export class StateService {
@@ -38,10 +39,10 @@ export class StateService {
 			throw Error("that's already the announcement")
 		}
 
-        this.announcement = str;
+		  this.announcement = str;
 		
 		if(str){
-        	this.deps.sendSys(io, mType.ann,`announcement: ${str}`);
+		  	this.deps.messageService.sendSys(io, mType.ann,`announcement: ${str}`);
 		}
 	}
 
@@ -76,7 +77,7 @@ export class StateService {
 			console.log(`cached ${this.emotes.size} global emotes.`);
 
 			const emotePayload = Object.fromEntries(this.emotes);
-			this.deps.send(io, mType.emote, emotePayload);
+			this.deps.messageService.send(io, mType.emote, emotePayload);
 			} 
 			catch (e: any) {
 				throw new Error(`failed to fetch emotes: ${e.message}`);
@@ -100,15 +101,10 @@ export class StateService {
 	}
 
 	public deleteSocketUser(io: Server, socketID: string){
-		try{
 		this.socketUsers.delete(socketID);
-		}
-		catch(e: any){
-			throw new Error(`error deleting user: ${e.message}`);
-		}
 		this.broadcastUsers(io);
 	}
-	
+
 	public broadcastUsers(io: Server){		
 		const userList: UserSum[] = Array.from(this.socketUsers.values())
 			.map(({ nick, status, isAfk }) => ({ nick, status, isAfk }))
@@ -127,7 +123,7 @@ export class StateService {
 			isAfk: true
 		})
 
-		this.deps.send(io, mType.list, userList);
+		this.deps.messageService.send(io, mType.list, userList);
 	}
 
 	private loadConfig(){
@@ -176,5 +172,4 @@ export class StateService {
 		}
 		Object.freeze(this.config);
 	}
-
 }

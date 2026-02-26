@@ -5,10 +5,11 @@ import { dirname } from 'path';
 import type { Identity } from '../../shared/schema.ts'
 
 import { ModerationService, type SafeString } from './moderation.ts';
-
+import { StateService } from './state.ts';
 
 export interface IdentityServiceDependencies{
 	moderationService: ModerationService;
+	stateService: StateService;
 
 	usersPath: string;
 }
@@ -21,6 +22,10 @@ export class IdentityService {
 	constructor(dependencies: IdentityServiceDependencies) {
 		this.deps = dependencies;
 		this.loadUsers();
+		
+		this.deps.stateService.events.on("afk-check", guid => {
+			this.toggleAfk(guid); 
+		});
 	}
 
 	public setNick(guid: string | null, nick: SafeString): Identity{
@@ -59,10 +64,10 @@ export class IdentityService {
 		const newIdentity: Identity = {
 			guid: newGuid,
 			nick: ('#000000') + nick,
-			lastChanged: new Date(0),
 			status: 'online',
-			isMod: false,
 			lastMessage: new Date(0),
+			lastChanged: new Date(),
+			isMod: false,
 			isAfk: false,
 		};
 
@@ -121,6 +126,9 @@ export class IdentityService {
 			throw new Error('No matching user found to GUID')
 		}
 		user.lastMessage = new Date(newDate);
+		if(user.isAfk){
+			user.isAfk = false;
+		}
 		this.saveUsers();
 		return user;
 	}

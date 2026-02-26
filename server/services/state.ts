@@ -6,16 +6,19 @@ import { defaultServerConfig, mType } from '../../shared/schema.ts';
 
 import { MessageService } from "./message.ts";
 import type { SafeString } from "./moderation.ts";
+import { EventEmitter } from "events";
 
 export interface StateServiceDependencies{
 	messageService: MessageService;
 	
 	configPath: string;
+	io: Server;
 }
 
 export class StateService {
-	private deps: StateServiceDependencies;
+	public events = new EventEmitter();
 	
+	private deps: StateServiceDependencies;
 	private socketUsers = new Map<string, Identity>();
 	private emotes = new Map<string, string>();
 	private config: ServerConfig = {} as ServerConfig;
@@ -25,6 +28,7 @@ export class StateService {
 	constructor(dependencies: StateServiceDependencies) {
 		this.deps = dependencies;
 		this.loadConfig();
+		this.afkTimer();
 	}
 
 	public getConfig(): ServerConfig{
@@ -172,5 +176,25 @@ export class StateService {
 			console.log(`${key} = ${JSON.stringify(cfg)}`);
 		}
 		Object.freeze(this.config);
+	}
+
+	private afkTimer(){
+		setInterval(() =>{
+			const now = Date.now();
+			const afkTime = this.config.afkDef * 1000;
+
+			for(const [id, user] of this.socketUsers.entries()){
+				const lastMessage = new Date(user.lastMessage).getTime();
+				const lastChanged = new Date(user.lastChanged).getTime();
+
+				if(now - lastMessage > afkTime && now - lastChanged > afkTime){
+					if(!user.isAfk){
+						console.log('afk detected:', user.nick.substring(7));
+						this.events.emit("afk-check", user.guid);
+						this.updateSocketUser(this.deps.io, id, user)
+					}
+				}
+			}
+		}, 60000);
 	}
 }

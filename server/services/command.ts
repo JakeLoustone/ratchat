@@ -79,7 +79,7 @@ export class CommandService {
 				//./export is handled client side
 				"/export : returns your GUID for later importing on other devices. if you like your name don't share it :)",
 				'/import : import a GUID exported earlier to reclaim your nickname. must match exactly!',
-				'/afk : toggle AFK status in the user listing',
+				'/afk <status> : toggle AFK status in the user listing, and sets status if one is provided.',
 				'/status or /me : set your status in the user listing',
 				'/background or /bg : set your background image. use /bgreset to clear',
 				'/gdpr <flag> : <info> for more information, <export> for a copy of your data, and <delete> to wipe your data.'
@@ -203,10 +203,15 @@ export class CommandService {
 			try {
 				this.deps.moderationService.timeCheck(ctx.commandUser, tType.other);
 				const afkUser = this.deps.identityService.toggleAfk(ctx.commandUser.guid);
+				
 
 				this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, afkUser);
 				this.deps.messageService.sendSys(ctx.socket, mType.info, afkUser.isAfk ? "you've gone afk" : `welcome back, ${afkUser.nick.substring(7)}`);
 
+				if(ctx.fullArgs && ctx.fullArgs.trim().length > 0){
+					return this.commands['status'](ctx);
+				}
+			
 				return true;
 			} catch (e: any) {
 				this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`);

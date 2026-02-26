@@ -32,6 +32,7 @@ const stateService = new StateService({
 	messageService: messageService,
 
 	configPath: configPath,
+	io: io,
 }); 
 
 const moderationService = new ModerationService({
@@ -40,8 +41,9 @@ const moderationService = new ModerationService({
 
 const identityService = new IdentityService({
 	moderationService: moderationService,
+	stateService: stateService,
 	
-	usersPath: usersPath,
+	usersPath: usersPath
 });
 
 const commandService = new CommandService({
@@ -106,7 +108,9 @@ io.on('connection', (socket) => {
 			try{
 				let clear = await commandService.commandHandler(msg, socket, io, user);
 				if (clear){
-					if (typeof callback === 'function') callback();
+					if (typeof callback === 'function'){
+						callback();
+					}
 				}
 				return;
 			}
@@ -119,7 +123,9 @@ io.on('connection', (socket) => {
 		//Prevent users from chatting without an identity
 		if (!user) {
 			messageService.sendSys(socket, mType.error, "system: please set your nickname with /chrat <nickname> before chatting");
-			if (typeof callback === 'function') callback();
+			if (typeof callback === 'function'){
+				callback();
+			} 
 			return;
 		}
 
@@ -128,12 +134,18 @@ io.on('connection', (socket) => {
 			const safe = moderationService.textCheck(msg, user, 'chat');
 			console.log('message: ', safe)
 			messageService.sendChat(io, user, safe, stateService.getConfig().msgArrayLen);
+			
 			try{
+				const wasAfk = user.isAfk;
 				identityService.setLastMessage(user.guid, Date.now());
+				if(wasAfk){
+					stateService.broadcastUsers(io);
+				}
 			} catch (e: any){
 				console.warn(`${e.message}`);
 				throw new Error(e.message);
 			}
+
 			if (typeof callback === 'function') {
 				callback();
 			}

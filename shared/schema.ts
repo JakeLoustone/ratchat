@@ -3,10 +3,10 @@ import{Server, Socket} from 'socket.io';
 export interface Identity {
 	guid: string;
 	nick: string;
-	lastChanged: Date;
 	status: string;
-	isMod: boolean;
 	lastMessage: Date;
+	lastChanged: Date;
+	isMod: boolean;
 	isAfk: boolean;
 }
 
@@ -58,6 +58,7 @@ export interface ServerConfig {
 	nickSlow: number;
 	otherSlow: number;
 	timeoutDef: number;
+	afkDef: number;
 	maxMsgLen: number;
 	maxNickLen: number;
 	msgArrayLen: number;
@@ -71,6 +72,7 @@ export const defaultServerConfig: ServerConfig = {
 	nickSlow: 30,
 	otherSlow: 5,
 	timeoutDef: 300,
+	afkDef: 1000,
 	maxMsgLen: 255,
 	maxNickLen: 16,
 	msgArrayLen: 25,

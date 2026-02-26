@@ -538,7 +538,9 @@
 			msgArray.forEach(id => {
 				const target = document.querySelector(`li[data-id="${id}"]`)
 				if(target){
-					target.remove();
+					target.replaceChildren('[message deleted]');
+					target.className = 'i-li';
+					target.removeAttribute('title');
 				}
 			});
 		});

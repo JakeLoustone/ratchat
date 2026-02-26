@@ -103,28 +103,17 @@ io.on('connection', (socket) => {
 
 		// Check if it's a command
 		if (msg.startsWith('/')) {
-			const args = msg.slice(1).trim().split(/ +/);
-			const commandName = args.shift()?.toLowerCase() || '';
-
-			let commandUser: Identity | null = null;
-			try {
-				commandUser = identityService.getUser(socket.handshake.auth.token);
-			} catch {
+			try{
+				let clear = await commandService.commandHandler(msg, socket, io, user);
+				if (clear){
+					if (typeof callback === 'function') callback();
+				}
+				return;
 			}
-
-			const success = await commandService.execute(commandName, {
-				socket,
-				io,
-				args,
-				fullArgs: args.join(' '),
-				commandUser: user || commandUser
-			});
-
-			if(success && typeof callback === 'function'){
-				callback();
+			catch(e: any){
+				messageService.sendSys(socket, mType.error, `system: ${e.message}`)
+				return;
 			}
-
-			return;
 		}
 
 		//Prevent users from chatting without an identity
@@ -134,6 +123,7 @@ io.on('connection', (socket) => {
 			return;
 		}
 
+		//Sanitize and broadcast
 		try{
 			const safe = moderationService.textCheck(msg, user, 'chat');
 			console.log('message: ', safe)

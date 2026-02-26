@@ -101,10 +101,15 @@ export class IdentityService {
 		const user = this.users.get(guid);
 
 		if(!user){
-			throw new Error('No matching user found to GUID')
+			throw new Error('No matching user found to GUID');
+		}
+
+		if(user.status === status){
+			throw new Error('already your status big dog');
 		}
 
 		user.status = status;
+		user.lastChanged = new Date();
 		this.saveUsers();
 		return user;
 	}

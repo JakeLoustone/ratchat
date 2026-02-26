@@ -1,4 +1,4 @@
-import { Server, Socket } from 'socket.io'
+import { Server, Socket } from 'socket.io';
 
 import type { MessageType, UserSum, Identity, ChatMessage } from '../../shared/schema.ts';
 import { mType } from '../../shared/schema.ts';
@@ -16,11 +16,11 @@ type MessagePayloadMap = {
 
 export interface MessageServiceDependencies {
 
-}
+};
 
 export class MessageService{
 	private deps: MessageServiceDependencies;
-	private messageCounter = 0
+	private messageCounter = 0; 
 	private chatHistory = new Map<number, ChatMessage>();
 
 	constructor(dependencies: MessageServiceDependencies){
@@ -30,11 +30,11 @@ export class MessageService{
 	public send<T extends MessageType>(to: Target, metype: T, msg: MessagePayloadMap[T]) {
 		//double check target
 		if (!(to instanceof Server) && !(to instanceof Socket)){
-			throw new Error('Invalid emit target')
+			throw new Error('Invalid emit target');
 		}
 		
 		//Fire it off
-		to.emit(metype, msg)
+		to.emit(metype, msg);
 	}
 
 	public sendSys(to: Target, type: TextPayload, text: string) {
@@ -49,7 +49,7 @@ export class MessageService{
 	}
 	
 	public getChatHistory(): Map<number, ChatMessage>{
-		return this.chatHistory
+		return this.chatHistory;
 	}
 	
 	public deleteMessage(io: Server, msgArray: number[]): number[] {
@@ -79,13 +79,13 @@ export class MessageService{
 	private createMessage(sys: false, author: Identity, content: string, metype: TextPayload): ChatMessage;
 	private createMessage(sys: true, author: string, content: string, metype: TextPayload): ChatMessage;
 	private createMessage(sys: boolean = false, author: Identity | string = 'system', content: string, metype: TextPayload): ChatMessage {
-				return {
-				id: sys? -1: this.messageCounter++,
-				author: typeof author === 'string' ? author : author.nick,
-				content: content,
-				timestamp: Date.now(),
-				type: metype
-			};
+		return {
+			id: sys? -1: this.messageCounter++,
+			author: typeof author === 'string' ? author : author.nick,
+			content: content,
+			timestamp: Date.now(),
+			type: metype
+		};
 	}
 
 }

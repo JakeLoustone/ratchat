@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io';
 
-import type { Command, Identity, ChatMessage } from '../../shared/schema.ts';
+import type { Command, Identity } from '../../shared/schema.ts';
 import { tType, mType } from '../../shared/schema.ts';
 
 import { MessageService } from './message.ts';
@@ -25,8 +25,33 @@ export class CommandService {
 		this.registerCommands();
 	}
 
+	public async commandHandler(msg: string, socket: Socket, io: Server, userOrUndef?: Identity | undefined): Promise<boolean>{
+		const args = msg.slice(1).trim().split(/ +/);
+		const commandName = args.shift()?.toLowerCase() || '';
+		
+		let user = userOrUndef ?? null;
+		
+		try {
+				user = this.deps.identityService.getUser(socket.handshake.auth.token);
+			} 
+		catch(e: any){
+			throw new Error(e.message);
+			}
+
+		const clearText = await this.execute(commandName, {
+			socket,
+			io,
+			args,
+			fullArgs: args.join(' '),
+			commandUser: user
+			});
+		
+		return clearText;
+	}
+
+
 	//execute the command, true to clear 
-	public async execute(name: string, ctx: Command): Promise<boolean> {
+	private async execute(name: string, ctx: Command): Promise<boolean> {
 		const handler = this.commands[name];
 		if (handler) {
 			//true to clear input, false to keep

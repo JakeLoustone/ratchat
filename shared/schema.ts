@@ -35,6 +35,15 @@ export const tType = {
 
 export type TimeType = typeof tType[keyof typeof tType];
 
+export const xType = {
+	chat: "chat",
+	status: "status",
+	nick: "nick",
+	color: "color"
+}
+
+export type TextType = typeof xType[keyof typeof xType];
+
 export interface ChatMessage {
 	id: number;
 	author: Identity['nick'];

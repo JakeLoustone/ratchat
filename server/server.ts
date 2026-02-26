@@ -5,7 +5,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'node:url';
 
 import type { Identity } from '../shared/schema.ts';
-import { tType, mType } from '../shared/schema.ts';
+import { mType } from '../shared/schema.ts';
 
 import { IdentityService } from './services/identity.ts'
 import { CommandService } from './services/command.ts';
@@ -73,23 +73,22 @@ io.on('connection', (socket) => {
 		messageService.send(socket, mType.chat, msg)
 	}
 
-	//identity service stuff
+	//Identity Service
 	const clientGUID = socket.handshake.auth.token;
 	let returningUser: Identity | null = null;
+	
 	try{
 		returningUser = identityService.getUser(clientGUID)
 	} catch (error: any){
 		console.warn(`${error.message}`);
 	}
 
-	//Returning user check
 	if (returningUser) {
 		stateService.updateSocketUser(io, socket.id, returningUser);
 		messageService.send(socket, mType.identity, returningUser);
 		messageService.sendSys(socket, mType.info, `welcome back, ${returningUser.nick.substring(7)}`);
 		messageService.sendSys(io,mType.ann,`${returningUser.nick.substring(7)} connected`);
 	} 
-	//New user flow
 	else {
 		messageService.sendSys(socket,mType.error,"system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
 		//GDPR warning
@@ -98,9 +97,8 @@ io.on('connection', (socket) => {
 		stateService.broadcastUsers(io);
 	}
 
-	//When a message is recieved from a client
+	//Message Handling
 	socket.on('toServerChat', async (msg, callback) => {
-		// Set user context
 		const user = stateService.getSocketUsers().get(socket.id);
 
 		// Check if it's a command
@@ -136,51 +134,31 @@ io.on('connection', (socket) => {
 			return;
 		}
 
-		//Check message length	
-		if (msg.length > stateService.getConfig().maxMsgLen) {
-			messageService.sendSys(socket, mType.error, 'system: sorry your message is too long lmao');
-			return;
-		}
-		else if (msg.trim().length === 0){
-			return;
-		}
-
-		//Profanity check
 		try{
-			moderationService.profCheck(msg);
-		}
-		catch(e: any){
-			messageService.sendSys(socket, mType.error, `${e.message}`)
-			return;
-		}
-		console.log('message: ' + msg);
-
-		try{
-			//Timeout check
-			moderationService.timeCheck(user, tType.chat);
-
-			messageService.sendChat(io, user, msg, stateService.getConfig().msgArrayLen);
-
+			const safe = moderationService.textCheck(msg, user, 'chat');
+			console.log('message: ', safe)
+			messageService.sendChat(io, user, safe, stateService.getConfig().msgArrayLen);
 			try{
 				identityService.setLastMessage(user.guid, Date.now());
 			} catch (e: any){
 				console.warn(`${e.message}`);
+				throw new Error(e.message);
 			}
-			
-			//Send callback for input clearing
 			if (typeof callback === 'function') {
 				callback();
 			}
-		}catch(e: any){
-			messageService.sendSys(socket, mType.error, `${e.message}`)
+		}
+		catch(e: any){
+			messageService.sendSys(socket, mType.error, `system: ${e.message}`)
+			return;
 		}
 	});
 
-	//On socket discconect flow
+	//Disconnect flow
 	socket.on('disconnect', () => {
-	console.log('a user disconnected');
+		console.log('a user disconnected');
+		const disuser = stateService.getSocketUsers().get(socket.id);
 
-	const disuser = stateService.getSocketUsers().get(socket.id);
 		if(disuser){
 			stateService.deleteSocketUser(io, socket.id);
 			messageService.sendSys(io, mType.ann, `${disuser.nick.substring(7)} disconnected`);
@@ -192,7 +170,7 @@ io.on('connection', (socket) => {
 	});
 });
 
-//Get HTML file
+//Client Deployment
 app.get('/ratchat', (req, res) => {
 	res.setHeader('X-Robots-Tag', 'noindex, nofollow');
 	res.sendFile('www/ratchat.html', { root : __dirname });
@@ -203,7 +181,7 @@ httpserver.listen(stateService.getConfig().PORT, () => {
 	console.log(`server running at http://localhost:${stateService.getConfig().PORT}`);
 });
 
-//Fetch emotes
+//Fetch emotes on startup
 try{
 	await stateService.updateEmotes(io)
 	console.log('startup emotes loaded');

@@ -4,7 +4,7 @@ import { dirname } from 'path';
 
 import type { Identity } from '../../shared/schema.ts'
 
-import { ModerationService } from './moderation.ts';
+import { ModerationService, type SafeString } from './moderation.ts';
 
 
 export interface IdentityServiceDependencies{
@@ -23,55 +23,42 @@ export class IdentityService {
 		this.loadUsers();
 	}
 
-	public setNick(guid: string | null, nick: string): Identity{
+	public setNick(guid: string | null, nick: SafeString): Identity{
 		//Nick santization and validation
-		const sanitizeNick = nick.replace(/[^\w\s]/gi, '').trim();
-		
-		try{
-			this.deps.moderationService.nickCheck(nick);
-			this.deps.moderationService.nickCheck(sanitizeNick);
-		}
-		catch(error){
-				throw error;
-		}
-
-		if (sanitizeNick.length < 2 || sanitizeNick.length > 15) {
-			throw new Error('nickname must be between 2 and 15 characters')
-		}
 
 		//Returning user flow
 		if (guid && this.users.has(guid)) {
 			const user = this.users.get(guid)!;
 			const oldNick = user.nick.substring(7);
 
-			if(sanitizeNick === oldNick){
+			if(nick === oldNick){
 				throw new Error("that's already your name silly")
 			}
 
 			//allow capitilzation changes
-			if(sanitizeNick.toLowerCase() !== oldNick.toLowerCase() && this.registeredNicks.has(sanitizeNick.toLowerCase())){
+			if(nick.toLowerCase() !== oldNick.toLowerCase() && this.registeredNicks.has(nick.toLowerCase())){
 				throw new Error('nickname is already in use');
 			}
 
 			this.registeredNicks.delete(oldNick.toLowerCase());
-			this.registeredNicks.set(sanitizeNick.toLowerCase(), guid);
+			this.registeredNicks.set(nick.toLowerCase(), guid);
 
 			const color = user.nick.substring(0,7)
-			user.nick = color + sanitizeNick;
+			user.nick = color + nick;
 			user.lastChanged = new Date();
 			this.saveUsers();
 			return user;
 		}
 		//New user flow
 		else{
-			if (this.registeredNicks.has(sanitizeNick.toLowerCase())) {
+			if (this.registeredNicks.has(nick.toLowerCase())) {
 				throw new Error('nickname is already in use');
 		}
 
 		const newGuid = guid || uuidv4();
 		const newIdentity: Identity = {
 			guid: newGuid,
-			nick: ('#000000') + sanitizeNick,
+			nick: ('#000000') + nick,
 			lastChanged: new Date(0),
 			status: 'online',
 			isMod: false,
@@ -80,19 +67,14 @@ export class IdentityService {
 		};
 
 		this.users.set(newGuid, newIdentity);
-		this.registeredNicks.set(sanitizeNick.toLowerCase(), newGuid);
+		this.registeredNicks.set(nick.toLowerCase(), newGuid);
 		this.saveUsers();
 		return newIdentity;
 		}
 	}
 
-	public setColor(guid: string, color: string): Identity{
+	public setColor(guid: string, color: SafeString): Identity{
 		const user = this.users.get(guid)!;
-		const validColor = (color && /^#[0-9A-F]{6}$/i.test(color));
-		if (!validColor) {
-			throw new Error('invalid hex code. please use format #RRGGBB');
-		}
-
 		user.nick = color.toUpperCase() + user.nick.substring(7)
 		user.lastChanged = new Date();
 		this.saveUsers();
@@ -115,18 +97,11 @@ export class IdentityService {
 		return user;
 	}
 
-	public setStatus(guid: string, status: string): Identity {
+	public setStatus(guid: string, status: SafeString): Identity {
 		const user = this.users.get(guid);
 
 		if(!user){
 			throw new Error('No matching user found to GUID')
-		}
-
-		try{
-			this.deps.moderationService.profCheck(status);
-		}
-		catch(error){
-			throw (error);
 		}
 
 		user.status = status;
@@ -166,7 +141,7 @@ export class IdentityService {
 	}
 	
 
-	public deleteUser(guid: string): void {
+	public deleteUser(guid: string){
 		const user = this.users.get(guid);
 		if(!user){
 			throw new Error('No matching user found to GUID')

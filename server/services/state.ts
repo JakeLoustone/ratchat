@@ -1,10 +1,11 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
-import type { Server, Socket } from "socket.io";
+import type { Server } from "socket.io";
 
 import type { ServerConfig, Identity, UserSum } from "../../shared/schema.ts";
 import { defaultServerConfig, mType } from '../../shared/schema.ts';
 
 import { MessageService } from "./message.ts";
+import type { SafeString } from "./moderation.ts";
 
 export interface StateServiceDependencies{
 	messageService: MessageService;
@@ -34,12 +35,12 @@ export class StateService {
 		return this.announcement;
 	}
 
-	public setAnnouncement(io: Server, str: string){
+	public setAnnouncement(io: Server, str: SafeString){
 		if (this.announcement === str){
 			throw Error("that's already the announcement")
 		}
 
-		  this.announcement = str;
+		this.announcement = str;
 		
 		if(str){
 		  	this.deps.messageService.sendSys(io, mType.ann,`announcement: ${str}`);
@@ -74,7 +75,7 @@ export class StateService {
 				this.emotes.set(name, `https:${hostUrl}/1x.webp`);
 			});
 
-			console.log(`cached ${this.emotes.size} global emotes.`);
+			console.log(`cached ${this.emotes.size} global emotes`);
 
 			const emotePayload = Object.fromEntries(this.emotes);
 			this.deps.messageService.send(io, mType.emote, emotePayload);

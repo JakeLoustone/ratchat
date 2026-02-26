@@ -78,47 +78,36 @@ export class CommandService {
 		};
 
 		this.commands['nick'] = (ctx) => {
+			const newNick = ctx.fullArgs
+
 			if(ctx.commandUser){
 				try{
-					this.deps.moderationService.timeCheck(ctx.commandUser, tType.nick);
-				}
-				catch(e: any){
-					this.deps.messageService.sendSys(ctx.socket, mType.error, `${e.message}`)
-					return false;
-				}
-			}
-
-			if (ctx.args.length > 1){
-				this.deps.messageService.sendSys(ctx.socket, mType.error, 'system: no spaces in usernames');
-				return false;
-			}
-
-			const newNick = ctx.args[0];
-
-			if (!newNick || newNick.length < 2 || newNick.length > 16) {
-				this.deps.messageService.sendSys(ctx.socket, mType.error, 'system: please provide a username with at least 2 but less than 15 characters');
-				return false;
-			}
-			
-			try {
-				// If they have no commandUser, extract the GUID from the handshake token directly
-				const guid = ctx.commandUser?.guid || ctx.socket.handshake.auth.token;
-				const oldNick = ctx.commandUser?.nick;
-				const updatedUser = this.deps.identityService.setNick(guid, newNick);
-
-				this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, updatedUser);
-				this.deps.messageService.send(ctx.socket, mType.identity, updatedUser);
-				
-				if (oldNick) {
-					this.deps.messageService.sendSys(ctx.io, mType.ann, `${oldNick.substring(7)} changed their username to ${updatedUser.nick.substring(7)}`);
+					const oldNick = ctx.commandUser.nick.substring(7)
+					const safe = this.deps.moderationService.textCheck(newNick, ctx.commandUser, 'nick');
+					const user = this.deps.identityService.setNick(ctx.commandUser.guid, safe);
+					this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
+					this.deps.messageService.send(ctx.socket, mType.identity, user);
+					this.deps.messageService.sendSys(ctx.io, mType.ann, `${oldNick} changed their username to ${user.nick.substring(7)}`);
+					return true;
 				} 
-				else {
-					this.deps.messageService.sendSys(ctx.io, mType.ann, `${updatedUser.nick.substring(7)} has joined teh ratchat`);
-				}
-				return true;
-			} catch (e: any) {
+				catch (e: any) {
 				this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
 				return false;
+				}
+			}
+			else{
+				try{
+					const safe = this.deps.moderationService.textCheckNewUser(newNick, 'nick');
+					const user = this.deps.identityService.setNick(ctx.socket.handshake.auth.token, safe);
+					this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
+					this.deps.messageService.send(ctx.socket, mType.identity, user);
+					this.deps.messageService.sendSys(ctx.io, mType.ann, `${user.nick.substring(7)} has joined teh ratchat`);
+					return true;
+				}
+				catch (e: any) {
+				this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
+				return false;
+				}
 			}
 		};
 
@@ -127,27 +116,17 @@ export class CommandService {
 				this.deps.messageService.sendSys(ctx.socket, mType.error, "system: please use /chrat <nickname> before trying to set a color");
 				return true;
 			}
-			if(ctx.commandUser){
-				try{
-					this.deps.moderationService.timeCheck(ctx.commandUser, tType.other);
-				}
-				catch(e: any){
-					this.deps.messageService.sendSys(ctx.socket, mType.error, `${e.message}`)
-					return false;
-				}
-			}
-			
-			const hex = ctx.args[0];			
-			try {
-				const trimNick = ctx.commandUser.nick.substring(7);
-				const updatedUser = this.deps.identityService.setColor(ctx.commandUser.guid, hex);
+			try{
+				const safe = this.deps.moderationService.textCheck(ctx.args[0], ctx.commandUser, 'color');
+				const user = this.deps.identityService.setColor(ctx.commandUser.guid, safe);
 
-				this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, updatedUser,);
-				this.deps.messageService.send(ctx.socket, mType.identity, updatedUser);
-				this.deps.messageService.sendSys(ctx.socket, mType.info, `system: your color has been updated to ${hex}`);
+				this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user,);
+				this.deps.messageService.send(ctx.socket, mType.identity, user);
+				this.deps.messageService.sendSys(ctx.socket, mType.info, `system: your color has been updated to ${user.nick.substring(0,7)}`);
 
 				return true;
-			} catch (e: any) {
+			}
+			catch (e: any) {
 				this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
 				return false;
 			}
@@ -163,6 +142,7 @@ export class CommandService {
 			//check arg is legitimate GUID
 			const newGUID = ctx.args[0];
 			const GUIDregex = new RegExp("^[{]?[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}[}]?$");
+			
 			if (!GUIDregex.test(newGUID)) {
 				this.deps.messageService.sendSys(ctx.socket, mType.error, "system: not a valid GUID");
 				return false;
@@ -194,17 +174,9 @@ export class CommandService {
 				this.deps.messageService.sendSys(ctx.socket, mType.error, "system: please use /chrat <nickname> before trying to go afk lmao");
 				return true;
 			} 
-			if(ctx.commandUser){
-				try{
-					this.deps.moderationService.timeCheck(ctx.commandUser, tType.other);
-				}
-				catch(e: any){
-					this.deps.messageService.sendSys(ctx.socket, mType.error, `${e.message}`)
-					return false;
-				}
-			}
 			
 			try {
+				this.deps.moderationService.timeCheck(ctx.commandUser, tType.other);
 				const afkUser = this.deps.identityService.toggleAfk(ctx.commandUser.guid);
 
 				this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, afkUser);
@@ -222,33 +194,17 @@ export class CommandService {
 				this.deps.messageService.sendSys(ctx.socket, mType.error, "system: please use /chrat <nickname> before trying to facebook post");
 				return true;
 			}
-			if(ctx.commandUser){
-				try{
-					this.deps.moderationService.timeCheck(ctx.commandUser, tType.other);
-				}
-				catch(e: any){
-					this.deps.messageService.sendSys(ctx.socket, mType.error, `${e.message}`)
-					return false;
-				}
-			}
+			try{
+				const safe = this.deps.moderationService.textCheck(ctx.fullArgs, ctx.commandUser, 'status');
+				const user = this.deps.identityService.setStatus(ctx.commandUser.guid, safe);
 
-			//Sanitize
-			const noHtml = ctx.fullArgs.replace(/<[^>]*>?/gm, '');
-			const newStatus = noHtml.replace(/[^\x20-\x7E]/g, '');
-			
-			if (newStatus.length > 32){
-				this.deps.messageService.sendSys(ctx.socket, mType.error, 'system: tl;dr - set something shorter');
-				return false;
-			}
-			
-			try {
-				const updatedUser = this.deps.identityService.setStatus(ctx.commandUser.guid, newStatus);
-
-				this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, updatedUser);
-				this.deps.messageService.sendSys(ctx.socket, mType.info, `your status is now: ${updatedUser.status}`);
+				this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
+				this.deps.messageService.sendSys(ctx.socket, mType.info, `your status is now: ${user.status}`);
 				
 				return true;
-			} catch (e: any) {
+
+			}
+			catch (e: any) {
 				this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
 				return false;
 			}
@@ -355,44 +311,20 @@ export class CommandService {
 				this.deps.messageService.sendSys(ctx.socket, mType.error, "naughty naughty");
 				return true;
 			}
-			if(ctx.commandUser){
-				try{
-					this.deps.moderationService.timeCheck(ctx.commandUser, tType.chat);
-				}
-				catch(e: any){
-					this.deps.messageService.sendSys(ctx.socket, mType.error, `${e.message}`)
-					return false;
-				}
-			}
-
-			//Sanitize
-			const noHtml = ctx.fullArgs.replace(/<[^>]*>?/gm, '');
-			const newAnnounce = noHtml.replace(/[^\x20-\x7E]/g, '');
-
-			if (newAnnounce.trim().length > 0) {
-				try{
-					this.deps.stateService.setAnnouncement(ctx.io, newAnnounce);
-					return true;
-				}
-				catch(e: any){
-				this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`)
-				return false;
-				}
-			}	
-			else {
-				// Clear announcement
-				try{
-					this.deps.stateService.setAnnouncement(ctx.io, '');
+			try{
+				const safe = this.deps.moderationService.textCheck(ctx.fullArgs, ctx.commandUser, 'chat');
+				this.deps.stateService.setAnnouncement(ctx.io, safe)
+				if(safe.length === 0){
 					this.deps.messageService.sendSys(ctx.socket, mType.info, 'announcement cleared');
-					return true;
 				}
-				catch(e: any){
+				return true;
+			}
+			catch(e: any){
 				this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`)
 				return false;
-				}
 			}
 		};
-		 
+
 		this.commands['ban'] = (ctx) => {
 			if (!ctx.commandUser?.isMod){
 				this.deps.messageService.sendSys(ctx.socket, mType.error, "naughty naughty");

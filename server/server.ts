@@ -7,15 +7,12 @@ import { fileURLToPath } from 'node:url';
 import type { Identity } from '../shared/schema.ts';
 import { mType } from '../shared/schema.ts';
 
-import { IdentityService } from './services/identity.ts'
-import { CommandService } from './services/command.ts';
-import { ModerationService } from './services/moderation.ts';	
-import { StateService } from './services/state.ts';
 import { MessageService } from './services/message.ts';
-
-//TODO: ip hashing
-//TODO: socket protection
-//TODO: ban enforcement
+import { StateService } from './services/state.ts';
+import { ModerationService } from './services/moderation.ts';
+import { IdentityService } from './services/identity.ts';
+import { SecurityService } from './services/security.ts';
+import { CommandService } from './services/command.ts';
 
 const app = express();
 const httpserver = createServer(app);
@@ -23,6 +20,7 @@ const io = new Server(httpserver, {connectionStateRecovery:{}});
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const usersPath = join(__dirname, 'data', 'users.json');
 const configPath = join(__dirname, 'config.json');
+const bansPath = join(__dirname, 'data', 'bans.json');
 
 const messageService = new MessageService({
 
@@ -32,7 +30,7 @@ const stateService = new StateService({
 	messageService: messageService,
 
 	configPath: configPath,
-	io: io,
+	io: io
 }); 
 
 const moderationService = new ModerationService({
@@ -46,16 +44,38 @@ const identityService = new IdentityService({
 	usersPath: usersPath
 });
 
+const securityService = new SecurityService({
+	stateService: stateService,
+	messageService: messageService,
+	identityService: identityService,
+
+	bansPath: bansPath,
+	io: io
+})
+
 const commandService = new CommandService({
 	messageService: messageService,
 	stateService: stateService,
 	moderationService: moderationService,
-	identityService: identityService
+	identityService: identityService,
+	securityService: securityService
 });
 
 //CONNECTION POINT
 
 io.on('connection', (socket) => {
+	
+	try{
+		if(securityService.checkBan(socket.handshake.address)){
+			messageService.sendSys(socket, mType.error, 'You are banned.');
+			socket.disconnect(true);
+			console.log('a banned user attempted to join')
+		}
+	}
+	catch(e: any){
+		console.warn(e.message);
+	}
+
 	console.log('a user connected')
 
 	//On connection welcome, announcement messages, emote payload, message history

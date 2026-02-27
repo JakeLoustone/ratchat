@@ -7,6 +7,7 @@ import { MessageService } from './message.ts';
 import { StateService } from './state.ts';
 import { ModerationService } from './moderation.ts';
 import { IdentityService } from '../services/identity.ts';
+import { SecurityService } from '../services/security.ts'
 
 
 export interface CommandServiceDependencies {
@@ -14,6 +15,7 @@ export interface CommandServiceDependencies {
 	stateService: StateService;
 	moderationService: ModerationService;
 	identityService: IdentityService;
+	securityService: SecurityService;
 }
 
 export class CommandService {
@@ -271,7 +273,7 @@ export class CommandService {
 				case 'ip':
 					const ipMsgs = [
 						'---------------------------------------------------------------------------------------------',
-						'We utilize IP addresses for ban enforcement and system protection as allowed under Article 6(1)(f) of the GDPR.',
+						'We utilize IP addresses for ban enforcement and system protection as allowed under Article 6(1)(f) of the GDPR to protect the service from spam and abuse.',
 						'These IP addresses are only stored long term in the event of a ban from bad behavior.',
 						'An IP address is stored only with a timestamp. This timestamp is to allow a review process to reverse bans after an amount of time.',
 						'If an IP address is stored, it is rendered human unreadable by a one way salted cryptography hash. A "plain-text" IP address is never stored.',
@@ -362,6 +364,15 @@ export class CommandService {
 			}
 			if (!ctx.args[0]){
 				this.deps.messageService.sendSys(ctx.socket, mType.error, "missing target");
+				return false;
+			}
+			
+			try{
+				const target = this.deps.identityService.getUserByNick(ctx.fullArgs);
+				this.deps.securityService.banUser(target);
+			}
+			catch(e: any){
+				this.deps.messageService.sendSys(ctx.socket, mType.error, e.message);
 				return false;
 			}
 

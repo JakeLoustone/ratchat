@@ -170,36 +170,38 @@ export class IdentityService {
 	try {
 		if (!existsSync(this.deps.usersPath)) {
 			return;
-			}
+		}
 
-			const data = readFileSync(this.deps.usersPath, 'utf-8');
-			const parseData: [string, Identity][] = JSON.parse(data);
+		const data = readFileSync(this.deps.usersPath, 'utf-8');
+		const parseData: [string, Identity][] = JSON.parse(data);
 
-			this.users = new Map(parseData);
-			this.registeredNicks.clear();
+		this.users = new Map(parseData);
+		this.registeredNicks.clear();
 
 
-			for (const [guid, identity] of this.users.entries()) {
+		for (const [guid, identity] of this.users.entries()) {
 			const existingNick = identity.nick.substring(7)
 			this.registeredNicks.set(existingNick.toLowerCase(), guid);
-			}
-			console.log(`loaded ${this.users.size} users`);
-		} catch (e: any) {
+		}
+		console.log(`loaded ${this.users.size} users`);
+		} 
+		catch (e: any) {
 			console.error('Failed to load user data', `${e.message}`);
 		}
-	};
+	}
 
 	private saveUsers() {
 		try {
 			const dir = dirname(this.deps.usersPath);
 			if (!existsSync(dir)) {
-			mkdirSync(dir, {recursive: true});
+				mkdirSync(dir, {recursive: true});
 			}
 
 			const data = Array.from(this.users.entries());
 			writeFileSync(this.deps.usersPath, JSON.stringify(data, null, 4));
-		} catch (e: any) {
+		} 
+		catch (e: any) {
 			console.error('failed to save user data', `${e.message}`);
 		}
-	};
+	}
 }

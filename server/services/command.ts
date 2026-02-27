@@ -32,13 +32,6 @@ export class CommandService {
 		const commandName = args.shift()?.toLowerCase() || '';
 		
 		let user = userOrUndef ?? null;
-		
-		try {
-				user = this.deps.identityService.getUser(socket.handshake.auth.token);
-			} 
-		catch(e: any){
-			throw new Error(e.message);
-			}
 
 		const clearText = await this.execute(commandName, {
 			socket,
@@ -125,7 +118,7 @@ export class CommandService {
 			else{
 				try{
 					const safe = this.deps.moderationService.textCheckNewUser(newNick, 'nick');
-					const user = this.deps.identityService.setNick(ctx.socket.handshake.auth.token, safe);
+					const user = this.deps.identityService.setNick(ctx.commandUser, safe);
 					this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
 					this.deps.messageService.send(ctx.socket, mType.identity, user);
 					this.deps.messageService.sendSys(ctx.io, mType.ann, `${user.nick.substring(7)} has joined teh ratchat`);
@@ -369,6 +362,19 @@ export class CommandService {
 			
 			try{
 				const target = this.deps.identityService.getUserByNick(ctx.fullArgs);
+				const msgArray: number[] = []
+				for (const [id, msg] of this.deps.messageService.getChatHistory()){
+					const msgNick = msg.author.substring(7);
+					if(msgNick === target.nick){
+						msgArray.push(id);
+					}
+				}
+
+				//delete messages if any
+				if (msgArray.length > 0){
+					this.deps.messageService.deleteMessage(ctx.io, msgArray);
+				}
+				
 				this.deps.securityService.banUser(target);
 			}
 			catch(e: any){

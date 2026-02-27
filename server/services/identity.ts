@@ -29,8 +29,6 @@ export class IdentityService {
 	}
 
 	public setNick(guid: string | null, nick: SafeString): Identity{
-		//Nick santization and validation
-
 		//Returning user flow
 		if (guid && this.users.has(guid)) {
 			const user = this.users.get(guid)!;

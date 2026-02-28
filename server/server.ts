@@ -17,10 +17,11 @@ import { CommandService } from './services/command';
 
 const app = express();
 const httpserver = createServer(app);
-const io = new Server(httpserver, {connectionStateRecovery:{}});
-const __dirname = path.dirname(__filename);
+const io = new Server(httpserver, {path:"/ratchat/socket.io/", connectionStateRecovery:{}});
 const usersPath = join(__dirname, 'data', 'users.json');
 const configPath = join(__dirname, 'config.json');
+const nickFilterPath = join(__dirname, 'nickfilter.json');
+const profFilterPath = join(__dirname, 'profanityfilter.json');
 const bansPath = join(__dirname, 'data', 'bans.json');
 
 const messageService = new MessageService({
@@ -36,6 +37,9 @@ const stateService = new StateService({
 
 const moderationService = new ModerationService({
 	stateService: stateService, 
+
+	nickFilterPath: nickFilterPath,
+	profFilterPath: profFilterPath
 });
 
 const identityService = new IdentityService({

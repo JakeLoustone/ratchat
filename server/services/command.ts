@@ -404,9 +404,15 @@ export class CommandService {
 				const durationInput = parseInt(ctx.args[1]);
 				const duration = isNaN(durationInput) || durationInput <0 ? 300 : durationInput;
 				const now = Date.now();
+				const maxAllowed = 30*24*60*60*1000
 
 				//apply the timeout to the future
-				const unMute = now + (duration * 1000);
+				let unMute = now + (duration * 1000);
+				
+				if(unMute > now + maxAllowed){
+					unMute = now + maxAllowed;
+				}
+
 				this.deps.identityService.setLastMessage(targetUser.guid, unMute);
 
 				//messages to delete

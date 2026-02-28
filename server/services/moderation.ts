@@ -8,6 +8,9 @@ export type SafeString = string & {__brand: 'SafeString'};
 
 export interface ModerationServiceDependencies{
 	stateService: StateService;
+
+	nickFilterPath: string;
+	profFilterPath: string;
 }
 
 
@@ -142,13 +145,21 @@ export class ModerationService {
 	}
 	
 	private sanitize(str: string): string{
-		let s = str;
+		if(typeof str !== "string"){
+			return "";
+		}
+		try{
+			let s = str;
 
-		s = s.normalize("NFKC");
-		s = s.replace(/<[^>]*>/g, "");
-		s = s.replace(/[^\x20-\x7E]/g, "");
-		
-		return s;
+			s = s.normalize("NFKC");
+			s = s.replace(/<[^>]*>/g, "");
+			s = s.replace(/[^\x20-\x7E]/g, "");
+			
+			return s;
+		}
+		catch{
+			return "";
+		}
 	}
 
 	private nickCheck(nick: string){
@@ -175,8 +186,8 @@ export class ModerationService {
 
 	private loadFilters() {
 		try {
-			const nickLoad = JSON.parse(readFileSync('./nickfilter.json', 'utf-8')).usernames || [];
-			const profLoad = JSON.parse(readFileSync('./profanityfilter.json', 'utf-8'));
+			const nickLoad = JSON.parse(readFileSync(this.deps.nickFilterPath, 'utf-8')).usernames || [];
+			const profLoad = JSON.parse(readFileSync(this.deps.profFilterPath, 'utf-8'));
 			this.profFilter = Array.isArray(profLoad) 
 				? profLoad
 					.filter((item: any) => item.tags?.includes('racial') && item.severity > 2)

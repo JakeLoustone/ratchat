@@ -298,11 +298,12 @@
 			</form>
 		</div>
 	</div>
-	<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script> 
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.3/purify.min.js"></script>
+    <script src="https://cdn.socket.io/4.8.3/socket.io.min.js" crossorigin="anonymous"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.3/purify.min.js" crossorigin="anonymous"></script>
 	<script>
 		const localGUID = localStorage.getItem('ratGUID');
 		const socket = io({
+		    path: "/ratchat/socket.io/",
 			auth: {
 			token: localGUID
 			}
@@ -313,7 +314,7 @@
 		const savedBG = localStorage.getItem('ratBG');
 
 		let emotes = {};
-
+		
 		//Helper function for non user messages
 		const systemMessage = (msg, className) => {
 			const item = document.createElement('li');
@@ -594,7 +595,7 @@
 			const emotify = (text) =>{
 				return text.split(' ').map(word => {
 					if (emotes[word]) {
-						return `<img src="${emotes[word]}" title="${word}" alt="${word}" class="emote">`;
+						return `<img src="${emotes[word]}" title="${word}" alt="${word}" class="emote" crossorigin="anonymous">`;
 					}
 				return word;
 				}).join(' ');

@@ -14,18 +14,18 @@
 			box-sizing: border-box;
 			overflow: hidden;
 		}
+
 		.window{
 			top: 0.25rem;
 			left: 0.25rem;
 			right: 0.25rem;
 			bottom: 0.25rem;
-
 			display: flex;
 			flex-direction: column;
 			margin: 0 !important;
 			width: auto !important;
-
 		}
+
 		.window-body {
 			display: flex;
 			flex-direction: column;
@@ -264,7 +264,7 @@
 	<input type="file" id="bg-upload" style="display: none;" accept="image/*">
 	<div class="window">
 		<div class="title-bar">
-			<div class="title-bar-text">ratchat</div>
+			<div class="title-bar-text">ratchat32.exe</div>
 			<div class="title-bar-controls">
 				<button aria-label="Minimize"></button>
 				<button aria-label="Maximize"></button>
@@ -314,7 +314,7 @@
 		const savedBG = localStorage.getItem('ratBG');
 
 		let emotes = {};
-		
+
 		//Helper function for non user messages
 		const systemMessage = (msg, className) => {
 			const item = document.createElement('li');

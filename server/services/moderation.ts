@@ -31,6 +31,9 @@ export class ModerationService {
 			if(clean.length > this.deps.stateService.getConfig().maxMsgLen){
 				throw new Error('sorry your message is too long lmao')
 			}
+			if(clean.length < 1){
+				throw new Error('no content in message, try resending with ASCII only')
+			}
 			try{
 				this.profCheck(clean);
 				this.timeCheck(user, 'chat')

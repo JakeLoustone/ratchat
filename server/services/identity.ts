@@ -4,8 +4,8 @@ import { dirname } from 'path';
 
 import type { Identity } from '../../shared/schema.ts'
 
-import { ModerationService, type SafeString } from './moderation.ts';
-import { StateService } from './state.ts';
+import { ModerationService, type SafeString } from './moderation';
+import { StateService } from './state';
 
 export interface IdentityServiceDependencies{
 	moderationService: ModerationService;

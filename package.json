@@ -2,7 +2,7 @@
 	"name": "ratchat",
 	"version": "1.0.0",
 	"license": "MIT",
-	"type": "module",
+	"type": "commonjs",
 	"dependencies": {
 		"@dsojevic/profanity-list": "^1.0.0",
 		"98.css": "^0.1.21",
@@ -15,6 +15,7 @@
 		"uuid": "^13.0.0"
 	},
 	"devDependencies": {
-		"@types/express": "^5.0.6"
+		"@types/express": "^5.0.6",
+		"@types/ws": "^8.18.1"
 	}
 }

@@ -4,11 +4,11 @@ import { dirname } from 'path';
 import crypto from 'crypto';
 
 import type { Identity } from "../../shared/schema.ts";
-import { mType } from "../../shared/schema.ts";
+import { mType } from "../../shared/schema";
 
-import { StateService } from "./state.ts";
-import { MessageService } from "./message.ts";
-import { IdentityService } from "./identity.ts";
+import { StateService } from "./state";
+import { MessageService } from "./message";
+import { IdentityService } from "./identity";
 
 export interface SecurityServiceDependencies{
 	stateService: StateService;

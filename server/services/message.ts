@@ -1,7 +1,7 @@
 import { Server, Socket } from 'socket.io';
 
-import type { MessageType, UserSum, Identity, ChatMessage } from '../../shared/schema.ts';
-import { mType } from '../../shared/schema.ts';
+import type { MessageType, UserSum, Identity, ChatMessage } from '../../shared/schema';
+import { mType } from '../../shared/schema';
 
 type Target = Server | Socket;
 type TextPayload = typeof mType.chat | typeof mType.ann | typeof mType.error | typeof mType.info | typeof mType.welcome;

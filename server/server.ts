@@ -1,23 +1,24 @@
 import { Server } from 'socket.io';
 import express from 'express';
 import { createServer } from 'http';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import path from 'node:path';
 
-import type { Identity } from '../shared/schema.ts';
-import { mType } from '../shared/schema.ts';
 
-import { MessageService } from './services/message.ts';
-import { StateService } from './services/state.ts';
-import { ModerationService } from './services/moderation.ts';
-import { IdentityService } from './services/identity.ts';
-import { SecurityService } from './services/security.ts';
-import { CommandService } from './services/command.ts';
+import type { Identity } from '../shared/schema';
+import { mType } from '../shared/schema';
+
+import { MessageService } from './services/message';
+import { StateService } from './services/state';
+import { ModerationService } from './services/moderation';
+import { IdentityService } from './services/identity';
+import { SecurityService } from './services/security';
+import { CommandService } from './services/command';
 
 const app = express();
 const httpserver = createServer(app);
 const io = new Server(httpserver, {connectionStateRecovery:{}});
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __dirname = path.dirname(__filename);
 const usersPath = join(__dirname, 'data', 'users.json');
 const configPath = join(__dirname, 'config.json');
 const bansPath = join(__dirname, 'data', 'bans.json');
@@ -204,10 +205,13 @@ httpserver.listen(stateService.getConfig().PORT, () => {
 });
 
 //Fetch emotes on startup
-try{
-	await stateService.updateEmotes(io)
-	console.log('startup emotes loaded');
+async function startUp(){
+	try{
+		await stateService.updateEmotes(io)
+		console.log('startup emotes loaded');
+	}
+	catch(e: any){
+		console.warn(`startup emotes failed: ${e.message}`);
+	}
 }
-catch(e: any){
-	console.warn(`startup emotes failed: ${e.message}`);
-};
+startUp();

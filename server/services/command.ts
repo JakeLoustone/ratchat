@@ -1,13 +1,13 @@
 import type { Server, Socket } from 'socket.io';
 
 import type { Command, Identity } from '../../shared/schema.ts';
-import { tType, mType } from '../../shared/schema.ts';
+import { tType, mType } from '../../shared/schema';
 
-import { MessageService } from './message.ts';
-import { StateService } from './state.ts';
-import { ModerationService } from './moderation.ts';
-import { IdentityService } from '../services/identity.ts';
-import { SecurityService } from '../services/security.ts'
+import { MessageService } from './message';
+import { StateService } from './state';
+import { ModerationService } from './moderation';
+import { IdentityService } from '../services/identity';
+import { SecurityService } from '../services/security'
 
 
 export interface CommandServiceDependencies {

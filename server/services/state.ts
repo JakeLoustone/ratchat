@@ -2,9 +2,9 @@ import { readFileSync, writeFileSync, existsSync } from "fs";
 import type { Server } from "socket.io";
 
 import type { ServerConfig, Identity, UserSum } from "../../shared/schema.ts";
-import { defaultServerConfig, mType } from '../../shared/schema.ts';
+import { defaultServerConfig, mType } from '../../shared/schema';
 
-import { MessageService } from "./message.ts";
+import { MessageService } from "./message";
 import type { SafeString } from "./moderation.ts";
 import { EventEmitter } from "events";
 

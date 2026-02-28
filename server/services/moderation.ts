@@ -2,7 +2,7 @@ import { readFileSync } from "fs";
 
 import type { Identity, TimeType, TextType } from "../../shared/schema.ts";
 
-import { StateService } from "./state.ts";
+import { StateService } from "./state";
 
 export type SafeString = string & {__brand: 'SafeString'};
 

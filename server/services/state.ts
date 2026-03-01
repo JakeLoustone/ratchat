@@ -27,6 +27,7 @@ export class StateService {
 
 	constructor(dependencies: StateServiceDependencies) {
 		this.deps = dependencies;
+	
 		this.loadConfig();
 		this.afkTimer();
 	}
@@ -55,15 +56,21 @@ export class StateService {
 		return this.emotes;
 	}
 
-	public async updateEmotes(io: Server, url?: string){
-		const targetUrl = url ?? this.config.stvurl;
+	public async updateEmotes(io: Server, setID?: string): Promise<number>{
 
-		if(!targetUrl){
+		const targetID = setID ?? this.config.stvurl;
+		if(!targetID){
 			throw new Error('no emote url in config')
 		}
-
+		
+		const isValidId = /^[a-z0-9_-]{17,31}$/i.test(targetID);
+		
+		if (!isValidId) {
+			throw new Error("doesn't look like a 7tv emote set ID")
+		}
+		
 		try {
-			const response = await fetch(`https://api.7tv.app/v3/emote-sets/${targetUrl}`);
+			const response = await fetch(`https://api.7tv.app/v3/emote-sets/${targetID}`);
 			if (!response.ok){ 
 				throw new Error(`7tv returned HTTP ${response.status}`); 
 			} 
@@ -73,20 +80,60 @@ export class StateService {
 				throw new Error("invalid 7tv response structure"); 
 			}
 			
+			let size: number = 0
 			data.emotes.forEach((emote: any) => {
 				const name = emote.name;
 				const hostUrl = emote.data.host.url; 
 				this.emotes.set(name, `https:${hostUrl}/1x.webp`);
+				size++
 			});
-
-			console.log(`cached ${this.emotes.size} global emotes`);
 
 			const emotePayload = Object.fromEntries(this.emotes);
 			this.deps.messageService.send(io, mType.emote, emotePayload);
+			return size;
 			} 
 			catch (e: any) {
 				throw new Error(`failed to fetch emotes: ${e.message}`);
 			}
+	}
+
+	public async removeEmotes(io: Server, setID: string): Promise<number>{
+		if (setID.length < 1){
+			throw new Error('please provide a target emote setID to remove');
+		}
+
+		const isValidId = /^[a-z0-9_-]{17,31}$/i.test(setID);		
+		if (!isValidId) {
+			throw new Error("doesn't look like a 7tv emote url")
+		}
+
+		try{
+			const response = await fetch(`https://api.7tv.app/v3/emote-sets/${setID}`);
+			if (!response.ok){ 
+				throw new Error(`7tv returned HTTP ${response.status}`); 
+			}
+
+			const data = await response.json();
+			if (!data.emotes || !Array.isArray(data.emotes)){ 
+				throw new Error("invalid 7tv response structure"); 
+			}
+
+			let deleteCount: number = 0;
+			data.emotes.forEach((emote: any) => {
+				const name = emote.name;
+				const del = this.emotes.delete(name);
+				if(del){
+					deleteCount++;
+				}
+			});
+
+			const emotePayload = Object.fromEntries(this.emotes);
+			this.deps.messageService.send(io, mType.emote, emotePayload);
+			return deleteCount;
+		} 
+		catch (e: any) {
+			throw new Error(`failed to fetch emotes: ${e.message}`);
+		}
 	}
 
 	public getSocketUsers(): Map<string, Identity>{
@@ -189,7 +236,6 @@ export class StateService {
 
 				if(now - lastMessage > afkTime && now - lastChanged > afkTime){
 					if(!user.isAfk){
-						console.log('afk detected:', user.nick.substring(7));
 						this.events.emit("afk-check", user.guid);
 						this.updateSocketUser(this.deps.io, id, user)
 					}

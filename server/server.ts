@@ -81,13 +81,14 @@ io.on('connection', (socket) => {
 		console.warn(e.message);
 	}
 
-	console.log('a user connected')
-
 	//On connection welcome, announcement messages, emote payload, message history
 	const welcomeMsg = stateService.getConfig().welcomeMsg;
 	const announcement = stateService.getAnnouncement();
 	const emotes = stateService.getEmotes();
 	
+	for (const [id, msg] of messageService.getChatHistory()){
+		messageService.send(socket, mType.chat, msg)
+	}
 	messageService.sendSys(socket, mType.welcome, `${welcomeMsg}`)
 	if (announcement){
 		messageService.sendSys(socket, mType.ann, `announcement: ${announcement}`)
@@ -95,9 +96,6 @@ io.on('connection', (socket) => {
 	if(emotes.size > 0){
 		const emotePayload = Object.fromEntries(emotes);
 		messageService.send(socket, mType.emote, emotePayload);
-	}
-	for (const [id, msg] of messageService.getChatHistory()){
-		messageService.send(socket, mType.chat, msg)
 	}
 
 	//Identity Service
@@ -120,6 +118,8 @@ io.on('connection', (socket) => {
 		messageService.sendSys(socket,mType.error,"system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
 		//GDPR warning
 		messageService.sendSys(socket,mType.error,"system: be aware either command will store data regarding your session. type '/gdpr info' for more info");
+		messageService.sendSys(socket,mType.info,"system: feel free to use /help or /h to see all available commands. some commands will not be available until you set your nickname!");
+		
 		//force broadcastUsers for lurkers check
 		stateService.broadcastUsers(io);
 	}
@@ -157,7 +157,6 @@ io.on('connection', (socket) => {
 		//Sanitize and broadcast
 		try{
 			const safe = moderationService.textCheck(msg, user, 'chat');
-			console.log('message: ', safe)
 			messageService.sendChat(io, user, safe, stateService.getConfig().msgArrayLen);
 			
 			try{
@@ -183,7 +182,6 @@ io.on('connection', (socket) => {
 
 	//Disconnect flow
 	socket.on('disconnect', () => {
-		console.log('a user disconnected');
 		const disuser = stateService.getSocketUsers().get(socket.id);
 
 		if(disuser){

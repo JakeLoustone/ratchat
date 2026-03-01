@@ -21,7 +21,14 @@ export class IdentityService {
 
 	constructor(dependencies: IdentityServiceDependencies) {
 		this.deps = dependencies;
-		this.loadUsers();
+		
+		try{
+			const count =this.loadUsers();
+			console.log(`loaded ${count} users from disk`);
+		}
+		catch(e: any){
+			console.log('user error load:', e.message);
+		}
 		
 		this.deps.stateService.events.on("afk-check", guid => {
 			this.toggleAfk(guid); 
@@ -161,13 +168,17 @@ export class IdentityService {
 		this.registeredNicks.delete(cleanNick.toLowerCase());
 		this.users.delete(guid);
 		this.saveUsers();
-		console.log(`GDPR: Deleted user ${cleanNick} (${guid})`);
 	}
 
-	private loadUsers() {
+	public reloadUsers(): number{
+		const reload = this.loadUsers();
+		return reload;
+	}
+
+	private loadUsers(): number {
 	try {
 		if (!existsSync(this.deps.usersPath)) {
-			return;
+			throw new Error('no users.json file to load')
 		}
 
 		const data = readFileSync(this.deps.usersPath, 'utf-8');
@@ -176,16 +187,18 @@ export class IdentityService {
 		this.users = new Map(parseData);
 		this.registeredNicks.clear();
 
-
+		let count: number = 0
 		for (const [guid, identity] of this.users.entries()) {
-			const existingNick = identity.nick.substring(7)
+			const existingNick = identity.nick.substring(7);
 			this.registeredNicks.set(existingNick.toLowerCase(), guid);
+			count++;
 		}
-		console.log(`loaded ${this.users.size} users`);
-		} 
-		catch (e: any) {
-			console.error('Failed to load user data', `${e.message}`);
-		}
+		
+		return count;
+	} 
+	catch (e: any) {
+		throw new Error(e.message);
+	}
 	}
 
 	private saveUsers() {

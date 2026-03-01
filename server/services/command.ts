@@ -85,10 +85,12 @@ export class CommandService {
 					'',
 					'--- Moderator Commands ---',
 					'/announce or /announcement <text> : Send an announcement to all users.',
-					'/ban <user> : Permanently bans a user with nickname "user"',
-					'/timeout or /to <user> : Mutes nickname "user" for 5 min.',
+					'/ban <user> : Permanently IP bans a user with nickname "user" - huge pain to reverse so no jokes',
+					'/timeout or /to <user> <#> : Mutes nickname "user" for # seconds. defaults to 5 minutes if blank',
 					'/delete <1> : Delete a message with ID 1.',
-					'/emotes <emotesetID> : adds an emote set from 7tv. leave blank to reload from config'
+					'/emotes <emotesetID> : adds an emote set from 7tv. leave blank to reload from config',
+					'/unemotes <emotesetID> : remove all emotes whose names match an emote set from 7tv. consider using /emotes after to reload baseline emotes',
+					'/loadusers : reload users from disk. only useful if weird things are happening.'
 				);
 			}
 
@@ -462,23 +464,53 @@ export class CommandService {
 			return true;
 			}
 
-			let targetUrl = ctx.args[0];
+			let targetID = ctx.args[0];
 
-			if(targetUrl){
-				const isValidId = /^[a-z0-9_-]+$/i.test(targetUrl);
-				if (!isValidId) {
-					this.deps.messageService.sendSys(ctx.socket, mType.error, "doesn't look like a 7tv ID");
-					return false;
-				}
-				this.deps.messageService.sendSys(ctx.socket, mType.info, `fetching new emote set ${targetUrl}...`);
+			if(targetID){
+				this.deps.messageService.sendSys(ctx.socket, mType.info, `fetching new emote set ${targetID}...`);
 			}
 			else{
 				this.deps.messageService.sendSys(ctx.socket, mType.info, 'reloading emotes from config...');
 			}
 
 			try{
-				await this.deps.stateService.updateEmotes(ctx.io, targetUrl);
-				this.deps.messageService.sendSys(ctx.socket, mType.info, 'emotes loaded');
+				const size = await this.deps.stateService.updateEmotes(ctx.io, targetID);
+				this.deps.messageService.sendSys(ctx.socket, mType.info, `${size} emotes loaded`);
+				return true;
+			} catch(e: any){
+				this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
+				return false;
+			}
+		};
+
+		this.commands['unemotes'] = async (ctx) => {
+			if (!ctx.commandUser?.isMod) {
+				this.deps.messageService.sendSys(ctx.socket, mType.error, "naughty naughty");
+			return true;
+			}
+
+			let targetID = ctx.args[0];
+			this.deps.messageService.sendSys(ctx.socket, mType.info, `removing emote set ${targetID}...`);
+			
+			try{
+				const size = await this.deps.stateService.removeEmotes(ctx.io, targetID);
+				this.deps.messageService.sendSys(ctx.socket, mType.info, `${size} emotes removed`);
+				return true;
+			} catch(e: any){
+				this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
+				return false;
+			}
+		};
+
+		this.commands['loadusers'] = (ctx) => {
+			if (!ctx.commandUser?.isMod) {
+				this.deps.messageService.sendSys(ctx.socket, mType.error, "naughty naughty");
+			return true;
+			}
+			
+			try{
+				const size = this.deps.identityService.reloadUsers();
+				this.deps.messageService.sendSys(ctx.socket, mType.info, `${size} users reloaded`);
 				return true;
 			} catch(e: any){
 				this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
@@ -496,5 +528,6 @@ export class CommandService {
 		this.commands['to'] = this.commands['timeout'];
 		this.commands['announcement'] = this.commands['announce'];
 		this.commands['emote'] = this.commands ['emotes'];
+		this.commands['unemote'] = this.commands ['unemotes'];
 	}
 }

@@ -470,7 +470,7 @@
 					</div>				
 				</div>
 			</div>				
-    	</div>
+		</div>
 
 		<div class="title-bar">
 			<div class="title-bar-text">ratchat32.exe</div>
@@ -513,12 +513,12 @@
 
 	</div>
 
-    <script src="https://cdn.socket.io/4.8.3/socket.io.min.js" crossorigin="anonymous"></script>
+	<script src="https://cdn.socket.io/4.8.3/socket.io.min.js" crossorigin="anonymous"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.3/purify.min.js" crossorigin="anonymous"></script>
 	<script>
 		const localGUID = localStorage.getItem('ratGUID');
 		const socket = io({
-		    path: "/ratchat/socket.io/",
+			path: "/ratchat/socket.io/",
 			auth: {
 			token: localGUID
 			}
@@ -669,6 +669,7 @@
 			Object.keys(emotes).forEach(name => {
 				const img = document.createElement('img');
 				img.src = emotes[name];
+				img.crossOrigin = "anonymous";
 				img.title = name;
 				img.alt = name;
 				img.style.width = '1.5rem';
@@ -949,14 +950,14 @@
 
 		//button listeners
 
-        document.getElementById('btn-users').addEventListener('click', () => {
-            document.getElementById('user-sidebar').classList.toggle('collapsed');
-            window.dispatchEvent(new Event('resize'));
-        });
+		document.getElementById('btn-users').addEventListener('click', () => {
+			document.getElementById('user-sidebar').classList.toggle('collapsed');
+			window.dispatchEvent(new Event('resize'));
+		});
 
-        document.getElementById('btn-emotes').addEventListener('click', () => {
+		document.getElementById('btn-emotes').addEventListener('click', () => {
 			document.getElementById('emotes-popup').classList.toggle('is-visible');
-        });
+		});
 
 		//background load from storage
 		if (savedBG) {

@@ -119,6 +119,7 @@ io.on('connection', (socket) => {
 		//GDPR warning
 		messageService.sendSys(socket,mType.error,"system: be aware either command will store data regarding your session. type '/gdpr info' for more info");
 		messageService.sendSys(socket,mType.info,"system: feel free to use /help or /h to see all available commands. some commands will not be available until you set your nickname!");
+		messageService.sendSys(socket,mType.info,"we recommend increasing the zoom of your browser to 200% for the best viewing experience :)");
 		
 		//force broadcastUsers for lurkers check
 		stateService.broadcastUsers(io);

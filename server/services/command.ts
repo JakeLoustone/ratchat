@@ -69,6 +69,8 @@ export class CommandService {
 				'/help, /h, or /commands : View this list.',
 				'/chrat or /nick <nickname> : Change your nickname to <nickname>.',
 				"/color or /colour <#RRGGBB> : Change your nickname's color to hex #RRGGBB.",
+				//./dark handled client side
+				'/dark : by popular demand, toggle dark mode!',
 				//./clear and /clr are handled client side
 				'/clear or /clr : removes all visible messsages on your screen. (others can still see them)',
 				//./export is handled client side
@@ -77,7 +79,10 @@ export class CommandService {
 				'/afk <status> : toggle AFK status in the user listing, and sets status if one is provided.',
 				'/status or /me : set your status in the user listing',
 				'/background or /bg : set your background image. use /bgreset to clear',
-				'/gdpr <flag> : <info> for more information, <export> for a copy of your data, and <delete> to wipe your data.'
+				'/gdpr <flag> : <info> for more information, <export> for a copy of your data, and <delete> to wipe your data.',
+				'',
+				'the button with the smiley face shows available emotes. click to add to your message!',
+				'the button with the silhouettes closes the user status bar. useful on mobile!'
 			];
 
 			if (ctx.commandUser?.isMod) {

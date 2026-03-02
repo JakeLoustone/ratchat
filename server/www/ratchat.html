@@ -7,7 +7,16 @@
 		<title>ratchat</title>
 		<link rel="stylesheet" href="https://unpkg.com/98.css">
 		<style>
-	
+
+		.hide-scrollbar {
+			scrollbar-width: none;
+			-ms-overflow-style: none;
+		}
+
+		.hide-scrollbar::-webkit-scrollbar {
+			display: none;
+		}
+
 		body {
 			height: 100%;
 			margin: 0;
@@ -17,49 +26,110 @@
 		}
 
 		.window{
-			top: 0.25rem;
-			left: 0.25rem;
-			right: 0.25rem;
-			bottom: 0.25rem;
 			display: flex;
 			flex-direction: column;
-			margin: 0 !important;
-			width: auto !important;
+			margin: 0;
+			width: auto;
 		}
 
 		.window-body {
 			display: flex;
 			flex-direction: column;
 			height: calc(100vh - 2rem);
-			margin: 0 !important;
+			margin: 0;
 			padding: 0.2rem;
+		}
+
+		.title-bar-controls {
+			display: flex;
+			gap: 0.125rem;
+			padding: 0;
+		}
+
+		.title-bar-controls button {
+			margin: 0 !important;
+		}
+
+		.emotes-popup {
+			display: none; 
+			position: fixed; 
+			top: 50%; 
+			left: 50%; 
+			transform: translate(-50%, -50%); 
+			z-index: 1000;
+		}
+		.emotes-popup.is-visible {
+			display: block;
+		}
+		.emotes-popup .window {
+			width: 30rem;
+			max-width: min(30rem, 80vw);
+			min-width: 12rem;
+			max-height: 15rem;
+		}
+		.emotes-content {
+			flex-grow: 1;
+			background-color: #ffffff;
+			box-shadow: inset -0.0625rem -0.0625rem #ffffff,
+						inset 0.0625rem 0.0625rem #0a0a0a, 
+						inset -0.125rem -0.125rem #dfdfdf, 
+						inset 0.125rem 0.125rem #808080;
+			padding: 0.625rem;
+			max-height: 12rem;
+			overflow-y: auto;
+		}
+		.emotes-popup .field-row {
+			display: flex;
+			justify-content: center;
+			padding-top: 0.5rem;
 		}
 
 		#form{
 			display: flex;
-			gap: 0;
-			padding-top: 0.25rem;
+			gap: 0.125rem;
+			padding-top: 0.125rem;
+			align-items: stretch;
+			height: 2rem;
+			flex-wrap: nowrap;
 		}
-
+		#form button {
+			padding: 0;
+			box-sizing: border-box;
+			min-width: 2rem;
+			max-width: 2rem;
+			font-size: 1.7rem;
+			display: flex;
+			flex-shrink: 0;
+			line-height: 0;
+			align-items: center;
+			justify-content: center;
+			background: #c0c0c0;
+			border: none;
+		}
+		#form button[type="submit"]{
+			max-width: 7.5475rem !important;
+			min-width: 7.5475rem !important;
+			font-size: 1rem !important;
+		}
 		#input {
 			border: none;
-			height: 2rem;
-			padding: 0, 0.5rem;
-			flex-grow: 1;
-			font-size: large;
-			margin-right: 0.3rem;
-		}
-		
+			height: 100%;
+			padding: 0 0.5rem;
+			flex: 1 1 0;
+			min-width: 0;
+			font-size: 1rem;
+			box-sizing: border-box;
+			margin-right: .0625rem;
+		}	
 		#input:focus {
 			outline: none;
 		}
 
 		#user-sidebar {
-			width: 10%;
-			min-width: 10rem;
-			background: white;
+			flex: 0 0 9.7600rem; 
+			background: #ffffff;
 			box-shadow: 
-						inset -0.0625rem -0.0625rem #fff, 
+						inset -0.0625rem -0.0625rem #ffffff, 
 						inset 0.0625rem 0.0625rem #0a0a0a, 
 						inset -0.125rem -0.125rem #dfdfdf, 
 						inset 0.125rem 0.125rem #808080;
@@ -67,47 +137,64 @@
 			margin-top: 0.25rem;
 			margin-bottom: 0.25rem;			
 			overflow-y: auto;
+			overflow-x: hidden;
 			flex-shrink: 0;
 			display: flex;
 			flex-direction: column;
+		}
+		#user-sidebar.collapsed {
+			flex-basis: 0 !important;
+			padding: 0 !important;
+			margin: 0 !important;
 			overflow: hidden;
-			scrollbar-width: none; /* Firefox */
-			-ms-overflow-style: none; /* IE/Edge */
+			border: none;
 		}
-
-		#user-sidebar::-webkit-scrollbar {
-			display: none; /* Chrome/Safari */
+		#user-sidebar.collapsed + .fake-scrollbar, 
+		#user-sidebar.collapsed ~ .fake-scrollbar,
+		#messages-container ~ .fake-scrollbar:has(+ #user-sidebar.collapsed) {
+			margin-right: 0;
 		}
-
 		#user-list {
 			flex-grow: 1;
-			overflow-y: auto; /* Only the names scroll */
+			overflow-y: auto;
+			overflow-x:hidden;
 			list-style: none;
 			padding: 0;
 			margin: 0.25rem;
 			font-size: large;
-			scrollbar-width: none;
-			-ms-overflow-style: none; /* IE/Edge */
 		}
-
-		#user-list::-webkit-scrollbar {
-			display: none;
+		.user-list-span {
+			white-space: nowrap;
+			display: flex;
+			align-items: center;
+			width: 100%;
+			overflow: hidden;
+		}
+		.user-list-span span:nth-child(2) {
+			flex-shrink: 1;
+			flex-grow: 1;
+			min-width: 0;
+		}
+		.user-count{
+			color: #575963;
+			text-align: right;
 		}
 		.user-status {
-			font-size: larger;
-			color: #444;
-			margin-left: 0.3125rem;
+			display: block;
+			font-size: 0.75rem;
+			color: #575963;
+			margin-left: 0.75rem;
 		}
-
 		.status-orb {
 			display: inline-block;
 			width: 0.7rem;
 			height: 0.7rem;
 			border-radius: 50%;
 			margin-right: 0.375rem;
+			margin-bottom: 0.175rem;
+			flex-shrink: 0;
 			border: 0.0625rem solid rgba(0,0,0,0.2);
 		}
-
 		.orb-online {
 			background: radial-gradient(circle at 0.1875rem 0.1875rem, #52ff52, #008000);
 			box-shadow: 0.0625rem 0.0625rem 0.0625rem rgba(0,0,0,0.3);
@@ -118,6 +205,7 @@
 			box-shadow: 0.0625rem 0.0625rem 0.0625rem rgba(0,0,0,0.3);
 		}
 		#lurker-status{
+			color:#575963;
 			font-size: small;
 			min-height: 1rem;
 			flex-shrink: 0;
@@ -126,13 +214,12 @@
 
 		#messages-container {
 			flex-grow: 1;
-			overflow-y: auto;
-			background-color: white;
+			background-color: #ffffff;
 			background-blend-mode: normal;
-			background-repeat: 'repeat';
+			background-repeat: repeat;
 			background-position: center;
 			background-size: 25%;
-			box-shadow: inset -0.0625rem -0.0625rem #fff,
+			box-shadow: inset -0.0625rem -0.0625rem #ffffff,
 						inset 0.0625rem 0.0625rem #0a0a0a, 
 						inset -0.125rem -0.125rem #dfdfdf, 
 						inset 0.125rem 0.125rem #808080;
@@ -142,17 +229,17 @@
 			display: flex;
 			flex-direction: column;
 			overflow-y: auto;
-			scrollbar-width: none; /* Firefox */
-			-ms-overflow-style: none; /* IE/Edge */
 		}
-		#messages-container::-webkit-scrollbar {
-			display: none; /* Chrome/Safari */
+		.has-bg{
+			background-color: rgba(255, 255, 255, 0.5) !important;
+			background-blend-mode: overlay !important;
 		}
 		.emote {
 			height: 1.5rem;
 			vertical-align: bottom;
 			margin: -0.1rem;
 		}
+
 		#messages {
 			list-style-type: none;
 			margin: 0;
@@ -160,55 +247,47 @@
 			margin-top: auto;
 			font-size: large;
 		}
-
 		#messages > li {
 			padding: 0.2rem 0.5rem; 
 		}
-
 		#messages > .e-li {
 			padding: 0.2rem 0.5rem; 
-			color: red;
+			color: #D12626;
 			white-space: pre-wrap;
 		}
-
 		#messages > .i-li {
 			padding: 0.2rem 0.5rem; 
-			color: darkslategrey;
+			color: #575963;
 			white-space: pre-wrap;
 		}
-
 		#messages > .w-li {
 			padding: 0.2rem 0.5rem;
-			color: darkblue;
+			color: #33343B;
 			white-space: pre-wrap;
 		}
-
 		#messages > .a-li {
 			padding: 0.2rem 0.5rem; 
 			color: #6eab6e;
 			white-space: pre-wrap;
 		}
-
 		#messages .user-name {
 			font-weight: bold;
 			color: var(--user-color, black);
 			margin-right: .15rem;
 		}
-
 		#messages > li:hover {
 			cursor: pointer;
 			background-color: rgba(0, 0, 0, 0.05);
 		}
+
 		.fake-scrollbar {
 			width: 1.2rem;
 			background: #dfdfdf;
 			display: flex;
 			flex-direction: column;
-			box-shadow: inset 0.0625rem 0.0625rem #808080, inset -0.0625rem -0.0625rem #fff;
 			flex-shrink: 0;
-			margin: 0.25rem 0.125rem;
+			margin: 0.25rem 0.2rem;
 		}
-
 		.fake-scroll-button {
 			width: 1.2rem;
 			height: 1.2rem;
@@ -221,49 +300,178 @@
 			justify-content: center;
 			background: #c0c0c0;
 			border: none;
-
 			box-shadow: 
-				inset 0.0625rem 0.0625rem #fff,
-				inset -0.0625rem -0.0625rem #424242,
-				inset 0.125rem 0.125rem #dfdfdf,
-				inset -0.125rem -0.125rem #808080
+						inset 0.0625rem 0.0625rem #ffffff, 
+						inset -0.0625rem -0.0625rem #0a0a0a, 
+						inset 0.125rem 0.125rem #dfdfdf, 
+						inset -0.125rem -0.125rem #808080;
 		}
-
 		.fake-scroll-track {
 			flex-grow: 1;
 			position: relative;
-			background-image: 
-								linear-gradient(45deg, #e0e0e0 25%, transparent 25%), 
-								linear-gradient(-45deg, #e0e0e0 25%, transparent 25%), 
-								linear-gradient(45deg, transparent 75%, #e0e0e0 75%), 
-								linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
 			background-size: 0.2rem 0.2rem;
 			background-position: 0 0, 0 0.1rem, 0.1rem -0.1rem, -0.1rem 0rem;
-			background-color: #bcbcbc; 
-			box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #fff;
-			}
-
+			background-color: #dfdfdf;
+			box-shadow: 
+					inset -0.0625rem -0.0625rem #ffffff, 
+					inset 0.0625rem 0.0625rem #808080;
+		}
+		#emotes-fake-scroll-thumb,
 		#fake-scroll-thumb {
-			width: 90%;
+			width: 100%;
 			height: 2rem;
 			background: #c0c0c0;
 			position: absolute;
 			left: 50%;
 			transform: translateX(-50%);
-			border: none; 
-			
+			border: none;	
 			box-shadow: 
-				inset 0.0625rem 0.0625rem #fff,
-				inset -0.0625rem -0.0625rem #424242,
-				inset 0.125rem 0.125rem #dfdfdf,
-				inset -0.125rem -0.125rem #808080
+					inset 0.0625rem 0.0625rem #ffffff, 
+					inset -0.0625rem -0.0625rem #0a0a0a, 
+					inset 0.125rem 0.125rem #dfdfdf, 
+					inset -0.125rem -0.125rem #808080;
 		}
+		.emotes-popup .fake-scrollbar {
+			margin-top: 0;
+			margin-bottom: 0;
+			margin-right: 0;
+		}
+
+		/* DARK MODE */
+		[data-theme="dark"] .has-bg {
+			background-color: rgba(0, 0, 0, 0.5) !important;
+		}
+		
+		[data-theme="dark"] .window {
+			background: #000000;
+			box-shadow:
+				inset -0.0625rem -0.0625rem #111111,
+				inset 0.0625rem 0.0625rem #444444,
+				inset -0.125rem -0.125rem #222222,
+				inset 0.125rem 0.125rem #555555;
+		}
+
+		[data-theme="dark"] .title-bar {
+			background: linear-gradient(to right, #2b004f, #a46cff);
+			color: #ffffff;
+		}
+
+		[data-theme="dark"] .emotes-content,
+		[data-theme="dark"] #messages-container,
+		[data-theme="dark"] #input,
+		[data-theme="dark"] #user-sidebar {
+			background-color: #2a2a2a;
+			color: #ffffff;
+			box-shadow:
+				inset 0.0625rem 0.0625rem #111111,
+				inset -0.0625rem -0.0625rem #444444,
+				inset 0.125rem 0.125rem #222222,
+				inset -0.125rem -0.125rem #555555;
+		}
+
+		[data-theme="dark"] #form button{
+			background: #3a3a3a;
+			color: #ffffff;
+			box-shadow:
+				inset -0.0625rem -0.0625rem #111111,
+				inset 0.0625rem 0.0625rem #444444,
+				inset -0.125rem -0.125rem #222222,
+				inset 0.125rem 0.125rem #555555;
+		}
+		[data-theme="dark"] #form button:active {
+			box-shadow:
+				inset 0.0625rem 0.0625rem #111111,
+				inset -0.0625rem -0.0625rem #444444,
+				inset 0.125rem 0.125rem #222222,
+				inset -0.125rem -0.125rem #555555;
+		}
+
+		[data-theme="dark"] #messages > li {
+			color: #ffffff;
+		}
+		[data-theme="dark"] #messages > .e-li { color: #ff8a8a; }
+		[data-theme="dark"] #messages > .i-li { color: #d0d0d0; }
+		[data-theme="dark"] #messages > .w-li { color: #8ac7ff; }
+		[data-theme="dark"] #messages > .a-li { color: #9df79d; }
+		[data-theme="dark"] #messages > li:hover {
+			background-color: rgba(255, 255, 255, 0.08);
+		}
+
+		[data-theme="dark"] .fake-scrollbar {
+			background: #2a2a2a;
+		}
+
+		[data-theme="dark"] .fake-scroll-button {
+			background: #3a3a3a;
+			color: #ffffff;
+			box-shadow:
+				inset -0.0625rem -0.0625rem #111111,
+				inset 0.0625rem 0.0625rem #444444,
+				inset -0.125rem -0.125rem #222222,
+				inset 0.125rem 0.125rem #555555;
+		}
+
+		[data-theme="dark"] .fake-scroll-button:active {
+			box-shadow:
+				inset 0.0625rem 0.0625rem #111111,
+				inset -0.0625rem -0.0625rem #444444,
+				inset 0.125rem 0.125rem #222222,
+				inset -0.125rem -0.125rem #555555;
+		}
+
+		[data-theme="dark"] .fake-scroll-track {
+			background-color: #555555;
+			box-shadow: 
+					inset 0.0625rem 0.0625rem #333333, 
+					inset -0.0625rem -0.0625rem #666666;
+		}
+
+		[data-theme="dark"] #fake-scroll-thumb,
+		[data-theme="dark"] #emotes-fake-scroll-thumb {
+			background: #3a3a3a;
+			color: #ffffff;
+			box-shadow:
+				inset -0.0625rem -0.0625rem #111111,
+				inset 0.0625rem 0.0625rem #444444,
+				inset -0.125rem -0.125rem #222222,
+				inset 0.125rem 0.125rem #555555;
+		}
+
 		</style>
 	</head>
 
 	<body>
 	<input type="file" id="bg-upload" style="display: none;" accept="image/*">
+	
 	<div class="window">
+
+		<div id="emotes-popup" class="emotes-popup">
+			<div class="window">
+
+				<div class="title-bar">
+					<div class="title-bar-text">click an emote to use</div>
+					<div class="title-bar-controls">
+						<button aria-label="Close" onclick="document.getElementById('emotes-popup').classList.remove('is-visible')"></button>
+					</div>
+				</div>
+
+				<div class="window-body">
+					<div style="display: flex; flex-direction: row; flex-grow: 1; overflow: hidden;">						
+						<div id="emotes-scroll-container" class="emotes-content hide-scrollbar" style="margin-bottom: 0;">
+							<div id="emotes-grid-wrapper" class="hide-scrollbar" style="height:95%;align-self:center; overflow-y: auto;"></div>
+						</div>
+						<div class="fake-scrollbar">
+							<button class="fake-scroll-button" id="emotes-btn-up">&#9650;</button>
+							<div class="fake-scroll-track" id="emotes-track">
+								<div id="emotes-fake-scroll-thumb"></div>
+							</div>
+							<button class="fake-scroll-button" id="emotes-btn-down">&#9660;</button>
+						</div>
+					</div>				
+				</div>
+			</div>				
+    	</div>
+
 		<div class="title-bar">
 			<div class="title-bar-text">ratchat32.exe</div>
 			<div class="title-bar-controls">
@@ -275,7 +483,8 @@
 
 		<div class="window-body">
 			<div style="display: flex; flex-direction: row; flex-grow: 1; overflow: hidden; gap: 0rem;">
-				<div id="messages-container">
+				
+				<div id="messages-container" class="hide-scrollbar">
 					<ul id="messages"></ul>
 				</div>
 
@@ -287,18 +496,23 @@
 					<button class="fake-scroll-button" id="btn-down">&#9660;</button>
 				</div>
 				
-				<div id="user-sidebar">
+				<div id="user-sidebar" class="hide-scrollbar">
 					<ul id="user-list"></ul>
 					<div id="lurker-status"></div>
 				</div>
+
 			</div>
 
 			<form id="form" action="">
 				<input id="input" type="text" autocomplete="off" />
 				<button type="submit">Send</button>
+				<button type="button" id="btn-emotes" title="emotes" style="font-size: 2.2rem; padding-bottom: 0.25rem;">&#9786;</button>
+				<button type="button" id="btn-users" title="users" style="font-size:1.2rem">&#128101;</button>
 			</form>
-		</div>
+		</div>		
+
 	</div>
+
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js" crossorigin="anonymous"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.3/purify.min.js" crossorigin="anonymous"></script>
 	<script>
@@ -316,15 +530,10 @@
 
 		let emotes = {};
 
-		//Helper function for non user messages
-		const systemMessage = (msg, className) => {
-			const item = document.createElement('li');
-			const msgContainer = document.getElementById('messages-container');
-			item.classList.add(className);
-			item.textContent = msg;
-			messages.appendChild(item);
-			msgContainer.scrollTop = msgContainer.scrollHeight;
-		};
+		const savedTheme = localStorage.getItem('ratMode');
+		if (savedTheme === 'dark') {
+			document.documentElement.setAttribute('data-theme', 'dark');
+		}
 
 		//Background loader
 		document.getElementById('bg-upload').addEventListener('change', function(e) {
@@ -335,8 +544,7 @@
 				reader.onload = function(event) {
 					const imageData = event.target.result;
 					document.getElementById('messages-container').style.backgroundImage = `url('${imageData}')`;
-					document.getElementById('messages-container').style.backgroundColor = 'rgba(255, 255, 255, 0.5)';
-					document.getElementById('messages-container').style.backgroundBlendMode = 'overlay';
+					document.getElementById('messages-container').classList.add('has-bg');
 					
 					//local storage
 					try {
@@ -352,44 +560,217 @@
 		});
 
 		//Fake scrollbar
-		//sync thumb position to scroll
-		document.getElementById('messages-container').onscroll = function() {
-			document.getElementById('fake-scroll-thumb').style.top = 
-				(this.scrollTop / (this.scrollHeight - this.clientHeight || 1)) * (document.getElementById('track').clientHeight - document.getElementById('fake-scroll-thumb').clientHeight) + 'px';
-		};
+		function initFakeScrollbar(config) {
+			const container = document.getElementById(config.containerId);
+			const thumb = document.getElementById(config.thumbId);
+			const track = document.getElementById(config.trackId);
+			const content = document.getElementById(config.contentId);
 
-		document.getElementById('btn-up').onclick = () => document.getElementById('messages-container').scrollBy(0, -50);
-		document.getElementById('btn-down').onclick = () => document.getElementById('messages-container').scrollBy(0, 50);
-
-		//dynamic thumb resizing using a self-executing function for the MutationObserver
-		new MutationObserver(() => {
-			document.getElementById('fake-scroll-thumb').style.height = 
-				Math.max((document.getElementById('messages-container').clientHeight / document.getElementById('messages-container').scrollHeight) * document.getElementById('track').clientHeight, 20) + 'px';
-		}).observe(document.getElementById('messages'), { childList: true });
-
-		//sync resize event
-		window.onresize = () => {
-			document.getElementById('fake-scroll-thumb').style.height = 
-				Math.max((document.getElementById('messages-container').clientHeight / document.getElementById('messages-container').scrollHeight) * document.getElementById('track').clientHeight, 20) + 'px';
-		};
-		
-		//click and drag thumb
-		document.getElementById('fake-scroll-thumb').addEventListener('mousedown', (e) => {
-			document.onmousemove = (event) => {
-				document.getElementById('messages-container').scrollTop = 
-					((event.pageY - e.pageY) * (document.getElementById('messages-container').scrollHeight / document.getElementById('track').clientHeight)) + 
-					(document.getElementById('messages-container').scrollTop);
-				e = event;
+			//sync thumb position to scroll
+			container.onscroll = function () {
+				thumb.style.top =
+					(container.scrollTop / (container.scrollHeight - container.clientHeight || 1)) *
+					(track.clientHeight - thumb.clientHeight) + 'px';
 			};
-			document.onmouseup = () => {
-				document.onmousemove = null;
-				document.onmouseup = null;
-			};
-			e.preventDefault();
+
+			if (config.btnUpId) {
+				document.getElementById(config.btnUpId).onclick = () =>
+					container.scrollBy(0, -50);
+			}
+
+			if (config.btnDownId) {
+				document.getElementById(config.btnDownId).onclick = () =>
+					container.scrollBy(0, 50);
+			}
+
+			//dynamic thumb resizing using a self-executing function for the MutationObserver
+			new MutationObserver(() => {
+				thumb.style.height =
+					Math.max(
+						(container.clientHeight / container.scrollHeight) * track.clientHeight,
+						20
+					) + 'px';
+			}).observe(content, { childList: true, subtree: true });
+
+			//sync resize event
+			window.addEventListener('resize', () => {
+				thumb.style.height =
+					Math.max(
+						(container.clientHeight / container.scrollHeight) * track.clientHeight,
+						20
+					) + 'px';
+			});
+
+			//click and drag thumb
+			thumb.addEventListener('mousedown', (e) => {
+				document.onmousemove = (event) => {
+					container.scrollTop =
+						((event.pageY - e.pageY) *
+							(container.scrollHeight / track.clientHeight)) +
+						container.scrollTop;
+					e = event;
+				};
+				document.onmouseup = () => {
+					document.onmousemove = null;
+					document.onmouseup = null;
+				};
+				e.preventDefault();
+			});
+		}
+
+		initFakeScrollbar({
+			containerId: 'messages-container',
+			trackId: 'track',
+			thumbId: 'fake-scroll-thumb',
+			contentId: 'messages',
+			btnUpId: 'btn-up',
+			btnDownId: 'btn-down'
+		});
+		initFakeScrollbar({
+			containerId: 'emotes-grid-wrapper',
+			trackId: 'emotes-track',
+			thumbId: 'emotes-fake-scroll-thumb',
+			contentId: 'emotes-grid-wrapper',
+			btnUpId: 'emotes-btn-up',
+			btnDownId: 'emotes-btn-down'
+		});
+
+		//////////////
+		////EVENTS////
+		//////////////
+
+		//Identity events
+		socket.on('identity', (identity) => {
+			if (identity && identity.guid === 'RESET_IDENTITY'){
+				console.log('cleared from local storage');
+				localStorage.clear();
+				setTimeout(() =>{systemMessage('reloading...', 'i-li');}, 200);
+				setTimeout(() =>{window.location.reload();}, 2000);
+			} else if(identity && identity.guid) {
+				localStorage.setItem('ratGUID', identity.guid);
+				console.log('identity loaded')
+			} else{
+				console.log('identity load error')
+			}
+		});
+
+		//Emote events
+		socket.on('emote', (payload) =>{
+			emotes = payload;
+			const container = document.getElementById('emotes-grid-wrapper');
+			
+			container.replaceChildren();
+
+			const grid = document.createElement('div');
+			grid.style.display = 'grid';
+			grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(1.5rem, 1fr))';
+			grid.style.gap = '0.5rem';
+
+			Object.keys(emotes).forEach(name => {
+				const img = document.createElement('img');
+				img.src = emotes[name];
+				img.title = name;
+				img.alt = name;
+				img.style.width = '1.5rem';
+				img.style.height = '1.5rem';
+				img.style.cursor = 'pointer';
+				img.style.objectFit = 'contain';
+				img.className = 'emote-selectable';
+
+				img.onclick = () => {
+					const input = document.getElementById('input');
+					const space = input.value.length > 0 && !input.value.endsWith(' ') ? ' ' : '';
+					input.value += space + name + ' ';
+					input.focus();
+					document.getElementById('emotes-popup').classList.remove('is-visible');
+				};
+
+				grid.appendChild(img);
+			});
+			container.appendChild(grid);
+		});
+
+		//User list events
+		socket.on('userlist', (uList) => {
+			const userListElement = document.getElementById('user-list');
+			const lurkerElement = document.getElementById('lurker-status');
+			userListElement.replaceChildren();
+
+			let lurkerData = null;
+
+			//build consolidated listing
+			const consolidate = new Map();
+			uList.forEach(user =>{
+				if (user.nick.startsWith('#NONVAL')) {
+					lurkerData = user;
+					return;
+				}
+				if (consolidate.has(user.nick)){
+					consolidate.get(user.nick).count++;
+				}
+				else{
+					consolidate.set(user.nick, {...user, count: 1})
+				}
+			});
+
+			consolidate.forEach(user => {
+				const li = document.createElement('li');
+				li.style.marginBottom = "0.125rem";
+				
+				const userColor = user.nick.substring(0, 7);
+				const userName = user.nick.substring(7);
+
+				const orb = user.isAfk ? 'orb-afk' : 'orb-online';
+				const orbLabel = user.isAfk ? 'AFK' : 'Online'
+				let displayCount = ''
+
+				if(user.count >9){
+					//no hiscores
+					displayCount = 'a lot';
+				}
+				else if(user.count > 1){
+					displayCount = `${user.count}`;
+				}
+
+				const fontSize = userName.length > 11 ? .8 : 1;
+				const dirty = (`
+					<span class="user-list-span" style="font-size: ${fontSize}rem">
+						<span class="status-orb ${orb}" title="${orbLabel}"></span>
+						<span style="color: ${userColor}; font-weight: bold;">${userName}</span>
+						<span class="user-count">${displayCount}</span>
+					</span>
+					<span class="user-status">${user.status}</span>
+				`);
+				if (window.DOMPurify){
+					li.innerHTML = DOMPurify.sanitize(dirty);
+				}
+				else{
+					li.textContent = `${userName}${user.status ? ` (${user.status})` : ''}`;
+					li.style.color = userColor	
+				}
+				userListElement.appendChild(li);
+			});
+
+			lurkerElement.textContent = `lurkers: ${lurkerData.status}`;
+		});
+
+		//Delete message events
+		socket.on('deleteMsg', (msgArray) => {
+			if(!Array.isArray(msgArray)){
+				return;
+			}
+			msgArray.forEach(id => {
+				const target = document.querySelector(`li[data-id="${id}"]`)
+				if(target){
+					target.replaceChildren('[message deleted]');
+					target.className = 'i-li';
+					target.removeAttribute('title');
+				}
+			});
 		});
 
 		/////////////////////
-		//Client submission//
+		//CLIENT SUBMISSION//
 		/////////////////////
 
 		form.addEventListener('submit', (e) => {
@@ -432,8 +813,7 @@
 				if(localStorage.getItem('ratBG')){
 					localStorage.removeItem('ratBG');
 					document.getElementById('messages-container').style.backgroundImage = '';
-					document.getElementById('messages-container').style.backgroundColor = 'white';
-					document.getElementById('messages-container').style.backgroundBlendMode = 'normal';
+					document.getElementById('messages-container').classList.remove('has-bg');
 					systemMessage("background reset", 'i-li');
 					input.value = '';
 					return;
@@ -444,109 +824,43 @@
 				}
 			}
 
+			//dark mode
+			if (val === '/dark') {
+				if (document.documentElement.hasAttribute('data-theme')) {
+					document.documentElement.removeAttribute('data-theme');
+					localStorage.setItem('ratMode', 'light');
+					systemMessage("bravo 6, going undark", 'i-li');
+				} else {
+					document.documentElement.setAttribute('data-theme', 'dark');
+					localStorage.setItem('ratMode', 'dark');
+					systemMessage("bravo 6, going dark", 'i-li');
+				}
+				input.value = '';
+				return;
+			}
+
 			//Send message
 			socket.emit('toServerChat', val, () => {
 				input.value = '';
 			});
 		});
 
-		//Identity events
-		socket.on('identity', (identity) => {
-			if (identity && identity.guid === 'RESET_IDENTITY'){
-				console.log('cleared from local storage');
-				localStorage.clear();
-				setTimeout(() =>{systemMessage('reloading...', 'i-li');}, 200);
-				setTimeout(() =>{window.location.reload();}, 2000);
-			} else if(identity && identity.guid) {
-				localStorage.setItem('ratGUID', identity.guid);
-				console.log('identity loaded')
-			} else{
-				console.log('identity load error')
+		/////////////////////
+		//MESSAGE RENDERING//
+		/////////////////////
+
+		//Helper function for non user messages
+		const systemMessage = (msg, className) => {
+			const item = document.createElement('li');
+			const msgContainer = document.getElementById('messages-container');
+			item.classList.add(className);
+			item.textContent = msg;
+			const isAtBottom = msgContainer.scrollHeight - msgContainer.clientHeight <= msgContainer.scrollTop + 20;
+			messages.appendChild(item);
+			if(isAtBottom){
+				msgContainer.scrollTop = msgContainer.scrollHeight;
 			}
-		});
-
-		//Emote events
-		socket.on('emote', (payload) =>{
-			emotes = payload;
-		});
-
-		//User list events
-		socket.on('userlist', (uList) => {
-			const userListElement = document.getElementById('user-list');
-			const lurkerElement = document.getElementById('lurker-status');
-			userListElement.replaceChildren();
-
-			let lurkerData = null;
-
-			//build consolidated listing
-			const consolidate = new Map();
-			uList.forEach(user =>{
-				if (user.nick.startsWith('#NONVAL')) {
-					lurkerData = user;
-					return;
-				}
-				if (consolidate.has(user.nick)){
-					consolidate.get(user.nick).count++;
-				}
-				else{
-					consolidate.set(user.nick, {...user, count: 1})
-				}
-			});
-
-			consolidate.forEach(user => {
-				const li = document.createElement('li');
-				li.style.marginBottom = "0.125rem";
-				
-				const userColor = user.nick.substring(0, 7);
-				const userName = user.nick.substring(7);
-
-				const orb = user.isAfk ? 'orb-afk' : 'orb-online';
-				const orbLabel = user.isAfk ? 'AFK' : 'Online'
-
-				const statusText = user.status ? `<div style="font-size:small; color: #444; margin-left: 0.375rem;">${user.status}</div>` : '';
-
-				let displayCount = ''
-
-				if(user.count >9){
-					//no hiscores
-					displayCount = '&nbsp;&nbsp;(a lot)';
-				}
-				else if(user.count > 1){
-					displayCount = `&nbsp;&nbsp;(${user.count})`;
-				}
-
-				const dirty = (`
-					<span class="status-orb ${orb}" title="${orbLabel}"></span><span style="color: ${userColor}; font-weight: bold;">${userName}</span><span style="color: darkslategrey; font-size: medium;">${displayCount}</span>
-					${statusText}
-				`);
-				if (window.DOMPurify){
-					li.innerHTML = DOMPurify.sanitize(dirty);
-				}
-				else{
-					li.textContent = `${userName}${user.status ? ` (${user.status})` : ''}`;
-					li.style.color = userColor	
-				}
-				userListElement.appendChild(li);
-			});
-
-			lurkerElement.textContent = `lurkers: ${lurkerData.status}`;
-		});
-
-		//Delete message events
-		socket.on('deleteMsg', (msgArray) => {
-			if(!Array.isArray(msgArray)){
-				return;
-			}
-			msgArray.forEach(id => {
-				const target = document.querySelector(`li[data-id="${id}"]`)
-				if(target){
-					target.replaceChildren('[message deleted]');
-					target.className = 'i-li';
-					target.removeAttribute('title');
-				}
-			});
-		});
-
+		};
 
 		//message type to css class
 		const toClass = {
@@ -557,7 +871,6 @@
 			'toClientAnnouncement': 'a-li'
 		};
 
-		//message renderer
 		const renderMessage =(msg) =>{
 			
 			const item = document.createElement('li');
@@ -616,9 +929,16 @@
 			item.appendChild(contentSpan);
 
 			//finalize
+			const isAtBottom = msgContainer.scrollHeight - msgContainer.clientHeight <= msgContainer.scrollTop + 20;
 			messages.appendChild(item);
-			msgContainer.scrollTop = msgContainer.scrollHeight;
+			if(isAtBottom){
+				msgContainer.scrollTop = msgContainer.scrollHeight;
+			}
 		};
+
+		/////////////
+		//LISTENERS//
+		/////////////
 
 		//message listeners
 		socket.on('toClientChat', renderMessage);
@@ -627,14 +947,25 @@
 		socket.on('toClientWelcome', renderMessage);
 		socket.on('toClientAnnouncement', renderMessage);
 
+		//button listeners
+
+        document.getElementById('btn-users').addEventListener('click', () => {
+            document.getElementById('user-sidebar').classList.toggle('collapsed');
+            window.dispatchEvent(new Event('resize'));
+        });
+
+        document.getElementById('btn-emotes').addEventListener('click', () => {
+			document.getElementById('emotes-popup').classList.toggle('is-visible');
+        });
+
 		//background load from storage
 		if (savedBG) {
 			document.getElementById('messages-container').style.backgroundImage = `url('${savedBG}')`;
-			document.getElementById('messages-container').style.backgroundColor = 'rgba(255, 255, 255, 0.5)';
-			document.getElementById('messages-container').style.backgroundBlendMode = 'overlay';
+			document.getElementById('messages-container').classList.add('has-bg');
 		}
 		
 		input.focus();
+
 	</script>
 	</body>
 </html>

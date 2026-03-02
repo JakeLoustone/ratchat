@@ -171,8 +171,13 @@ export class IdentityService {
 	}
 
 	public reloadUsers(): number{
-		const reload = this.loadUsers();
-		return reload;
+		try{
+			const reload = this.loadUsers();
+			return reload;
+		}
+		catch(e: any){
+			throw new Error(e.message);
+		}
 	}
 
 	private loadUsers(): number {

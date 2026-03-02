@@ -253,19 +253,21 @@
 			min-height: 100%;
 			font-size: large;
 		}
+		#messages > li{
+			padding-top: 0.2rem;
+			padding-bottom: 0.2rem;
+			padding-left: 1rem;
+		}
 		#messages > .e-li {
 			color: #D12626;
 		}
 		#messages > .i-li {
-			padding: 0.2rem 0.5rem; 
 			color: #575963;
 		}
 		#messages > .w-li {
-			padding: 0.2rem 0.5rem;
-			color: #33343B;
+			color: #0084FF;
 		}
 		#messages > .a-li {
-			padding: 0.2rem 0.5rem; 
 			color: #6eab6e;
 		}
 		#messages .user-name {
@@ -898,7 +900,7 @@
 			const nameSpan = document.createElement('span');
 			nameSpan.className = "user-name";
 				nameSpan.style.setProperty('--user-color', userColor);
-				nameSpan.textContent = userName + ":";
+				nameSpan.textContent = userName + ": ";
 			item.appendChild(nameSpan)
 
 			//set hover msg ID and data ID

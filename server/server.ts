@@ -6,7 +6,7 @@ import path from 'node:path';
 
 
 import type { Identity } from '../shared/schema';
-import { mType } from '../shared/schema';
+import { mType, tType } from '../shared/schema';
 
 import { MessageService } from './services/message';
 import { StateService } from './services/state';
@@ -14,6 +14,7 @@ import { ModerationService } from './services/moderation';
 import { IdentityService } from './services/identity';
 import { SecurityService } from './services/security';
 import { CommandService } from './services/command';
+import { time } from 'node:console';
 
 const app = express();
 const httpserver = createServer(app);
@@ -112,7 +113,13 @@ io.on('connection', (socket) => {
 		stateService.updateSocketUser(io, socket.id, returningUser);
 		messageService.send(socket, mType.identity, returningUser);
 		messageService.sendSys(socket, mType.info, `welcome back, ${returningUser.nick.substring(7)}`);
-		messageService.sendSys(io,mType.ann,`${returningUser.nick.substring(7)} connected`);
+		try{
+			const broadcast = moderationService.timeCheck(returningUser, tType.joinleave);
+			messageService.sendSys(io,mType.ann,`${returningUser.nick.substring(7)} connected`);
+			identityService.setLastMessage(returningUser.guid, Date.now());
+		}
+		catch(e: any){
+		}
 	} 
 	else {
 		messageService.sendSys(socket,mType.error,"system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
@@ -187,7 +194,13 @@ io.on('connection', (socket) => {
 
 		if(disuser){
 			stateService.deleteSocketUser(io, socket.id);
-			messageService.sendSys(io, mType.ann, `${disuser.nick.substring(7)} disconnected`);
+			try{
+				moderationService.timeCheck(disuser, tType.joinleave);
+				messageService.sendSys(io, mType.ann, `${disuser.nick.substring(7)} disconnected`);
+				identityService.setLastMessage(disuser.guid, Date.now());
+			}
+			catch(e:any){
+			}
 		}
 		else{
 			//lurker disconnect

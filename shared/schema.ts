@@ -30,6 +30,7 @@ export type MessageType = typeof mType[keyof typeof mType];
 export const tType = {
 	chat: "chat",
 	nick: "nick",
+	joinleave: "joinleave",
 	other:"other"
 }
 

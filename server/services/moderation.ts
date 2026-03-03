@@ -129,10 +129,11 @@ export class ModerationService {
 		const limits: Record<TimeType, number> = {
 			chat: config.slowMode * 1000,
 			nick: config.nickSlow * 1000,
+			joinleave: config.otherSlow * 1000,
 			other: config.otherSlow * 1000
 		};
 
-		const last = type === "chat"? lastMessage : lastChanged;
+		const last = type === "chat" || type === "joinleave" ? lastMessage : lastChanged;
 		const waitTime = ((last + limits[type]) - now) /1000
 
 		if (waitTime > 0){

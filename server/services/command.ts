@@ -64,7 +64,7 @@ export class CommandService {
 		// ------------------------------------------------------------------
 		
 		this.commands['help'] = (ctx) => {
-
+			const config = this.deps.stateService.getConfig();
 			const helpMessages = [
 				'/help, /h, or /commands : View this list.',
 				'/chrat or /nick <nickname> : Change your nickname to <nickname>.',
@@ -91,7 +91,7 @@ export class CommandService {
 					'--- Moderator Commands ---',
 					'/announce or /announcement <text> : Send an announcement to all users.',
 					'/ban <user> : Permanently IP bans a user with nickname "user" - huge pain to reverse so no jokes',
-					'/timeout or /to <user> <#> : Mutes nickname "user" for # seconds. defaults to 5 minutes if blank',
+					`/timeout or /to <user> <#> : Mutes nickname "user" for # seconds. defaults to ${config.timeoutDef} seconds if blank`,
 					'/delete <1> : Delete a message with ID 1.',
 					'/emotes <emotesetID> : adds an emote set from 7tv. leave blank to reload from config',
 					'/unemotes <emotesetID> : remove all emotes whose names match an emote set from 7tv. consider using /emotes after to reload baseline emotes',

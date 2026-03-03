@@ -86,16 +86,16 @@ io.on('connection', (socket) => {
 	const announcement = stateService.getAnnouncement();
 	const emotes = stateService.getEmotes();
 	
+	if(emotes.size > 0){
+		const emotePayload = Object.fromEntries(emotes);
+		messageService.send(socket, mType.emote, emotePayload);
+	}
 	for (const [id, msg] of messageService.getChatHistory()){
 		messageService.send(socket, mType.chat, msg)
 	}
 	messageService.sendSys(socket, mType.welcome, `${welcomeMsg}`)
 	if (announcement){
 		messageService.sendSys(socket, mType.ann, `announcement: ${announcement}`)
-	}
-	if(emotes.size > 0){
-		const emotePayload = Object.fromEntries(emotes);
-		messageService.send(socket, mType.emote, emotePayload);
 	}
 
 	//Identity Service

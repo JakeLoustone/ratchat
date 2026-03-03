@@ -68,6 +68,10 @@
 			min-width: 12rem;
 			max-height: 15rem;
 		}
+		.emotes-popup .window-body { 
+			height: auto; 
+			max-height: 100%; 
+		}
 		.emotes-content {
 			flex-grow: 1;
 			background-color: #ffffff;
@@ -257,6 +261,9 @@
 			padding-top: 0.2rem;
 			padding-bottom: 0.2rem;
 			padding-left: 1rem;
+			padding-right: 0.2rem;
+			white-space: pre-wrap;
+			word-break: break-word;
 		}
 		#messages > .e-li {
 			color: #D12626;
@@ -968,6 +975,10 @@
 		}
 		
 		input.focus();
+
+		window.addEventListener('beforeunload', () => {
+    		socket.disconnect();
+		});
 
 	</script>
 	</body>

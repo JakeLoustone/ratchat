@@ -63,6 +63,7 @@ export interface ServerConfig {
 	signupTime: number;
 	maxMsgLen: number;
 	maxNickLen: number;
+	maxStatusLen: number;
 	msgArrayLen: number;
 	stvurl?: string;
 	nickres: string[];
@@ -78,6 +79,7 @@ export const defaultServerConfig: ServerConfig = {
 	signupTime: 5,
 	maxMsgLen: 255,
 	maxNickLen: 16,
+	maxStatusLen: 32,
 	msgArrayLen: 25,
 	stvurl: undefined,
 	nickres: [],

@@ -185,11 +185,38 @@
 			text-align: right;
 		}
 		.user-status {
-			display: block;
+			display: inline-block;
 			font-size: 0.75rem;
 			color: #575963;
 			margin-left: 0.75rem;
+			margin-right: 0.75rem;
+			white-space: nowrap;
+			overflow: hidden;
+			position: relative;
+			height: 1rem;
+			width: 8rem;
 		}
+		.status-scroll {
+			display: inline-block;
+			white-space: nowrap;
+		}
+		@keyframes status-marquee {
+			0%      { transform: translateX(0); }
+			15%     { transform: translateX(0); }
+			80%     { transform: translateX(calc(-100% + 8rem)); }
+			95%     { transform: translateX(calc(-100% + 8rem)); }
+			95.01%  { transform: translateX(0); }
+			100%    { transform: translateX(0); }
+		}
+		.animate-status {
+			animation: status-marquee 8s linear infinite;
+		}
+		.user-status .emote {
+			height: 0.9rem;
+			vertical-align: bottom;
+			margin: -0.1rem;
+		}
+
 		.status-orb {
 			display: inline-block;
 			width: 0.7rem;
@@ -544,6 +571,16 @@
 			document.documentElement.setAttribute('data-theme', 'dark');
 		}
 
+		//emotify function
+		const emotify = (text) =>{
+			return text.split(' ').map(word => {
+				if (emotes[word]) {
+					return `<img src="${emotes[word]}" title="${word}" alt="${word}" class="emote" crossorigin="anonymous">`;
+				}
+			return word;
+			}).join(' ');
+		};
+
 		//Background loader
 		document.getElementById('bg-upload').addEventListener('change', function(e) {
 			const file = e.target.files[0];
@@ -741,6 +778,8 @@
 				else if(user.count > 1){
 					displayCount = `${user.count}`;
 				}
+				
+				let status = emotify(user.status)
 
 				const fontSize = userName.length > 11 ? .8 : 1;
 				const dirty = (`
@@ -749,7 +788,9 @@
 						<span style="color: ${userColor}; font-weight: bold;">${userName}</span>
 						<span class="user-count">${displayCount}</span>
 					</span>
-					<span class="user-status">${user.status}</span>
+					<div class="user-status">
+						<span class="status-scroll">${status}</span>
+					</div>
 				`);
 				if (window.DOMPurify){
 					li.innerHTML = DOMPurify.sanitize(dirty);
@@ -758,7 +799,18 @@
 					li.textContent = `${userName}${user.status ? ` (${user.status})` : ''}`;
 					li.style.color = userColor	
 				}
+				
 				userListElement.appendChild(li);
+				
+				requestAnimationFrame(() => {
+					if (
+						li.querySelector('.status-scroll') &&
+						li.querySelector('.status-scroll').scrollWidth >
+						li.querySelector('.user-status').clientWidth
+					) {
+						li.querySelector('.status-scroll').classList.add('animate-status');
+					}
+				});
 			});
 
 			lurkerElement.textContent = `lurkers: ${lurkerData.status}`;
@@ -792,14 +844,14 @@
 
 			//Export command
 			if (val === '/export') {
-				const oldGUID = localStorage.getItem('ratGUID');
-				if (!oldGUID) {
-					systemMessage("you ain't got no ID, you ain't gettin in this bar.", 'e-li');
+				const GUID = localStorage.getItem('ratGUID');
+				if (!GUID) {
+					systemMessage("couldn't find local ID.", 'e-li');
 					input.value = '';
 					return;
 				}
 				systemMessage(`Your GUID is: ${oldGUID}`, 'i-li')
-				systemMessage(`don't share it!`, 'i-li')
+				systemMessage(`don't share it, save it! you can use this with /import to reload your identity if necessary.`, 'i-li')
 				input.value = '';
 				return;
 			}
@@ -914,16 +966,6 @@
 			item.setAttribute('title', `Msg ID: ${msg.id}`);
 			item.setAttribute('data-id', msg.id);
 			}
-
-			//emotify function
-			const emotify = (text) =>{
-				return text.split(' ').map(word => {
-					if (emotes[word]) {
-						return `<img src="${emotes[word]}" title="${word}" alt="${word}" class="emote" crossorigin="anonymous">`;
-					}
-				return word;
-				}).join(' ');
-			};
 
 			//Message content
 			const contentSpan = document.createElement('span')

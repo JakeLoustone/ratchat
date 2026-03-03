@@ -45,7 +45,7 @@ export class ModerationService {
 			return safe;
 		}
 		else if(type === 'status'){
-			if(clean.length > 31){
+			if(clean.length > this.deps.stateService.getConfig().maxStatusLen){
 				throw new Error('tl;dr - set something shorter')
 			}
 			try{
@@ -197,7 +197,7 @@ export class ModerationService {
 					.filter((item: any) => item.tags?.includes('racial') && item.severity > 2)
 					.map((item: any) => 
 						`\\b${(item.match.includes('|') ? `(?:${item.match})` : item.match)
-							.replace(/\*/g, '.*')
+							.replace(/\*/g, '[^a-zA-Z0-9]*')
 							.replace(/([a-zA-Z0-9.])(?=[a-zA-Z0-9.])/g, '$1[\\s\\-_.]*')
 						}\\b`
 					)

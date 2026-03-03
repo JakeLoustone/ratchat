@@ -131,6 +131,7 @@ export class CommandService {
 						const user = this.deps.identityService.setNick(ctx.commandUser, safe);
 						this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
 						this.deps.messageService.send(ctx.socket, mType.identity, user);
+						this.deps.messageService.sendSys(ctx.socket, mType.info, 'system: your new identity has been loaded. consider using /export to save for later use')
 						this.deps.messageService.sendSys(ctx.io, mType.ann, `${user.nick.substring(7)} has joined teh ratchat`);
 						return true;
 					}
@@ -380,7 +381,7 @@ export class CommandService {
 				const msgArray: number[] = []
 				for (const [id, msg] of this.deps.messageService.getChatHistory()){
 					const msgNick = msg.author.substring(7);
-					if(msgNick === target.nick){
+					if(msgNick.toLowerCase() === target.nick.toLowerCase()){
 						msgArray.push(id);
 					}
 				}
@@ -434,7 +435,7 @@ export class CommandService {
 				const msgArray: number[] = []
 				for (const [id, msg] of this.deps.messageService.getChatHistory()){
 					const msgNick = msg.author.substring(7);
-					if(msgNick === targetNick){
+					if(msgNick.toLowerCase() === targetNick.toLowerCase()){
 						msgArray.push(id);
 					}
 				}

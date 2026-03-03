@@ -1,12 +1,13 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
-import type { Server } from "socket.io";
+import type { Socket, Server } from "socket.io";
+import { EventEmitter } from "events";
+import crypto from 'crypto';
 
 import type { ServerConfig, Identity, UserSum } from "../../shared/schema.ts";
 import { defaultServerConfig, mType } from '../../shared/schema';
 
 import { MessageService } from "./message";
 import type { SafeString } from "./moderation.ts";
-import { EventEmitter } from "events";
 
 export interface StateServiceDependencies{
 	messageService: MessageService;
@@ -23,7 +24,9 @@ export class StateService {
 	private emotes = new Map<string, string>();
 	private config: ServerConfig = {} as ServerConfig;
 	private announcement: string = "";
-
+	private signupBuffer: Map<string, {socket: Socket; nick: SafeString}> = new Map();
+	private signupTimer: NodeJS.Timeout | null = null;
+	private signupPromise: Map<Socket, (value: boolean)=> void> = new Map();
 
 	constructor(dependencies: StateServiceDependencies) {
 		this.deps = dependencies;
@@ -176,6 +179,41 @@ export class StateService {
 		})
 
 		this.deps.messageService.send(io, mType.list, userList);
+	}	
+	
+	public hashIP(ip: string): string{
+		if(!process.env.IP_PEPPER){
+			throw new Error ('no pepper set')
+		}
+		const pepper = process.env.IP_PEPPER
+		const hash = crypto.createHash('sha256')
+		hash.update(ip + pepper);
+		return hash.digest('hex');
+	}
+
+	public signupQueue(socket: Socket, nick: SafeString): Promise<boolean> {
+		const hashed = this.hashIP(socket.handshake.address);
+   		this.signupBuffer.set(hashed, { socket, nick });
+
+		return new Promise<boolean>(resolve => {
+			this.signupPromise.set(socket, resolve);
+			if (!this.signupTimer) {
+				this.signupTimer = setTimeout(() => this.returnQueue(), this.config.signupTime * 1000);
+			}
+		});
+	}
+
+	private returnQueue(){
+		const queue = Array.from(this.signupBuffer.values());
+
+		for (const [socket, resolve] of this.signupPromise.entries()) {
+			const survived = queue.some(entry => entry.socket === socket);
+			resolve(survived);
+		}
+
+		this.signupBuffer.clear();
+		this.signupPromise.clear();
+		this.signupTimer = null;
 	}
 
 	private loadConfig(){

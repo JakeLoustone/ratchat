@@ -1,4 +1,4 @@
-import type { Server, Socket } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 
 import type { Command, Identity } from '../../shared/schema.ts';
 import { tType, mType } from '../../shared/schema';
@@ -104,7 +104,7 @@ export class CommandService {
 			return true;
 		};
 
-		this.commands['nick'] = (ctx) => {
+		this.commands['nick'] = async (ctx) => {
 			const newNick = ctx.fullArgs
 
 			if(ctx.commandUser){
@@ -125,11 +125,19 @@ export class CommandService {
 			else{
 				try{
 					const safe = this.deps.moderationService.textCheckNewUser(newNick, 'nick');
-					const user = this.deps.identityService.setNick(ctx.commandUser, safe);
-					this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
-					this.deps.messageService.send(ctx.socket, mType.identity, user);
-					this.deps.messageService.sendSys(ctx.io, mType.ann, `${user.nick.substring(7)} has joined teh ratchat`);
-					return true;
+					this.deps.messageService.sendSys(ctx.socket, mType.info, `creating user...`);
+					const batch = await this.deps.stateService.signupQueue(ctx.socket, safe);
+					if(batch){
+						const user = this.deps.identityService.setNick(ctx.commandUser, safe);
+						this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
+						this.deps.messageService.send(ctx.socket, mType.identity, user);
+						this.deps.messageService.sendSys(ctx.io, mType.ann, `${user.nick.substring(7)} has joined teh ratchat`);
+						return true;
+					}
+					else{
+						this.deps.messageService.sendSys(ctx.socket, mType.error, "system: username signup error. please try again");
+						return false;
+					}
 				}
 				catch (e: any) {
 				this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`);

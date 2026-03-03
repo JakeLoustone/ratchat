@@ -976,6 +976,7 @@
 		
 		input.focus();
 
+		//best effort disconnect notification
 		window.addEventListener('beforeunload', () => {
     		socket.disconnect();
 		});

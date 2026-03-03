@@ -1,7 +1,6 @@
 import { Server } from "socket.io";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { dirname } from 'path';
-import crypto from 'crypto';
 
 import type { Identity } from "../../shared/schema.ts";
 import { mType } from "../../shared/schema";
@@ -31,7 +30,7 @@ export class SecurityService{
 	
 	public checkBan(unhashed: string): boolean {
 		try{
-			const hash = this.hashIP(unhashed);
+			const hash = this.deps.stateService.hashIP(unhashed);
 			if(this.bans.has(hash)){
 				return true;
 			}
@@ -63,7 +62,7 @@ export class SecurityService{
 			const sentinelId = { guid: 'RESET_IDENTITY' } as Identity;
 			if(socket){
 				try{
-					const banIP = this.hashIP(socket?.handshake.address);
+					const banIP = this.deps.stateService.hashIP(socket?.handshake.address);
 					this.bans.set(banIP, new Date());
 
 					this.deps.messageService.send(socket, mType.identity, sentinelId);
@@ -83,16 +82,6 @@ export class SecurityService{
 
 		this.deps.identityService.deleteUser(banUser.guid);
 		this.saveBans();
-	}
-
-	private hashIP(ip: string): string{
-		if(!process.env.IP_PEPPER){
-			throw new Error ('no pepper set')
-		}
-		const pepper = process.env.IP_PEPPER
-		const hash = crypto.createHash('sha256')
-		hash.update(ip + pepper);
-		return hash.digest('hex');
 	}
 
 	private loadBans() {

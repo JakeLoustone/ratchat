@@ -59,6 +59,7 @@ export interface ServerConfig {
 	otherSlow: number;
 	timeoutDef: number;
 	afkDef: number;
+	signupTime: number;
 	maxMsgLen: number;
 	maxNickLen: number;
 	msgArrayLen: number;
@@ -73,6 +74,7 @@ export const defaultServerConfig: ServerConfig = {
 	otherSlow: 5,
 	timeoutDef: 300,
 	afkDef: 1000,
+	signupTime: 5,
 	maxMsgLen: 255,
 	maxNickLen: 16,
 	msgArrayLen: 25,

@@ -2,7 +2,6 @@ import { Server } from 'socket.io';
 import express from 'express';
 import { createServer } from 'http';
 import { join } from 'node:path';
-import path from 'node:path';
 
 
 import type { Identity } from '../shared/schema';
@@ -14,16 +13,18 @@ import { ModerationService } from './services/moderation';
 import { IdentityService } from './services/identity';
 import { SecurityService } from './services/security';
 import { CommandService } from './services/command';
-import { time } from 'node:console';
+import { MarkovService } from './services/markov';
 
 const app = express();
 const httpserver = createServer(app);
 const io = new Server(httpserver, {path:"/ratchat/socket.io/", connectionStateRecovery:{}});
 const usersPath = join(__dirname, 'data', 'users.json');
 const configPath = join(__dirname, 'config.json');
+const markovConfigPath = join(__dirname, 'markov.json');
 const nickFilterPath = join(__dirname, 'nickfilter.json');
 const profFilterPath = join(__dirname, 'profanityfilter.json');
 const bansPath = join(__dirname, 'data', 'bans.json');
+const brainPath = join(__dirname, 'data', 'brain.ndjson')
 
 const messageService = new MessageService({
 
@@ -33,8 +34,9 @@ const stateService = new StateService({
 	messageService: messageService,
 
 	configPath: configPath,
+	markovConfigPath: markovConfigPath,
 	io: io
-}); 
+});
 
 const moderationService = new ModerationService({
 	stateService: stateService, 
@@ -59,12 +61,25 @@ const securityService = new SecurityService({
 	io: io
 })
 
+let markovService; 
+if (stateService.getMarkovConfig().enabled){
+	markovService = new MarkovService({
+		messageService: messageService,
+		stateService: stateService,
+		moderationService: moderationService,
+
+		brainPath: brainPath,
+		io: io,
+	})
+}
+
 const commandService = new CommandService({
 	messageService: messageService,
 	stateService: stateService,
 	moderationService: moderationService,
 	identityService: identityService,
-	securityService: securityService
+	securityService: securityService,
+	markovService: markovService,
 });
 
 //CONNECTION POINT

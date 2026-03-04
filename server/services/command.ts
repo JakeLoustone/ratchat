@@ -7,7 +7,8 @@ import { MessageService } from './message';
 import { StateService } from './state';
 import { ModerationService } from './moderation';
 import { IdentityService } from '../services/identity';
-import { SecurityService } from '../services/security'
+import { SecurityService } from '../services/security';
+import { MarkovService } from './markov';
 
 
 export interface CommandServiceDependencies {
@@ -16,6 +17,7 @@ export interface CommandServiceDependencies {
 	moderationService: ModerationService;
 	identityService: IdentityService;
 	securityService: SecurityService;
+	markovService?: MarkovService;
 }
 
 export class CommandService {
@@ -58,6 +60,10 @@ export class CommandService {
 	}
 
 	private registerCommands() {
+		let markovNick = 'markov'
+		if(this.deps.stateService.markovUser){
+			markovNick = this.deps.stateService.markovUser.nick.substring(7);
+		}
 		
 		// ------------------------------------------------------------------
 		// STANDARD COMMANDS
@@ -80,10 +86,19 @@ export class CommandService {
 				'/status or /me : set your status in the user listing',
 				'/background or /bg : set your background image. use /bgreset to clear',
 				'/gdpr <flag> : <info> for more information, <export> for a copy of your data, and <delete> to wipe your data.',
+			];
+
+			if(this.deps.markovService){
+				helpMessages.push(
+					`/markov or /${markovNick} <seed> : generate random markov chain, optionally starting with <seed>.`
+				);
+			}
+
+			helpMessages.push(
 				'',
 				'the button with the smiley face shows available emotes. click to add to your message!',
 				'the button with the silhouettes closes the user status bar. useful on mobile!'
-			];
+			);
 
 			if (ctx.commandUser?.isMod) {
 				helpMessages.push(
@@ -97,7 +112,13 @@ export class CommandService {
 					'/unemotes <emotesetID> : remove all emotes whose names match an emote set from 7tv. consider using /emotes after to reload baseline emotes',
 					'/loadusers : reload users from disk. only useful if weird things are happening.'
 				);
+				if(this.deps.markovService){
+					helpMessages.push(
+						'/botstatus <status> : set the status for the markov bot'
+					)
+				}
 			}
+
 
 			const formatTable = helpMessages.join('\n');
 			this.deps.messageService.sendSys(ctx.socket, mType.info, formatTable);
@@ -343,6 +364,49 @@ export class CommandService {
 			}
 		};
 
+		this.commands['markov'] = (ctx) => {
+				if(!this.deps.markovService){
+					this.deps.messageService.sendSys(ctx.socket, mType.error, "system: that's not a command lol");
+					return false;
+				}
+				if (!ctx.commandUser){
+					this.deps.messageService.sendSys(ctx.socket, mType.error, "system: please use /chrat <nickname> before trying to generate random text");
+					return true;
+				}
+
+				const markovUser = this.deps.stateService.markovUser;
+				if(!markovUser){
+					this.deps.messageService.sendSys(ctx.socket, mType.error, "system: we couldn't find a markov bot");
+					return false;
+				}
+
+				if(!ctx.commandUser.isMod){
+					if(markovUser.isAfk){
+						this.deps.messageService.sendSys(ctx.socket, mType.error, `${markovNick} needs a cooldown`)
+						return false;
+					}		
+				}
+
+				try{
+					let seed = ''
+					if(ctx.args[0]){
+						seed = this.deps.moderationService.textCheck(ctx.args[0], ctx.commandUser, tType.chat);
+					}
+					const gentext = this.deps.markovService.markovGen(ctx.io, seed);
+					this.deps.messageService.sendChat(ctx.io, ctx.commandUser, `markov seed: ${seed}`, -1)
+					this.deps.messageService.sendChat(ctx.io, markovUser, gentext, -1)
+					if(!ctx.commandUser.isMod){
+						this.deps.stateService.toggleMarkov(ctx.io);
+					}
+					return true;
+
+				}
+				catch (e: any) {
+					this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
+					return false;
+				}
+		};
+
 		// ------------------------------------------------------------------
 		// MODERATOR COMMANDS
 		// ------------------------------------------------------------------
@@ -532,6 +596,35 @@ export class CommandService {
 			}
 		};
 
+		this.commands['botstatus'] = (ctx) => {
+			if(!this.deps.markovService){
+				this.deps.messageService.sendSys(ctx.socket, mType.error, "system: that's not a command lol");
+				return false;
+			}
+			if (!ctx.commandUser?.isMod) {
+				this.deps.messageService.sendSys(ctx.socket, mType.error, "naughty naughty");
+				return true;
+			}
+
+			const markovUser = this.deps.stateService.markovUser;
+			if(!markovUser){
+				this.deps.messageService.sendSys(ctx.socket, mType.error, "system: we couldn't find a markov bot");
+				return false;
+			}
+			try{
+				const safe = this.deps.moderationService.textCheck(ctx.fullArgs, ctx.commandUser, 'status');
+				markovUser.status = safe;
+				this.deps.stateService.broadcastUsers(ctx.io);
+				this.deps.messageService.sendSys(ctx.socket, mType.info, `${markovNick} status is now: ${markovUser.status}`);
+				return true;
+			} 
+			catch(e: any){
+				this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
+				return false;
+			}
+
+		};
+
 		// ------------------------------------------------------------------
 		// ALIASES
 		// ------------------------------------------------------------------
@@ -543,5 +636,8 @@ export class CommandService {
 		this.commands['announcement'] = this.commands['announce'];
 		this.commands['emote'] = this.commands ['emotes'];
 		this.commands['unemote'] = this.commands ['unemotes'];
+		// if (!this.commands[markovNick]){
+		// 	this.commands['markov'] = this.commands[markovNick]
+		// };
 	}
 }

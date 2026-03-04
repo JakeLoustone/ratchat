@@ -44,8 +44,10 @@ export class MessageService{
 	public sendChat(to: Target, author: Identity, content:string, configSize: number){
 		const msg = this.createMessage(false, author, content, mType.chat);
 		this.send(to, mType.chat, msg);
-		this.chatHistory.set(msg.id, msg);
-		this.updateChatHistory(configSize);
+		if(configSize > 0){
+			this.chatHistory.set(msg.id, msg);
+			this.updateChatHistory(configSize);
+		}
 	}
 	
 	public getChatHistory(): Map<number, ChatMessage>{

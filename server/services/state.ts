@@ -3,8 +3,8 @@ import type { Socket, Server } from "socket.io";
 import { EventEmitter } from "events";
 import crypto from 'crypto';
 
-import type { ServerConfig, Identity, UserSum } from "../../shared/schema.ts";
-import { defaultServerConfig, mType } from '../../shared/schema';
+import type { ServerConfig, Identity, UserSum, MarkovConfig } from "../../shared/schema.ts";
+import { defaultServerConfig, defaultMarkovConfig, mType } from '../../shared/schema';
 
 import { MessageService } from "./message";
 import type { SafeString } from "./moderation.ts";
@@ -13,16 +13,18 @@ export interface StateServiceDependencies{
 	messageService: MessageService;
 	
 	configPath: string;
+	markovConfigPath: string;
 	io: Server;
 }
 
 export class StateService {
 	public events = new EventEmitter();
-	
+	public markovUser: Identity | null = null;
 	private deps: StateServiceDependencies;
 	private socketUsers = new Map<string, Identity>();
 	private emotes = new Map<string, string>();
 	private config: ServerConfig = {} as ServerConfig;
+	private markovConfig: MarkovConfig = {} as MarkovConfig;
 	private announcement: string = "";
 	private signupBuffer: Map<string, {socket: Socket; nick: SafeString}> = new Map();
 	private signupTimer: NodeJS.Timeout | null = null;
@@ -32,11 +34,16 @@ export class StateService {
 		this.deps = dependencies;
 	
 		this.loadConfig();
+		this.loadMarkovConfig();
 		this.afkTimer();
 	}
 
 	public getConfig(): ServerConfig{
 		return this.config;
+	}
+
+	public getMarkovConfig(): MarkovConfig{
+		return this.markovConfig;
 	}
 
 	public getAnnouncement(): string{
@@ -172,6 +179,14 @@ export class StateService {
 		
 		const lurkers = io.sockets.sockets.size - this.socketUsers.size;
 
+		if(this.markovUser){
+			userList.push({
+				nick: this.markovUser.nick,
+				status: this.markovUser.status,
+				isAfk: this.markovUser.isAfk,
+			})
+		}
+
 		userList.push({
 			nick: '#NONVALlurkers',
 			status: `${lurkers}`,
@@ -179,8 +194,23 @@ export class StateService {
 		})
 
 		this.deps.messageService.send(io, mType.list, userList);
-	}	
-	
+	}
+
+	public toggleMarkov(io: Server){
+		if(this.markovUser === null){
+			throw new Error('no markov user set up')
+		}
+		this.markovUser.isAfk = true;
+		this.broadcastUsers(io);
+
+		setTimeout(() => {
+			if(this.markovUser){ 
+				this.markovUser.isAfk = false;
+				this.broadcastUsers(io); 
+			}
+		}, this.markovConfig.cooldown * 1000);
+	}
+
 	public hashIP(ip: string): string{
 		if(!process.env.IP_PEPPER){
 			throw new Error ('no pepper set')
@@ -261,6 +291,64 @@ export class StateService {
 			console.log(`${key} = ${JSON.stringify(cfg)}`);
 		}
 		Object.freeze(this.config);
+	}
+
+	private loadMarkovConfig(){
+		if(!existsSync(this.deps.markovConfigPath)){
+			writeFileSync(this.deps.markovConfigPath, JSON.stringify(defaultMarkovConfig, null, 4))
+			Object.assign(this.markovConfig, defaultMarkovConfig);
+			console.log("created default markov.json file")
+			return;
+		}
+
+		let loadedCfg: any;
+		try{
+			loadedCfg = JSON.parse(readFileSync(this.deps.markovConfigPath, 'utf-8'));
+		}
+ 		catch(e: any){
+			console.warn(`config load error: ${e.message}`);
+			loadedCfg = {};
+		}
+		for (const key of Object.keys(defaultMarkovConfig) as Array<keyof MarkovConfig>){
+			const def = defaultMarkovConfig[key];
+			const cfg = loadedCfg[key];
+			if(cfg === undefined || cfg === null){
+				(this.markovConfig as any)[key] = def;
+				console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`);
+				continue;
+			} 
+			if(typeof def === "number" && typeof cfg !== "number"){
+				(this.markovConfig as any)[key] = def;
+				console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`)
+				continue; 
+			} 
+			if(typeof def === "string" && typeof cfg !== "string"){
+				(this.markovConfig as any)[key] = def;
+				console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`)
+				continue; 
+			} 
+			if (typeof def === "boolean" && typeof cfg !== "boolean") {
+				(this.markovConfig as any)[key] = def;
+				console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`);
+				continue;
+			}
+			(this.markovConfig as any)[key] = cfg;
+		}
+		Object.freeze(this.markovConfig);
+		if (this.markovConfig.enabled){
+			this.markovUser = {
+        	guid: 'markov',
+			nick: this.markovConfig.color + this.markovConfig.nick,
+			status: this.markovConfig.status,
+			lastMessage: new Date(0),
+			lastChanged: new Date(0),
+			isMod: false,
+			isAfk: false,
+			}
+		}
+		else{
+			this.markovUser = null;
+		}	
 	}
 
 	private afkTimer(){

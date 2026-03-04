@@ -86,6 +86,24 @@ export const defaultServerConfig: ServerConfig = {
 	PORT: 3666,
 }
 
+export interface MarkovConfig{
+	enabled: boolean;
+	nick: string;
+	color: string;
+	status: string;
+	cooldown: number;
+	timer: number;
+}
+
+export const defaultMarkovConfig: MarkovConfig = {
+	enabled: false,
+	nick: 'markov',
+	color: '#000000',
+	status: 'online',
+	cooldown: 30,
+	timer: 300
+}
+
 export interface Command {
 	socket: Socket;
 	io: Server;

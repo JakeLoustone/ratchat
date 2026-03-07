@@ -203,7 +203,11 @@ export class ModerationService {
 					)
 					.map(pattern => new RegExp(pattern, 'i'))
 				: [];
-			const configLoad = this.deps.stateService.getConfig().nickres || [];
+			const configLoad = [...(this.deps.stateService.getConfig().nickres || [])];
+			if(this.deps.stateService.getMarkovConfig().enabled && this.deps.stateService.markovUser){
+				configLoad.push(`^${this.deps.stateService.markovUser.nick}$`)
+			}
+
 			const nickFilter = [...nickLoad, ...configLoad].filter(Boolean);
 
 			this.nickFilter = [
@@ -211,7 +215,7 @@ export class ModerationService {
 				...this.profFilter
 			];
 		} catch (e) {
-			console.error('nick filter load issue');
+			console.log('nick filter load issue');
 			this.nickFilter = [];
 		}
 	};

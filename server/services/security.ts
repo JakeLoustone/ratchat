@@ -1,5 +1,6 @@
 import { Server } from "socket.io";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { readFileSync, existsSync } from "fs";
+import { mkdir, writeFile } from "fs/promises";
 import { dirname } from 'path';
 
 import type { Identity } from "../../shared/schema.ts";
@@ -20,6 +21,7 @@ export interface SecurityServiceDependencies{
 
 export class SecurityService{
 	private bans: Map<string, Date> = new Map();
+	private banQ = Promise.resolve()
 	private deps: SecurityServiceDependencies;
 
 	constructor(dependencies: SecurityServiceDependencies){
@@ -81,38 +83,42 @@ export class SecurityService{
 		});
 
 		this.deps.identityService.deleteUser(banUser.guid);
-		this.saveBans();
+		this.saveQueue();
 	}
 
 	private loadBans() {
-	try {
-		if (!existsSync(this.deps.bansPath)) {
-			return;
-		}
-
-		const data = readFileSync(this.deps.bansPath, 'utf-8');
-		const parseData: [string, Date][] = JSON.parse(data);
-
-		this.bans = new Map(parseData);
-
-		console.log(`loaded ${this.bans.size} bans`);
-	} 
-	catch (e: any) {
-		console.error('Failed to load ban data', `${e.message}`);
-	}
-	}
-
-	private saveBans() {
 		try {
-			const dir = dirname(this.deps.bansPath);
-			if (!existsSync(dir)) {
-				mkdirSync(dir, {recursive: true});
+			if (!existsSync(this.deps.bansPath)) {
+				return;
 			}
 
-			const data = Array.from(this.bans.entries());
-			writeFileSync(this.deps.bansPath, JSON.stringify(data, null, 4));
-		} catch (e: any) {
-			console.error('failed to save user data', `${e.message}`);
+			const data = readFileSync(this.deps.bansPath, 'utf-8');
+			const parseData: [string, Date][] = JSON.parse(data);
+
+			this.bans = new Map(parseData);
+
+			console.log(`loaded ${this.bans.size} bans`);
+		} 
+		catch (e: any) {
+			console.log('Failed to load ban data', `${e.message}`);
 		}
-	};
+	}
+
+	private saveQueue() {
+		this.banQ = this.banQ.then(() => this.saveBans());
+	}
+
+	private async saveBans(){
+		try{
+			const dir = dirname(this.deps.bansPath);
+			await mkdir(dir, {recursive: true});
+
+			const data = JSON.stringify(Array.from(this.bans.entries()), null, 4);
+
+			await writeFile(this.deps.bansPath, data);
+		}
+		catch(e: any){
+			console.log("failed to save user data", e.message);
+		}
+	}
 }

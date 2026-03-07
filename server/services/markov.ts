@@ -1,4 +1,9 @@
-import { statSync, readSync, existsSync, openSync, closeSync} from 'fs';
+import { existsSync } from 'fs';
+import { open, FileHandle } from "fs/promises";
+
+import { createReadStream } from "fs";
+import * as readline from "readline";
+
 import { Server } from 'socket.io';
 
 import { mType, tType} from '../../shared/schema';
@@ -6,22 +11,13 @@ import { mType, tType} from '../../shared/schema';
 import { MessageService } from './message';
 import { StateService } from './state';
 import { ModerationService } from './moderation';
-
-type BrainEntry = {
-	offset: number;
-	length: number;
-	weight: number;
-}
-
-type BrainIndex = {
-	start: BrainEntry[];
-	gram: Map<string, BrainEntry[]>;
-}
+import { IdentityService } from './identity';
 
 export interface MarkovServiceDependencies {
 	messageService: MessageService;
 	stateService: StateService;
 	moderationService: ModerationService;
+	identityService: IdentityService;
 
 	brainPath: string;
 	io: Server;
@@ -29,7 +25,12 @@ export interface MarkovServiceDependencies {
 
 export class MarkovService{
 	private dictionary: Set<string> = new Set();
-	private brain: BrainIndex = {start:[], gram:new Map()};
+
+	private startBlocks: Record<string, { start: number; end: number }> = {};
+	private gramBlocks: Record<string, { start: number; end: number }> = {};
+
+	private fdPromise: Promise<FileHandle> | null = null;
+
 	private deps: MarkovServiceDependencies;
 	
 	constructor(dependencies: MarkovServiceDependencies){
@@ -43,141 +44,146 @@ export class MarkovService{
 		this.markovTimer(this.deps.io);
 	}
 
-	public markovGen(io: Server, seed?: string): string {
-		const fd = openSync(this.deps.brainPath, 'r');
-		try{
-			if (!this.brain) {
-				throw new Error("no markov generator loaded");
-			}
-
-			const markovUser = this.deps.stateService.markovUser;
-			if (!markovUser) {
-				throw new Error("no markov user");
-			}
-
-			for (let attempt = 0; attempt < 5; attempt++) {
-
-				const raw: string[] = [];
-
-				if(seed){
-					const seedLow = seed.toLowerCase();
-					if(!this.dictionary.has(seedLow)){
-						throw new Error(`${markovUser.nick.substring(7)} don't know nothin about '${seed}'`);
-					}
-
-					const matches = this.brain.start.filter(s => {
-						const data = this.loadNeuron(fd, s);
-						return data.words[0].toLowerCase() === seedLow;
-					});
-
-					if(matches.length === 0){
-						throw new Error(`${markovUser.nick.substring(7)} don't know nothin about '${seed}'`);
-					}
-
-					let total = 0;
-					for(const e of matches) total += e.weight;
-
-					let r = Math.random() * total;
-					let chosen = matches[matches.length - 1];
-
-					for(const e of matches){
-						r -= e.weight;
-						if(r <= 0){
-							chosen = e;
-							break;
-						}
-					}
-					const startData = this.loadNeuron(fd, chosen);
-					raw.push(startData.words[0], startData.words[1]);
-				} 
-				else{
-					const starts = this.brain.start;
-					if(starts.length === 0){
-						throw new Error("no start entries in markov brain");
-					}
-
-					let total = 0;
-					for(const e of starts) total += e.weight;
-
-					let r = Math.random() * total;
-					let chosen = starts[starts.length - 1];
-
-					for(const e of starts){
-						r -= e.weight;
-						if (r <= 0) {
-							chosen = e;
-							break;
-						}
-					}
-
-					const startData = this.loadNeuron(fd, chosen);
-					raw.push(startData.words[0], startData.words[1]);
-				}
-
-				while(true){
-					const prev = raw[raw.length - 2];
-					const curr = raw[raw.length - 1];
-
-					const key = `${prev} ${curr}`;
-					const candidates = this.brain.gram.get(key) || [];
-
-					if(candidates.length === 0){
-						break;
-					}
-
-					let total = 0;
-					for(const e of candidates) total += e.weight;
-
-					let r = Math.random() * total;
-					let chosen = candidates[candidates.length - 1];
-
-					for(const e of candidates){
-						r -= e.weight;
-						if(r <= 0){
-							chosen = e;
-							break;
-						}
-					}
-					const nextData = this.loadNeuron(fd, chosen);
-					const next = nextData.words[2];
-					if(next === "<END>"){
-						break;
-					}
-
-					raw.push(next);
-					if(raw.join(' ').length > this.deps.stateService.getConfig().maxMsgLen){
-						break;
-					}
-				}
-
-				try {
-					const safe = this.deps.moderationService.textCheck(
-						raw.join(" "),
-						markovUser,
-						tType.chat
-					);
-					return safe;
-				} 
-				catch(e: any){
-					if (e.message === "watch your profamity"){
-						this.deps.messageService.sendSys(io, mType.ann, `${markovUser.nick.substring(7)} tried to say something naughty`);
-					}
-					continue;
-				}
-			}
-			throw new Error("no valid text generated after 5 attempts");
-		} 
-		finally{ 
-			closeSync(fd);
+	public async markovGen(io: Server, seed?: string): Promise<string> {
+		if(!this.startBlocks || !this.gramBlocks){
+			throw new Error("markov brain not loaded");
 		}
+
+		const markovUser = this.deps.stateService.markovUser;
+		if(!markovUser){
+			throw new Error("no markov user");
+		}
+
+		for(let attempt = 0; attempt < 5; attempt++){
+			const raw: string[] = [];
+
+			if(seed){
+				const seedLow = seed.toLowerCase();
+
+				if(!this.dictionary.has(seedLow)){
+					throw new Error(`${markovUser.nick.substring(7)} don't know nothin about '${seed}'`);
+				}
+
+				const letter = seedLow[0].toUpperCase();
+				const candidates = await this.loadNeuron(letter, seedLow);
+
+				if(candidates.length === 0){
+					throw new Error(`${markovUser.nick.substring(7)} don't know nothin about '${seed}'`);
+				}
+
+				let total = 0;
+				for(const c of candidates){
+					total += c.count;
+				}
+
+				let r = Math.random() * total;
+				let chosen = candidates[candidates.length - 1];
+
+				for(const c of candidates){
+					r -= c.count;
+					if(r <= 0){
+						chosen = c;
+						break;
+					}
+				}
+
+				raw.push(chosen.words[0], chosen.words[1]);
+			}
+			else{
+				const allStarts = await this.loadNeuron();
+
+				if(allStarts.length === 0){
+					throw new Error("no start entries in markov brain");
+				}
+
+				let total = 0;
+				for(const c of allStarts){
+					total += c.count;
+				}
+
+				let r = Math.random() * total;
+				let chosen = allStarts[allStarts.length - 1];
+
+				for(const c of allStarts){
+					r -= c.count;
+					if (r <= 0) {
+						chosen = c;
+						break;
+					}
+				}
+
+				raw.push(chosen.words[0], chosen.words[1]);
+			}
+
+			while (true) {
+				const prev = raw[raw.length - 2];
+				const curr = raw[raw.length - 1];
+
+				const letters = (prev[0] + curr[0]).toUpperCase();
+				const candidates = await this.loadNeuron(letters, prev, curr);
+
+				if(candidates.length === 0){
+					break;
+				}
+
+				let total = 0;
+				for(const c of candidates){
+					total += c.count;
+				}
+
+				let r = Math.random() * total;
+				let chosen = candidates[candidates.length - 1];
+
+				for(const c of candidates){
+					r -= c.count;
+					if (r <= 0) {
+						chosen = c;
+						break;
+					}
+				}
+
+				const next = chosen.words[2];
+
+				if(next === "<END>"){
+					break;
+				}
+
+				raw.push(next);
+
+				if(raw.join(" ").length > this.deps.stateService.getConfig().maxMsgLen){
+					raw.pop();
+					break;
+				}
+			}
+
+			if (raw.length < 4) {
+				continue;
+			}
+
+			try {
+				const safe = this.deps.moderationService.textCheck(raw.join(" "), markovUser, tType.chat);
+				return safe;
+			}
+			catch(e: any){
+				if(e.message === "watch your profamity"){
+					this.deps.messageService.sendSys(io, mType.ann, `${markovUser.nick.substring(7)} tried to say something naughty`);
+				}
+				continue;
+			}
+		}
+
+		throw new Error("no valid text generated after 5 attempts");
 	}
 
 	private markovTimer(io: Server){
-		setInterval(() =>{
+		setInterval(async () =>{
+			if(this.deps.stateService.markovSleep){
+				return;
+			}
 			try{
-				const gentext = this.markovGen(io);
+				const gentext = await this.markovGen(io);
 				if(this.deps.stateService.markovUser){
-					this.deps.messageService.sendChat(this.deps.io, this.deps.stateService.markovUser, gentext, -1)
+					this.deps.messageService.sendMarkov(this.deps.io, gentext, this.deps.stateService.markovUser, this.deps.stateService.markovUser, '');
 				}
 			}
 			catch(e: any){
@@ -186,11 +192,92 @@ export class MarkovService{
 		}, this.deps.stateService.getMarkovConfig().timer*1000);
 	}
 
-	private loadNeuron(fd: number, entry: BrainEntry): any{
-		const buffer = Buffer.alloc(entry.length); 
-		readSync(fd, buffer, 0, entry.length, entry.offset);
-		const json = JSON.parse(buffer.toString("utf8")); 
-		return json; 
+	private async loadNeuron(letters?: string, prev?: string, curr?: string){
+		if(!this.fdPromise){
+			this.fdPromise = open(this.deps.brainPath, "r");
+		}
+
+		const fd = await this.fdPromise;
+
+		if(!letters){
+			const allResults = [];
+
+			for (const [ltr, block] of Object.entries(this.startBlocks)){
+				const size = block.end - block.start;
+				if (size <= 0) continue;
+
+				const buffer = Buffer.alloc(size);
+				await fd.read(buffer, 0, size, block.start);
+
+				const lines = buffer.toString("utf8").split("\n");
+
+				for (const line of lines) {
+					const trimmed = line.trim();
+					if(!trimmed){
+						continue;
+					}
+
+					try {
+						const data = JSON.parse(trimmed);
+						allResults.push(data);
+					} 
+					catch(e:any){
+
+					}
+				}
+			}
+			return allResults;
+		}
+
+		const block =
+			letters.length === 1
+				? this.startBlocks[letters]
+				: this.gramBlocks[letters];
+
+		if(!block){
+			return [];
+		}
+
+		const size = block.end - block.start;
+		if(size <= 0){
+			return [];
+		}
+
+		const buffer = Buffer.alloc(size);
+		await fd.read(buffer, 0, size, block.start);
+
+		const lines = buffer.toString("utf8").split("\n").filter(l => l.length > 0);
+		const results = [];
+
+		for(const line of lines){
+			const trimmed = line.trim();
+			if(!trimmed){
+				continue;
+			}
+
+			let data;
+			try {
+				data = JSON.parse(trimmed);
+			} 
+			catch(e:any){
+				continue;
+			}
+
+			if(letters.length === 1 && prev && !curr){
+			if (data.words?.[0]?.toLowerCase() === prev.toLowerCase()) {
+				results.push(data);
+			}
+				continue;
+			}
+
+			if(letters.length === 2 && prev && curr){
+				if(data.words?.[0]?.toLowerCase() === prev.toLowerCase() &&	data.words?.[1]?.toLowerCase() === curr.toLowerCase()){
+					results.push(data);
+				}
+			}
+		}
+
+		return results;
 	}
 
 	private loadBrain(brainPath: string) {
@@ -198,72 +285,75 @@ export class MarkovService{
 			throw new Error("no brains for the markov");
 		}
 
-		this.brain = {
-			start: [],
-			gram: new Map()
-		};
+		const stream = createReadStream(brainPath, { encoding: "utf8" });
+		const rl = readline.createInterface({ input: stream });
 
-		const fd = openSync(brainPath, "r");
+		let offset = 0;
+		let currentLetters: string | null = null;
+		let currentType: "start" | "gram" | null = null;
 
-		const bufferSize = 1024 * 1024;
-		const buffer = Buffer.alloc(bufferSize);
+		rl.on("line", (line) => {
+			const trimmed = line.trim();
+			const byteLength = Buffer.byteLength(line) + 1;
+			const currentLineStart = offset;
 
-		let fileOffset = 0;
-		let leftover = "";
-
-		while (true) {
-			const bytesRead = readSync(fd, buffer, 0, bufferSize, fileOffset);
-			if (bytesRead === 0) break;
-
-			const chunk = leftover + buffer.toString("utf8", 0, bytesRead);
-			const lines = chunk.split("\n");
-
-			for (const line of lines) {
-				const trimmed = line.trim();
-				const byteLength = Buffer.byteLength(line) + 1;
-
-				if (!trimmed) {
-					fileOffset += byteLength;
-					continue;
-				}
-
-				let data;
-				try {
-					data = JSON.parse(trimmed);
-				} catch (err) {
-					fileOffset += byteLength;
-					continue;
-				}
-
-				const entry: BrainEntry = {
-					offset: fileOffset,
-					length: byteLength,
-					weight: data.count
-				};
-
-				if (data.type === "start") {
-					if (Array.isArray(data.words) && data.words.length > 0) {
-						this.brain.start.push(entry);
-						this.dictionary.add(data.words[0].toLowerCase());
-					}
-				} else {
-					if (Array.isArray(data.words) && data.words.length >= 2) {
-						const key = `${data.words[0]} ${data.words[1]}`;
-						const arr = this.brain.gram.get(key) || [];
-						arr.push(entry);
-						this.brain.gram.set(key, arr);
-					}
-				}
-
-				fileOffset += byteLength;
+			if (!trimmed) {
+				offset += byteLength;
+				return;
 			}
 
-			fileOffset += leftover.length;
-		}
-		console.log("Start entries:", this.brain.start.length); 
-		console.log("Gram entries:", this.brain.gram.size);
-		console.log("Dictionary entries:", this.dictionary.size);
-		closeSync(fd);
-	}
+			let data;
+			try {
+				data = JSON.parse(trimmed);
+			} catch {
+				offset += byteLength;
+				return;
+			}
 
+			const { type, letters, words } = data;
+
+			// dictionary
+			if (type === "start" && Array.isArray(words) && words.length > 0) {
+				this.dictionary.add(words[0].toLowerCase());
+			}
+
+			// block switching
+			if (typeof letters === "string" && (type === "start" || type === "gram")) {
+				if (letters !== currentLetters || type !== currentType) {
+
+					// close previous block
+					if (currentLetters && currentType) {
+						if (currentType === "start") {
+							this.startBlocks[currentLetters].end = currentLineStart;
+						} else {
+							this.gramBlocks[currentLetters].end = currentLineStart;
+						}
+					}
+
+					// start new block
+					if (type === "start") {
+						this.startBlocks[letters] = { start: currentLineStart, end: 0 };
+					} else {
+						this.gramBlocks[letters] = { start: currentLineStart, end: 0 };
+					}
+
+					currentLetters = letters;
+					currentType = type;
+				}
+			}
+
+			offset += byteLength;
+		});
+
+		rl.on("close", () => {
+			// close final block at EOF
+			if (currentLetters && currentType) {
+				if (currentType === "start") {
+					this.startBlocks[currentLetters].end = offset;
+				} else {
+					this.gramBlocks[currentLetters].end = offset;
+				}
+			}
+		});
+	}
 }

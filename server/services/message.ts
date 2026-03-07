@@ -4,7 +4,7 @@ import type { MessageType, UserSum, Identity, ChatMessage } from '../../shared/s
 import { mType } from '../../shared/schema';
 
 type Target = Server | Socket;
-type TextPayload = typeof mType.chat | typeof mType.ann | typeof mType.error | typeof mType.info | typeof mType.welcome;
+type TextPayload = typeof mType.chat | typeof mType.ann | typeof mType.error | typeof mType.info | typeof mType.welcome | typeof mType.markov;
 type MessagePayloadMap = {
 [T in MessageType]: 
 	T extends typeof mType.identity ? Identity :
@@ -48,6 +48,11 @@ export class MessageService{
 			this.chatHistory.set(msg.id, msg);
 			this.updateChatHistory(configSize);
 		}
+	}
+
+	public sendMarkov(to: Target, text: string, markov: Identity, user: Identity, seed?: string){
+		const payload = `${user.nick.substring(7)}|${seed}|${text}`
+		this.send(to, mType.markov, this.createMessage(false,markov, payload, mType.markov))
 	}
 	
 	public getChatHistory(): Map<number, ChatMessage>{

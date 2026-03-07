@@ -15,6 +15,9 @@ import { SecurityService } from './services/security';
 import { CommandService } from './services/command';
 import { MarkovService } from './services/markov';
 
+//TODO: fix status/input text clipping left side
+//TODO: scrollbar bounce fix in iOS
+
 const app = express();
 const httpserver = createServer(app);
 const io = new Server(httpserver, {path:"/ratchat/socket.io/", connectionStateRecovery:{}});
@@ -61,12 +64,13 @@ const securityService = new SecurityService({
 	io: io
 })
 
-let markovService; 
+let markovService: MarkovService | null = null; 
 if (stateService.getMarkovConfig().enabled){
 	markovService = new MarkovService({
 		messageService: messageService,
 		stateService: stateService,
 		moderationService: moderationService,
+		identityService: identityService,
 
 		brainPath: brainPath,
 		io: io,
@@ -233,6 +237,8 @@ app.get('/ratchat', (req, res) => {
 //Server standup
 httpserver.listen(stateService.getConfig().PORT, () => {
 	console.log(`server running at http://localhost:${stateService.getConfig().PORT}`);
+	const now = new Date();
+	console.log ('server startup timestamp: ', now.toLocaleString());
 });
 
 //Fetch emotes on startup
@@ -246,3 +252,11 @@ async function startUp(){
 	}
 }
 startUp();
+
+process.on('uncaughtException', err => {
+  console.log('Uncaught exception:', err);
+});
+
+process.on('unhandledRejection', err => {
+  console.log('Unhandled rejection:', err);
+});

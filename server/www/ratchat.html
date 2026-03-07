@@ -201,12 +201,12 @@
 			white-space: nowrap;
 		}
 		@keyframes status-marquee {
-			0%      { transform: translateX(0); }
-			15%     { transform: translateX(0); }
-			80%     { transform: translateX(calc(-100% + 8rem)); }
-			95%     { transform: translateX(calc(-100% + 8rem)); }
-			95.01%  { transform: translateX(0); }
-			100%    { transform: translateX(0); }
+			0%		{ transform: translateX(0); }
+			15%		{ transform: translateX(0); }
+			80%		{ transform: translateX(calc(-100% + 8rem)); }
+			95%		{ transform: translateX(calc(-100% + 8rem)); }
+			95.01%	{ transform: translateX(0); }
+			100%	{ transform: translateX(0); }
 		}
 		.animate-status {
 			animation: status-marquee 8s linear infinite;
@@ -850,7 +850,7 @@
 					input.value = '';
 					return;
 				}
-				systemMessage(`Your GUID is: ${oldGUID}`, 'i-li')
+				systemMessage(`Your GUID is: ${GUID}`, 'i-li')
 				systemMessage(`don't share it, save it! you can use this with /import to reload your identity if necessary.`, 'i-li')
 				input.value = '';
 				return;
@@ -930,7 +930,8 @@
 			'toClientError': 'e-li',
 			'toClientInfo': 'i-li',
 			'toClientWelcome': 'w-li',
-			'toClientAnnouncement': 'a-li'
+			'toClientAnnouncement': 'a-li',
+			'toClientMarkov': ''
 		};
 
 		const renderMessage =(msg) =>{
@@ -954,28 +955,51 @@
 
 			//Nickname constructor and styling
 			if(msg.id !== -1 && msg.author){
-			const userName = msg.author.substring(7);
-			const userColor = msg.author.substring(0,7);
-			const nameSpan = document.createElement('span');
-			nameSpan.className = "user-name";
-				nameSpan.style.setProperty('--user-color', userColor);
-				nameSpan.textContent = userName + ": ";
-			item.appendChild(nameSpan)
+				const userName = msg.author.substring(7);
+				const userColor = msg.author.substring(0,7);
+				const nameSpan = document.createElement('span');
+				nameSpan.className = "user-name";
+					nameSpan.style.setProperty('--user-color', userColor);
+					nameSpan.textContent = userName + ": ";
+				item.appendChild(nameSpan)
+			
 
-			//set hover msg ID and data ID
-			item.setAttribute('title', `Msg ID: ${msg.id}`);
-			item.setAttribute('data-id', msg.id);
+				//set hover msg ID and data ID
+				if(msg.type === 'toClientMarkov'){
+					const parts = msg.content.split('|');
+					const gen = parts[0];
+					const seed = parts[1];
+					if(seed){
+						item.setAttribute('title', `Msg ID: ${msg.id} by: ${gen} with seed: ${seed}`);
+						item.setAttribute('data-id', msg.id);
+					}
+					else{
+						item.setAttribute('title', `Msg ID: ${msg.id} by: ${gen}`);
+						item.setAttribute('data-id', msg.id);
+					}
+				}
+				else{
+					item.setAttribute('title', `Msg ID: ${msg.id}`);
+					item.setAttribute('data-id', msg.id);
+				}
 			}
 
 			//Message content
 			const contentSpan = document.createElement('span')
 
+			let raw = msg.content;
+
+			if(msg.type === 'toClientMarkov'){
+				const parts = msg.content.split('|');
+				raw = parts.slice(2).join('|');
+			}
+
 			if(window.DOMPurify && msg.id !== -1){
-				const raw = emotify(msg.content)
-				contentSpan.innerHTML = DOMPurify.sanitize(raw);
+				const emoted = emotify(raw);
+				contentSpan.innerHTML = DOMPurify.sanitize(emoted);
 			}
 			else{
-				contentSpan.textContent = msg.content;
+				contentSpan.textContent = raw;
 			}
 			
 			item.appendChild(contentSpan);
@@ -998,6 +1022,7 @@
 		socket.on('toClientInfo', renderMessage);
 		socket.on('toClientWelcome', renderMessage);
 		socket.on('toClientAnnouncement', renderMessage);
+		socket.on('toClientMarkov', renderMessage);
 
 		//button listeners
 
@@ -1020,7 +1045,7 @@
 
 		//best effort disconnect notification
 		window.addEventListener('beforeunload', () => {
-    		socket.disconnect();
+			socket.disconnect();
 		});
 
 	</script>

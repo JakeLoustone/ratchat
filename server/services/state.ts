@@ -20,15 +20,19 @@ export interface StateServiceDependencies{
 export class StateService {
 	public events = new EventEmitter();
 	public markovUser: Identity | null = null;
-	private deps: StateServiceDependencies;
+	public markovSleep: boolean = false;
+	
 	private socketUsers = new Map<string, Identity>();
 	private emotes = new Map<string, string>();
 	private config: ServerConfig = {} as ServerConfig;
 	private markovConfig: MarkovConfig = {} as MarkovConfig;
 	private announcement: string = "";
+
 	private signupBuffer: Map<string, {socket: Socket; nick: SafeString}> = new Map();
 	private signupTimer: NodeJS.Timeout | null = null;
 	private signupPromise: Map<Socket, (value: boolean)=> void> = new Map();
+
+	private deps: StateServiceDependencies;
 
 	constructor(dependencies: StateServiceDependencies) {
 		this.deps = dependencies;
@@ -180,11 +184,20 @@ export class StateService {
 		const lurkers = io.sockets.sockets.size - this.socketUsers.size;
 
 		if(this.markovUser){
+			if(this.markovSleep){
+				userList.push({
+				nick: this.markovUser.nick,
+				status: this.markovUser.status,
+				isAfk: true,
+				})
+			}
+			else{
 			userList.push({
 				nick: this.markovUser.nick,
 				status: this.markovUser.status,
 				isAfk: this.markovUser.isAfk,
-			})
+				})
+			}
 		}
 
 		userList.push({
@@ -209,6 +222,17 @@ export class StateService {
 				this.broadcastUsers(io); 
 			}
 		}, this.markovConfig.cooldown * 1000);
+	}
+
+	public sleepMarkov(io: Server): Boolean{
+		if(this.markovSleep){
+			this.markovSleep = false;
+		}
+		else{
+			this.markovSleep = true;
+		}
+		this.broadcastUsers(io);
+		return this.markovSleep;
 	}
 
 	public hashIP(ip: string): string{
@@ -333,11 +357,12 @@ export class StateService {
 				continue;
 			}
 			(this.markovConfig as any)[key] = cfg;
+			console.log(`${key} = ${JSON.stringify(cfg)}`);
 		}
 		Object.freeze(this.markovConfig);
 		if (this.markovConfig.enabled){
 			this.markovUser = {
-        	guid: 'markov',
+			guid: 'markov',
 			nick: this.markovConfig.color + this.markovConfig.nick,
 			status: this.markovConfig.status,
 			lastMessage: new Date(0),

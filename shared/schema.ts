@@ -18,11 +18,12 @@ export const mType = {
 	error: "toClientError",
 	ann: "toClientAnnouncement",
 	welcome: "toClientWelcome",
+	markov: "toClientMarkov",
 	identity: "identity",
 	list: "userlist",
 	schat: "toServerChat",
 	delmsg: "deleteMsg",
-	emote: "emote"
+	emote: "emote",
 } as const;
 
 export type MessageType = typeof mType[keyof typeof mType];

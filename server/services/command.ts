@@ -17,11 +17,12 @@ export interface CommandServiceDependencies {
 	moderationService: ModerationService;
 	identityService: IdentityService;
 	securityService: SecurityService;
-	markovService?: MarkovService;
+	markovService: MarkovService | null;
 }
 
 export class CommandService {
 	private commands: Record<string, (ctx: Command) => boolean | Promise<boolean>> = {};
+	private activeCommands: Map<string, boolean> = new Map();
 	private deps: CommandServiceDependencies;
 
 	constructor(dependencies: CommandServiceDependencies) {
@@ -35,15 +36,27 @@ export class CommandService {
 		
 		let user = userOrUndef ?? null;
 
-		const clearText = await this.execute(commandName, {
-			socket,
-			io,
-			args,
-			fullArgs: args.join(' '),
-			commandUser: user
-			});
+		if(this.activeCommands.get(socket.id)){
+			return false;
+		}
+
+		this.activeCommands.set(socket.id, true);
 		
-		return clearText;
+		try{
+			const clearText = await this.execute(commandName, {
+				socket,
+				io,
+				args,
+				fullArgs: args.join(' '),
+				commandUser: user
+				});
+			
+			return clearText;
+		}
+
+		finally{
+			this.activeCommands.delete(socket.id)
+		}
 	}
 
 
@@ -110,11 +123,12 @@ export class CommandService {
 					'/delete <1> : Delete a message with ID 1.',
 					'/emotes <emotesetID> : adds an emote set from 7tv. leave blank to reload from config',
 					'/unemotes <emotesetID> : remove all emotes whose names match an emote set from 7tv. consider using /emotes after to reload baseline emotes',
-					'/loadusers : reload users from disk. only useful if weird things are happening.'
+					'/loadusers : reload users from disk. locks server thread while doing it, so only call if you know what you are doing'
 				);
 				if(this.deps.markovService){
 					helpMessages.push(
-						'/botstatus <status> : set the status for the markov bot'
+						'/botstatus <status> : set the status for the markov bot',
+						'/botsleep : puts the markov bot to sleep, disabling calls, or wakes him up if asleep'
 					)
 				}
 			}
@@ -364,7 +378,7 @@ export class CommandService {
 			}
 		};
 
-		this.commands['markov'] = (ctx) => {
+		this.commands['markov'] = async (ctx) => {
 				if(!this.deps.markovService){
 					this.deps.messageService.sendSys(ctx.socket, mType.error, "system: that's not a command lol");
 					return false;
@@ -377,7 +391,12 @@ export class CommandService {
 				const markovUser = this.deps.stateService.markovUser;
 				if(!markovUser){
 					this.deps.messageService.sendSys(ctx.socket, mType.error, "system: we couldn't find a markov bot");
-					return false;
+					return true;
+				}
+
+				if(this.deps.stateService.markovSleep){
+					this.deps.messageService.sendSys(ctx.socket, mType.error, `shh, ${markovUser.nick.substring(7)} is sleeping`);
+					return true;
 				}
 
 				if(!ctx.commandUser.isMod){
@@ -392,9 +411,9 @@ export class CommandService {
 					if(ctx.args[0]){
 						seed = this.deps.moderationService.textCheck(ctx.args[0], ctx.commandUser, tType.chat);
 					}
-					const gentext = this.deps.markovService.markovGen(ctx.io, seed);
-					this.deps.messageService.sendChat(ctx.io, ctx.commandUser, `markov seed: ${seed}`, -1)
-					this.deps.messageService.sendChat(ctx.io, markovUser, gentext, -1)
+					this.deps.messageService.sendSys(ctx.socket, mType.info, 'generating markov text...');
+					const gentext = await this.deps.markovService.markovGen(ctx.io, seed);
+					this.deps.messageService.sendMarkov(ctx.io, gentext, markovUser, ctx.commandUser, seed);
 					if(!ctx.commandUser.isMod){
 						this.deps.stateService.toggleMarkov(ctx.io);
 					}
@@ -622,9 +641,36 @@ export class CommandService {
 				this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
 				return false;
 			}
-
 		};
+		
+		this.commands['botsleep'] = (ctx) => {
+			if(!this.deps.markovService){
+				this.deps.messageService.sendSys(ctx.socket, mType.error, "system: that's not a command lol");
+				return false;
+			}
+			if (!ctx.commandUser?.isMod) {
+				this.deps.messageService.sendSys(ctx.socket, mType.error, "naughty naughty");
+				return true;
+			}
 
+			const markovUser = this.deps.stateService.markovUser;
+			const markovSleep = this.deps.stateService.sleepMarkov(ctx.io);
+
+			if(!markovUser){
+				this.deps.messageService.sendSys(ctx.socket, mType.error, "system: we couldn't find a markov bot");
+				return false;
+			}
+
+			if(markovSleep){
+				this.deps.messageService.sendSys(ctx.socket, mType.info, `${markovNick} is sleepin now. honk shoo`);
+				return true;
+			}
+			else{
+				this.deps.messageService.sendSys(ctx.socket, mType.info, `${markovNick} is awake now. rise and grind`);
+				return true;
+			}
+		};
+		
 		// ------------------------------------------------------------------
 		// ALIASES
 		// ------------------------------------------------------------------
@@ -636,8 +682,9 @@ export class CommandService {
 		this.commands['announcement'] = this.commands['announce'];
 		this.commands['emote'] = this.commands ['emotes'];
 		this.commands['unemote'] = this.commands ['unemotes'];
-		// if (!this.commands[markovNick]){
-		// 	this.commands['markov'] = this.commands[markovNick]
-		// };
+		if (!this.commands[markovNick]) {
+			this.commands[markovNick] = this.commands['markov'];
+		}
+
 	}
 }

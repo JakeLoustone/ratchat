@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
+import { mkdir, writeFile } from "fs/promises";
 import { dirname } from 'path';
 
 import type { Identity } from '../../shared/schema.ts'
@@ -17,6 +18,7 @@ export interface IdentityServiceDependencies{
 export class IdentityService {
 	private users: Map<string, Identity> = new Map();
 	private registeredNicks: Map<string, string> = new Map();
+	private userQ = Promise.resolve();
 	private deps: IdentityServiceDependencies;
 
 	constructor(dependencies: IdentityServiceDependencies) {
@@ -56,7 +58,7 @@ export class IdentityService {
 			const color = user.nick.substring(0,7)
 			user.nick = color + nick;
 			user.lastChanged = new Date();
-			this.saveUsers();
+			this.saveQueue();
 			return user;
 		}
 		//New user flow
@@ -78,7 +80,7 @@ export class IdentityService {
 
 		this.users.set(newGuid, newIdentity);
 		this.registeredNicks.set(nick.toLowerCase(), newGuid);
-		this.saveUsers();
+		this.saveQueue();
 		return newIdentity;
 		}
 	}
@@ -87,7 +89,7 @@ export class IdentityService {
 		const user = this.users.get(guid)!;
 		user.nick = color.toUpperCase() + user.nick.substring(7)
 		user.lastChanged = new Date();
-		this.saveUsers();
+		this.saveQueue();
 		return user;
 	}
 
@@ -98,11 +100,11 @@ export class IdentityService {
 		}
 		if(user.isAfk){
 			user.isAfk = false;
-			this.saveUsers();
+			this.saveQueue();
 		}
 		else{
 			user.isAfk = true;
-			this.saveUsers();
+			this.saveQueue();
 		}
 		return user;
 	}
@@ -120,7 +122,7 @@ export class IdentityService {
 
 		user.status = status;
 		user.lastChanged = new Date();
-		this.saveUsers();
+		this.saveQueue();
 		return user;
 	}
 
@@ -134,7 +136,7 @@ export class IdentityService {
 		if(user.isAfk){
 			user.isAfk = false;
 		}
-		this.saveUsers();
+		this.saveQueue();
 		return user;
 	}
 
@@ -167,7 +169,7 @@ export class IdentityService {
 		const cleanNick = user.nick.substring(7);
 		this.registeredNicks.delete(cleanNick.toLowerCase());
 		this.users.delete(guid);
-		this.saveUsers();
+		this.saveQueue();
 	}
 
 	public reloadUsers(): number{
@@ -206,18 +208,21 @@ export class IdentityService {
 	}
 	}
 
-	private saveUsers() {
+	private saveQueue() {
+		this.userQ = this.userQ.then(() => this.saveUsers());
+	}
+
+	private async saveUsers() {
 		try {
 			const dir = dirname(this.deps.usersPath);
-			if (!existsSync(dir)) {
-				mkdirSync(dir, {recursive: true});
-			}
+			await mkdir(dir, {recursive: true});
 
-			const data = Array.from(this.users.entries());
-			writeFileSync(this.deps.usersPath, JSON.stringify(data, null, 4));
+			const data = JSON.stringify(Array.from(this.users.entries()), null, 4);
+
+			await writeFile(this.deps.usersPath, data);
 		} 
 		catch (e: any) {
-			console.error('failed to save user data', `${e.message}`);
+			console.log('failed to save user data', `${e.message}`);
 		}
 	}
 }

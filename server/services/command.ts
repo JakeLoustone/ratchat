@@ -400,6 +400,13 @@ export class CommandService {
 					this.deps.messageService.sendSys(ctx.socket, mType.error, "system: please use /chrat <nickname> before trying to generate random text");
 					return true;
 				}
+				try{
+					this.deps.moderationService.timeCheck(ctx.commandUser, tType.chat);
+				}
+				catch(e:any){
+					this.deps.messageService.sendSys(ctx.socket, mType.error, `system: ${e.message}`);
+					return false;
+				}
 
 				const markovUser = this.deps.stateService.markovUser;
 				if(!markovUser){

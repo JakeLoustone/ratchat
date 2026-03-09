@@ -357,6 +357,7 @@ export class MarkovService{
 		this.db = new DatabaseSync(brainPath);
 		
 		if(!brain){
+			console.log('building markov brain....')
 			const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ_";
 			const startSchema = `CREATE TABLE IF NOT EXISTS %TABLE% (word1 TEXT, word2 TEXT, count INTEGER, PRIMARY KEY (word1, word2));`;
 			const gramSchema = `CREATE TABLE IF NOT EXISTS %TABLE% (word1 TEXT,	word2 TEXT,	word3 TEXT, count INTEGER, PRIMARY KEY (word1, word2, word3));`;

@@ -129,12 +129,19 @@ io.on('connection', (socket) => {
 		stateService.updateSocketUser(io, socket.id, returningUser);
 		messageService.send(socket, mType.identity, returningUser);
 		messageService.sendSys(socket, mType.info, `welcome back, ${returningUser.nick.substring(7)}`);
-		try{
-			const broadcast = moderationService.timeCheck(returningUser, tType.joinleave);
-			messageService.sendSys(io,mType.ann,`${returningUser.nick.substring(7)} connected`);
-			identityService.setLastMessage(returningUser.guid, Date.now());
+		
+		let scount = 0
+		for (const [, u] of stateService.getSocketUsers()) {
+			if (u.guid === returningUser.guid) scount++;
 		}
-		catch(e: any){
+		if(scount === 1){
+			try{
+				const broadcast = moderationService.timeCheck(returningUser, tType.joinleave);
+				messageService.sendSys(io.except(socket.id), mType.ann,`${returningUser.nick.substring(7)} connected`);
+				identityService.setLastMessage(returningUser.guid, Date.now());
+			}
+			catch(e: any){
+			}
 		}
 	} 
 	else {
@@ -221,12 +228,19 @@ io.on('connection', (socket) => {
 
 		if(disuser){
 			stateService.deleteSocketUser(io, socket.id);
-			try{
-				moderationService.timeCheck(disuser, tType.joinleave);
-				messageService.sendSys(io, mType.ann, `${disuser.nick.substring(7)} disconnected`);
-				identityService.setLastMessage(disuser.guid, Date.now());
+
+			let scount = 0;
+			for (const [, u] of stateService.getSocketUsers()) {
+				if (u.guid === disuser.guid) scount++;
 			}
-			catch(e:any){
+			if(scount === 0){
+				try{
+					moderationService.timeCheck(disuser, tType.joinleave);
+					messageService.sendSys(io, mType.ann, `${disuser.nick.substring(7)} disconnected`);
+					identityService.setLastMessage(disuser.guid, Date.now());
+				}
+				catch(e:any){
+				}
 			}
 		}
 		else{

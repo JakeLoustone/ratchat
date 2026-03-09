@@ -192,16 +192,14 @@ export class ModerationService {
 		try {
 			const nickLoad = JSON.parse(readFileSync(this.deps.nickFilterPath, 'utf-8')).usernames || [];
 			const profLoad = JSON.parse(readFileSync(this.deps.profFilterPath, 'utf-8'));
-			this.profFilter = Array.isArray(profLoad) 
+			this.profFilter = Array.isArray(profLoad)
 				? profLoad
-					.filter((item: any) => item.tags?.includes('racial') && item.severity > 2)
-					.map((item: any) => 
-						`\\b${(item.match.includes('|') ? `(?:${item.match})` : item.match)
-							.replace(/\*/g, '[^a-zA-Z0-9]*')
-							.replace(/([a-zA-Z0-9.])(?=[a-zA-Z0-9.])/g, '$1[\\s\\-_.]*')
-						}\\b`
-					)
-					.map(pattern => new RegExp(pattern, 'i'))
+						.filter(item => item.tags?.includes('racial') && item.severity > 2)
+						.map(item => {
+							const pattern = '\\b' +	item.match.split('*').map((seg: string) => seg.replace(/([a-zA-Z0-9.])(?=[a-zA-Z0-9.])/g, '$1[\\s\\-_.]*')).join('[^a-zA-Z0-9]*') + '\\b';
+							const regex = new RegExp(pattern, 'i');
+							return regex;
+						})
 				: [];
 			const configLoad = [...(this.deps.stateService.getConfig().nickres || [])];
 			if(this.deps.stateService.getMarkovConfig().enabled && this.deps.stateService.markovUser){

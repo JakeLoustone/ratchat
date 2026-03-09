@@ -173,11 +173,14 @@ export class StateService {
 
 	public broadcastUsers(io: Server){		
 		const userList: UserSum[] = Array.from(this.socketUsers.values())
-			.map(({ nick, status, isAfk }) => ({ nick, status, isAfk }))
+			.map(({ nick, status, isMod, isAfk }) => ({ nick, status, isMod, isAfk }))
 			.sort((a,b) =>{
-				if(a.isAfk !== b.isAfk){
-					return a.isAfk ? 1 : -1;
-				}
+			if (a.isAfk !== b.isAfk) {
+				return a.isAfk ? 1 : -1;
+			}
+			if (a.isMod !== b.isMod) {
+				return a.isMod ? -1 : 1;
+			}
 				return a.nick.substring(7).localeCompare(b.nick.substring(7), 'en', {sensitivity: 'base'});
 			});
 		
@@ -188,6 +191,7 @@ export class StateService {
 				userList.push({
 				nick: this.markovUser.nick,
 				status: this.markovUser.status,
+				isMod: false,
 				isAfk: true,
 				})
 			}
@@ -195,6 +199,7 @@ export class StateService {
 			userList.push({
 				nick: this.markovUser.nick,
 				status: this.markovUser.status,
+				isMod: false,
 				isAfk: this.markovUser.isAfk,
 				})
 			}
@@ -203,6 +208,7 @@ export class StateService {
 		userList.push({
 			nick: '#NONVALlurkers',
 			status: `${lurkers}`,
+			isMod: false,
 			isAfk: true
 		})
 
@@ -380,6 +386,7 @@ export class StateService {
 		setInterval(() =>{
 			const now = Date.now();
 			const afkTime = this.config.afkDef * 1000;
+			const updates: Array<{ id: string; user: Identity }> = [];
 
 			for(const [id, user] of this.socketUsers.entries()){
 				const lastMessage = new Date(user.lastMessage).getTime();
@@ -388,9 +395,18 @@ export class StateService {
 				if(now - lastMessage > afkTime && now - lastChanged > afkTime){
 					if(!user.isAfk){
 						this.events.emit("afk-check", user.guid);
-						this.updateSocketUser(this.deps.io, id, user)
+						updates.push({id, user});
 					}
 				}
+			}
+
+			if(updates.length > 0){
+				updates.forEach(({ id, user }) => {
+					user.isAfk = true;
+					this.socketUsers.set(id, user);
+				});
+
+			this.broadcastUsers(this.deps.io);
 			}
 		}, 60000);
 	}

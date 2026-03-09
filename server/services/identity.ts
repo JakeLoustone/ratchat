@@ -96,7 +96,7 @@ export class IdentityService {
 	public toggleAfk(guid: string): Identity {
 		const user = this.users.get(guid);
 		if(!user){
-			throw new Error('No matching user found to GUID')
+			throw new Error('afk: no matching user found to GUID')
 		}
 		if(user.isAfk){
 			user.isAfk = false;
@@ -113,7 +113,7 @@ export class IdentityService {
 		const user = this.users.get(guid);
 
 		if(!user){
-			throw new Error('No matching user found to GUID');
+			throw new Error('status: no matching user found to GUID');
 		}
 
 		if(user.status === status){
@@ -130,7 +130,7 @@ export class IdentityService {
 		const user = this.users.get(guid);
 		const newDate = msgdate;
 		if(!user){
-			throw new Error('No matching user found to GUID')
+			throw new Error('set last message: no matching user found to GUID')
 		}
 		user.lastMessage = new Date(newDate);
 		if(user.isAfk){
@@ -143,7 +143,7 @@ export class IdentityService {
 	public getUser(guid: string): Identity {
 		const user = this.users.get(guid);
 		if(!user){
-			throw new Error('No matching user found to GUID')
+			throw new Error('get user: no matching user found to GUID')
 		}
 		return user;
 	}
@@ -164,7 +164,7 @@ export class IdentityService {
 	public deleteUser(guid: string){
 		const user = this.users.get(guid);
 		if(!user){
-			throw new Error('No matching user found to GUID')
+			throw new Error('delete user: no matching user found to GUID')
 		}
 		const cleanNick = user.nick.substring(7);
 		this.registeredNicks.delete(cleanNick.toLowerCase());

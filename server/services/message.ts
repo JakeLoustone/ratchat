@@ -3,7 +3,7 @@ import { Server, Socket } from 'socket.io';
 import type { MessageType, UserSum, Identity, ChatMessage } from '../../shared/schema';
 import { mType } from '../../shared/schema';
 
-type Target = Server | Socket;
+type Target = { emit: Server['emit'] };
 type TextPayload = typeof mType.chat | typeof mType.ann | typeof mType.error | typeof mType.info | typeof mType.welcome | typeof mType.markov;
 type MessagePayloadMap = {
 [T in MessageType]: 
@@ -28,12 +28,6 @@ export class MessageService{
 	}
 
 	public send<T extends MessageType>(to: Target, metype: T, msg: MessagePayloadMap[T]) {
-		//double check target
-		if (!(to instanceof Server) && !(to instanceof Socket)){
-			throw new Error('Invalid emit target');
-		}
-		
-		//Fire it off
 		to.emit(metype, msg);
 	}
 

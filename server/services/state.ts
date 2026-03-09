@@ -357,7 +357,7 @@ export class StateService {
 				continue;
 			}
 			(this.markovConfig as any)[key] = cfg;
-			console.log(`${key} = ${JSON.stringify(cfg)}`);
+			console.log(`markov ${key} = ${JSON.stringify(cfg)}`);
 		}
 		Object.freeze(this.markovConfig);
 		if (this.markovConfig.enabled){

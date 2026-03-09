@@ -15,9 +15,6 @@ import { SecurityService } from './services/security';
 import { CommandService } from './services/command';
 import { MarkovService } from './services/markov';
 
-//TODO: fix status/input text clipping left side
-//TODO: scrollbar bounce fix in iOS
-
 const app = express();
 const httpserver = createServer(app);
 const io = new Server(httpserver, {path:"/ratchat/socket.io/", connectionStateRecovery:{}});
@@ -27,7 +24,7 @@ const markovConfigPath = join(__dirname, 'markov.json');
 const nickFilterPath = join(__dirname, 'nickfilter.json');
 const profFilterPath = join(__dirname, 'profanityfilter.json');
 const bansPath = join(__dirname, 'data', 'bans.json');
-const brainPath = join(__dirname, 'data', 'brain.ndjson')
+const brainPath = join(__dirname, 'data', 'brain.db')
 
 const messageService = new MessageService({
 
@@ -186,6 +183,17 @@ io.on('connection', (socket) => {
 			const safe = moderationService.textCheck(msg, user, 'chat');
 			messageService.sendChat(io, user, safe, stateService.getConfig().msgArrayLen);
 			
+			if(markovService && stateService.getMarkovConfig().learning){
+				queueMicrotask(() => {
+					try{
+						markovService!.markovLearn(safe)
+					}
+					catch(e:any){
+						
+					}
+				});
+			}
+
 			try{
 				const wasAfk = user.isAfk;
 				identityService.setLastMessage(user.guid, Date.now());

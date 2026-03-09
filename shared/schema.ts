@@ -89,6 +89,7 @@ export const defaultServerConfig: ServerConfig = {
 
 export interface MarkovConfig{
 	enabled: boolean;
+	learning: boolean;
 	nick: string;
 	color: string;
 	status: string;
@@ -98,6 +99,7 @@ export interface MarkovConfig{
 
 export const defaultMarkovConfig: MarkovConfig = {
 	enabled: false,
+	learning: false,
 	nick: 'markov',
 	color: '#000000',
 	status: 'online',

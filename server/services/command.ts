@@ -10,7 +10,6 @@ import { IdentityService } from '../services/identity';
 import { SecurityService } from '../services/security';
 import { MarkovService } from './markov';
 
-
 export interface CommandServiceDependencies {
 	messageService: MessageService;
 	stateService: StateService;
@@ -304,13 +303,27 @@ export class CommandService {
 						'We store the following information locally:',
 						'ratGUID		|	a local copy of the GUID for message construction',
 						'ratBG			|	a local version of image selected for background image (not sent to server)',
-						'---------------------------------------------------------------------------------------------',
-						'Use /gdpr info to see this message again',
-						'Use /gdpr ip to see specific information on how and why we use IP addresses',
-						'Use /gdpr export to see a copy of your data stored on the server, if any.',
-						'Use /gdpr delete to permanently remove your data from the server. this will prevent you from utilizing the application.',
+						'ratMode		| 	a local indicator if dark mode is enabled for client appearence',
 						'---------------------------------------------------------------------------------------------',
 					];
+					if(this.deps.stateService.getMarkovConfig().learning){
+						infoMsgs.push(
+							'This server uses an optional Markov chain feature that learns from user chat messages.',
+							'Messages are stripped of usernames and fully deconstructed into anonymous word fragments before being saved.',
+							'No identifiable or reconstructable message information is saved. No authors, no timestamps, no messsage history, etc.',
+							'As such, portions of your messages may be used as Markov chain text in an anonymous capacity consistent with Recital 26 of the GDPR.',
+							'---------------------------------------------------------------------------------------------',
+						);
+					}
+
+					infoMsgs.push(
+					'Use /gdpr info to see this message again',
+					'Use /gdpr ip to see specific information on how and why we use IP addresses',
+					'Use /gdpr export to see a copy of your data stored on the server, if any.',
+					'Use /gdpr delete to permanently remove your data from the server. this will prevent you from utilizing the application.',
+					'---------------------------------------------------------------------------------------------',
+					);
+
 					const formatTable = infoMsgs.join('\n');
 					this.deps.messageService.sendSys(ctx.socket, mType.info, formatTable);
 					return true;

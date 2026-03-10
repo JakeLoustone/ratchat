@@ -138,7 +138,7 @@ io.on('connection', (socket) => {
 			try{
 				const broadcast = moderationService.timeCheck(returningUser, tType.joinleave);
 				messageService.sendSys(io.except(socket.id), mType.ann,`${returningUser.nick.substring(7)} connected`);
-				identityService.setLastMessage(returningUser.guid, Date.now());
+				identityService.setLastMessage(returningUser.guid, Date.now(), false);
 			}
 			catch(e: any){
 			}

@@ -126,14 +126,14 @@ export class IdentityService {
 		return user;
 	}
 
-	public setLastMessage(guid: string, msgdate: number): Identity {
+	public setLastMessage(guid: string, msgdate: number, clearAfk = true): Identity {
 		const user = this.users.get(guid);
 		const newDate = msgdate;
 		if(!user){
 			throw new Error('set last message: no matching user found to GUID')
 		}
 		user.lastMessage = new Date(newDate);
-		if(user.isAfk){
+		if(clearAfk && user.isAfk){
 			user.isAfk = false;
 		}
 		this.saveQueue();

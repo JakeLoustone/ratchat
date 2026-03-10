@@ -18,6 +18,10 @@
 			display: none;
 		}
 
+		html {
+			background-color: #000000;
+		}
+
 		body {
 			height: 100dvh;
 			margin: 0;
@@ -124,7 +128,8 @@
 			min-width: 0;
 			font-size: 1rem;
 			box-sizing: border-box;
-			margin-right: .0625rem;
+			margin-right: 0.0625rem;
+			text-indent: 0.0625rem;
 		}	
 		#input:focus {
 			outline: none;
@@ -175,7 +180,7 @@
 			width: 100%;
 			overflow: hidden;
 		}
-		.user-list-span span:nth-child(2) {
+		.user-list-span span:nth-child(3) {
 			flex-shrink: 1;
 			flex-grow: 1;
 			min-width: 0;
@@ -199,6 +204,7 @@
 		.status-scroll {
 			display: inline-block;
 			white-space: nowrap;
+			padding-left: 0.125rem;
 		}
 		@keyframes status-marquee {
 			0%		{ transform: translateX(0); }
@@ -215,6 +221,17 @@
 			height: 0.9rem;
 			vertical-align: bottom;
 			margin: -0.1rem;
+		}
+
+		.mod-badge {
+			display: inline-block;
+			line-height: 1;
+			width: 0.8rem;
+			height: 0.8rem;
+			vertical-align: middle;
+			margin-right: 0.125rem;
+			margin-bottom: 0.375rem;
+			color: #008000;
 		}
 
 		.status-orb {
@@ -614,9 +631,13 @@
 
 			//sync thumb position to scroll
 			container.onscroll = function () {
-				thumb.style.top =
-					(container.scrollTop / (container.scrollHeight - container.clientHeight || 1)) *
-					(track.clientHeight - thumb.clientHeight) + 'px';
+				const scrollPos = container.scrollTop;
+				const maxScroll = container.scrollHeight - container.clientHeight;
+				
+				const clampedScroll = Math.max(0, Math.min(scrollPos, maxScroll));
+
+				const trackSpace = track.clientHeight - thumb.clientHeight;
+				thumb.style.top = (clampedScroll / (maxScroll || 1)) * trackSpace + 'px';
 			};
 
 			if (config.btnUpId) {
@@ -780,17 +801,23 @@
 				}
 				
 				let status = emotify(user.status)
+				if(!status || user.status === 'online'){
+					status = '';
+				}
+				else{
+					status = `<div class="user-status"><span class="status-scroll">${status}</span></div>`;
+				}
+				const modBadge = user.isMod ? `<span class="mod-badge" title="Mod"><b>&#9929;</b></span>`: '';
 
 				const fontSize = userName.length > 11 ? .8 : 1;
 				const dirty = (`
 					<span class="user-list-span" style="font-size: ${fontSize}rem">
 						<span class="status-orb ${orb}" title="${orbLabel}"></span>
+						${modBadge}
 						<span style="color: ${userColor}; font-weight: bold;">${userName}</span>
 						<span class="user-count">${displayCount}</span>
 					</span>
-					<div class="user-status">
-						<span class="status-scroll">${status}</span>
-					</div>
+					${status}
 				`);
 				if (window.DOMPurify){
 					li.innerHTML = DOMPurify.sanitize(dirty);

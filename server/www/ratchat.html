@@ -55,7 +55,7 @@
 			margin: 0 !important;
 		}
 
-		.emotes-popup {
+		#emotes-popup {
 			display: none; 
 			position: fixed; 
 			top: 50%; 
@@ -63,34 +63,49 @@
 			transform: translate(-50%, -50%); 
 			z-index: 1000;
 		}
-		.emotes-popup.is-visible {
+		#emotes-popup.is-visible {
 			display: block;
 		}
-		.emotes-popup .window {
+		#emotes-popup .window {
 			width: 30rem;
 			max-width: min(30rem, 80vw);
 			min-width: 12rem;
-			max-height: 15rem;
+			max-height: 16.125rem;
 		}
-		.emotes-popup .window-body { 
+		#emotes-popup .window-body { 
 			height: auto; 
 			max-height: 100%; 
 		}
 		.emotes-content {
 			flex-grow: 1;
+			position: relative;
 			background-color: #ffffff;
 			box-shadow: inset -0.0625rem -0.0625rem #ffffff,
 						inset 0.0625rem 0.0625rem #0a0a0a, 
 						inset -0.125rem -0.125rem #dfdfdf, 
 						inset 0.125rem 0.125rem #808080;
-			padding: 0.625rem;
 			max-height: 12rem;
+			height:12rem;
+			overflow: hidden;
+		}
+		#emotes-grid-wrapper {
+			position: absolute;
+			inset: 0.625rem 0.625rem;
 			overflow-y: auto;
 		}
-		.emotes-popup .field-row {
-			display: flex;
-			justify-content: center;
-			padding-top: 0.5rem;
+		#search {
+			padding: 0 0.5rem;
+			min-width: 0;
+			font-size: .625rem;
+			height: 1.125rem;
+			box-sizing: border-box;
+			margin-bottom: .125rem;
+		}	
+		#search:focus {
+			outline: none;
+		}
+		#search::placeholder{
+			color: #999999;
 		}
 
 		#form{
@@ -222,7 +237,7 @@
 			vertical-align: top;
 			margin: -0.1rem;
 		}
-		
+
 		.mod-badge {
 			display: inline-block;
 			line-height: 1;
@@ -410,6 +425,7 @@
 		[data-theme="dark"] .emotes-content,
 		[data-theme="dark"] #messages-container,
 		[data-theme="dark"] #input,
+		[data-theme="dark"] #search,
 		[data-theme="dark"] #user-sidebar {
 			background-color: #2a2a2a;
 			color: #ffffff;
@@ -418,6 +434,9 @@
 				inset -0.0625rem -0.0625rem #444444,
 				inset 0.125rem 0.125rem #222222,
 				inset -0.125rem -0.125rem #555555;
+		}
+		[data-theme="dark"] #search::placeholder {
+			color: #888888;
 		}
 
 		[data-theme="dark"] #form button{
@@ -507,10 +526,13 @@
 				</div>
 
 				<div class="window-body">
-					<div style="display: flex; flex-direction: row; flex-grow: 1; overflow: hidden;">						
-						<div id="emotes-scroll-container" class="emotes-content hide-scrollbar" style="margin-bottom: 0;">
-							<div id="emotes-grid-wrapper" class="hide-scrollbar" style="height:100%;align-self:center; overflow-y: auto;"></div>
-						</div>
+					<div style="display: flex; flex-direction: row; flex-grow: 1; overflow: hidden;">
+						<div style="display: flex; flex-direction: column; flex-grow: 1; overflow: hidden;">			
+							<input id="search" type="text" autocomplete="off" placeholder=" type here to search for emotes..."/>				
+							<div id="emotes-scroll-container" class="emotes-content hide-scrollbar" style="margin-bottom: 0;">
+								<div id="emotes-grid-wrapper" class="hide-scrollbar" ></div>
+							</div>
+						</div>	
 						<div class="fake-scrollbar">
 							<button class="fake-scroll-button" id="emotes-btn-up">&#9650;</button>
 							<div class="fake-scroll-track" id="emotes-track">
@@ -739,6 +761,7 @@
 				img.crossOrigin = "anonymous";
 				img.title = name;
 				img.alt = name;
+				img.dataset.name = name.toLowerCase();
 				img.style.width = '1.5rem';
 				img.style.height = '1.5rem';
 				img.style.cursor = 'pointer';
@@ -913,7 +936,7 @@
 				}
 			}
 
-			//Dark mode
+			//dark mode
 			if (val === '/dark') {
 				if (document.documentElement.hasAttribute('data-theme')) {
 					document.documentElement.removeAttribute('data-theme');
@@ -1059,8 +1082,28 @@
 		});
 
 		document.getElementById('btn-emotes').addEventListener('click', () => {
-			document.getElementById('emotes-popup').classList.toggle('is-visible');
+			const popup = document.getElementById('emotes-popup');
+			popup.classList.toggle('is-visible');
+			if (popup.classList.contains('is-visible')) {
+				const search = document.getElementById('search');
+				search.value = '';
+				filterEmotesGrid('');
+				search.focus();
+			}
 		});
+
+		document.getElementById('search').addEventListener('input', (e) => {
+			filterEmotesGrid(e.target.value);
+		});
+
+		//emote search
+		function filterEmotesGrid(filter) {
+			const lowerFilter = (filter || '').trim().toLowerCase();
+			document.querySelectorAll('#emotes-grid-wrapper .emote-selectable').forEach(img => {
+				img.style.display = img.dataset.name.includes(lowerFilter) ? '' : 'none';
+			});
+			document.getElementById('emotes-grid-wrapper').scrollTop = 0;
+		}
 
 		//background load from storage
 		if (savedBG) {

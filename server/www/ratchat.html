@@ -639,7 +639,7 @@
 						systemMessage("oh fuk it's too big", 'e-li')
 						console.warn("image too large for localStorage");
 					}
-				};
+				}
 
 				reader.readAsDataURL(file);
 			}
@@ -700,10 +700,12 @@
 						container.scrollTop;
 					e = event;
 				};
+
 				document.onmouseup = () => {
 					document.onmousemove = null;
 					document.onmouseup = null;
 				};
+
 				e.preventDefault();
 			});
 		}

@@ -1,4 +1,5 @@
 import { existsSync } from 'fs';
+
 import { DatabaseSync } from "node:sqlite";
 import { Server } from 'socket.io';
 
@@ -8,6 +9,8 @@ import { MessageService } from './message';
 import { StateService } from './state';
 import { ModerationService } from './moderation';
 import { IdentityService } from './identity';
+
+import { WeightedMap, weightedRandom } from '../utils/random';
 
 type Neuron = {
 	table: string;
@@ -81,46 +84,27 @@ export class MarkovService{
 					throw new Error(`${markovUser.nick.substring(7)} don't know nothin about '${seed}'`);
 				}
 
-				let total = 0;
-				for(const c of candidates){
-					total += c.count;
-				}
+				const weightMap: WeightedMap = new Map(
+					candidates.map((candidate, candidateIndex) => [String(candidateIndex), candidate.count])
+				);
 
-				let r = Math.random() * total;
-				let chosen = candidates[candidates.length - 1];
-
-				for(const c of candidates){
-					r -= c.count;
-					if(r <= 0){
-						chosen = c;
-						break;
-					}
-				}
-
+				const chosen = candidates[Number(weightedRandom(weightMap))];
+				
 				raw.push(chosen.words[0], chosen.words[1]);
 			}
 			else{
-				const allStarts = await this.loadNeuron();
+				const candidates = await this.loadNeuron();
 
-				if(allStarts.length === 0){
+				if(candidates.length === 0){
 					throw new Error("no start entries in markov brain");
 				}
 
-				let total = 0;
-				for(const c of allStarts){
-					total += c.count;
-				}
+				const weightMap: WeightedMap = new Map(
+					candidates.map((candidate, candidateIndex) => [String(candidateIndex), candidate.count])
+				);
 
-				let r = Math.random() * total;
-				let chosen = allStarts[allStarts.length - 1];
-
-				for(const c of allStarts){
-					r -= c.count;
-					if(r <= 0){
-						chosen = c;
-						break;
-					}
-				}
+				const chosen = candidates[Number(weightedRandom(weightMap))];
+				
 
 				raw.push(chosen.words[0], chosen.words[1]);
 			}
@@ -136,23 +120,11 @@ export class MarkovService{
 				if(candidates.length === 0){
 					break;
 				}
+				const weightMap: WeightedMap = new Map(
+					candidates.map((candidate, candidateIndex) => [String(candidateIndex), candidate.count])
+				);
 
-				let total = 0;
-				for(const c of candidates){
-					total += c.count;
-				}
-
-				let r = Math.random() * total;
-				let chosen = candidates[candidates.length - 1];
-
-				for(const c of candidates){
-					r -= c.count;
-					if(r <= 0){
-						chosen = c;
-						break;
-					}
-				}
-
+				const chosen = candidates[Number(weightedRandom(weightMap))];
 				const next = chosen.words[2];
 
 				if(!next || next === "<END>"){
@@ -295,7 +267,7 @@ export class MarkovService{
 					this.db.prepare(`INSERT INTO ${n.table} (word1, word2, count) VALUES (?, ?, 1) ON CONFLICT(word1, word2) DO UPDATE SET count = count + 1;`).run(n.word1, n.word2);
 				}
 				else if(n.table.startsWith("gram_") && n.table.length === "gram_".length + 2){
-					    if(!n.word3){
+						if(!n.word3){
 							console.warn(`skipping gram entry missing word3: ${n.word1} ${n.word2}`);
 							continue;
 						}

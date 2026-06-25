@@ -1,13 +1,13 @@
 import { Server, Socket } from 'socket.io';
 
-import type { Command, Identity } from '../../shared/schema.ts';
 import { tType, mType } from '../../shared/schema';
+import type { Command, Identity } from '../../shared/schema';
 
 import { MessageService } from './message';
 import { StateService } from './state';
 import { ModerationService } from './moderation';
-import { IdentityService } from '../services/identity';
-import { SecurityService } from '../services/security';
+import { IdentityService } from './identity';
+import { SecurityService } from './security';
 import { MarkovService } from './markov';
 
 export interface CommandServiceDependencies {
@@ -136,7 +136,7 @@ export class CommandService {
 			const formatTable = helpMessages.join('\n');
 			this.deps.messageService.sendSys(ctx.socket, mType.info, formatTable);
 			return true;
-		};
+		}
 
 		this.commands['nick'] = async (ctx) => {
 			const newNick = ctx.fullArgs
@@ -191,7 +191,7 @@ export class CommandService {
 					return false;
 				}
 			}
-		};
+		}
 
 		this.commands['color'] = (ctx) => {
 			if(!ctx.commandUser){
@@ -218,7 +218,7 @@ export class CommandService {
 				}
 				return false;
 			}
-		};
+		}
 		
 		//anti-canadian trap
 		this.commands['colour'] = (ctx) => {
@@ -262,7 +262,7 @@ export class CommandService {
 					}
 				return false;
 			}
-		};
+		}
 
 		this.commands['afk'] = (ctx) => {
 			if(!ctx.commandUser){
@@ -294,7 +294,7 @@ export class CommandService {
 				}
 				return false;
 			}
-		};
+		}
 
 		this.commands['status'] = (ctx) => {
 			if(!ctx.commandUser){
@@ -321,7 +321,7 @@ export class CommandService {
 				}
 				return false;
 			}
-		};
+		}
 
 		this.commands['gdpr'] = (ctx) => {
 			const subComm = ctx.args[0];
@@ -434,7 +434,7 @@ export class CommandService {
 					this.deps.messageService.sendSys(ctx.socket, mType.error, "system: please use with 'info', 'ip', 'export' or 'delete' after /gdpr");
 					return false;
 			}
-		};
+		}
 
 		this.commands['markov'] = async (ctx) => {
 				if(!this.deps.markovService){
@@ -502,7 +502,7 @@ export class CommandService {
 					this.deps.identityService.setLastMessage(ctx.commandUser.guid, Date.now());
 					return false;
 				}
-		};
+		}
 
 		// ------------------------------------------------------------------
 		// MODERATOR COMMANDS
@@ -531,7 +531,7 @@ export class CommandService {
 				}
 				return false;
 			}
-		};
+		}
 
 		this.commands['ban'] = (ctx) => {
 			if(!ctx.commandUser?.isMod){
@@ -573,7 +573,7 @@ export class CommandService {
 
 			this.deps.messageService.sendSys(ctx.io, mType.info, `${ctx.fullArgs} has been banned.`);
 			return true;
-		};
+		}
 
 		this.commands['timeout'] = (ctx) => {
 			if(!ctx.commandUser?.isMod){
@@ -631,7 +631,7 @@ export class CommandService {
 				}
 				return false; 
 			}
-		};
+		}
 
 		this.commands['delete'] = (ctx) => {
 			if(!ctx.commandUser?.isMod){
@@ -650,7 +650,7 @@ export class CommandService {
 			this.deps.messageService.deleteMessage(ctx.io,delArray);
 
 			return true;
-		};
+		}
 
 		this.commands['emotes'] = async (ctx) => {
 			if(!ctx.commandUser?.isMod){
@@ -682,7 +682,7 @@ export class CommandService {
 				}
 				return false;
 			}
-		};
+		}
 
 		this.commands['unemotes'] = async (ctx) => {
 			if(!ctx.commandUser?.isMod){
@@ -708,7 +708,7 @@ export class CommandService {
 				}
 				return false;
 			}
-		};
+		}
 
 		this.commands['loadusers'] = (ctx) => {
 			if(!ctx.commandUser?.isMod){
@@ -731,7 +731,7 @@ export class CommandService {
 				}
 				return false;
 			}
-		};
+		}
 
 		this.commands['botstatus'] = (ctx) => {
 			if(!this.deps.markovService){
@@ -765,7 +765,7 @@ export class CommandService {
 				}
 				return false;
 			}
-		};
+		}
 		
 		this.commands['botsleep'] = (ctx) => {
 			if(!this.deps.markovService){
@@ -793,7 +793,7 @@ export class CommandService {
 				this.deps.messageService.sendSys(ctx.socket, mType.info, `${markovNick} is awake now. rise and grind`);
 				return true;
 			}
-		};
+		}
 		
 		// ------------------------------------------------------------------
 		// ALIASES

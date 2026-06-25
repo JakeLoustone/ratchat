@@ -3,6 +3,7 @@ import { readFileSync } from "fs";
 import type { Identity, TimeType, TextType } from "../../shared/schema.ts";
 
 import { StateService } from "./state";
+import { textSanitize } from "../utils/sanitize.js";
 
 export type SafeString = string & {__brand: 'SafeString'};
 
@@ -26,7 +27,7 @@ export class ModerationService {
 	}
 
 	public textCheck(raw: string, user: Identity, type: TextType): SafeString{
-		const clean = this.sanitize(raw).trim();
+		const clean = textSanitize(raw).trim();
 		if(type === 'chat'){
 			if(clean.length > this.deps.stateService.getServerConfig().maxMsgLen){
 				throw new Error('sorry your message is too long lmao')
@@ -118,7 +119,7 @@ export class ModerationService {
 	}
 
 	public textCheckNewUser(raw: string, type: TextType): SafeString{
-		const clean = this.sanitize(raw).trim();
+		const clean = textSanitize(raw).trim();
 		if(type === 'nick'){
 			if(clean.length > this.deps.stateService.getServerConfig().maxNickLen || clean.length < 2){
 				throw new Error(`nickname must be between 2 and ${this.deps.stateService.getServerConfig().maxNickLen} characters`);
@@ -153,7 +154,7 @@ export class ModerationService {
 
 		if(lastMessage > now){
 			throw new Error ('ur in timeout rn');
-		};
+		}
 		
 		const config = this.deps.stateService.getServerConfig();
 		const limits: Record<TimeType, number> = {
@@ -168,7 +169,7 @@ export class ModerationService {
 
 		if(waitTime > 0){
 			throw new Error(`you're doing that too fast, wait ${Math.ceil(waitTime)} seconds.`)
-		};
+		}
 
 		return;
 
@@ -176,24 +177,6 @@ export class ModerationService {
 	
 	private toSafeString(str: string): SafeString{
 		return str as SafeString
-	}
-	
-	private sanitize(str: string): string{
-		if(typeof str !== "string"){
-			return "";
-		}
-		try{
-			let s = str;
-
-			s = s.normalize("NFKC");
-			s = s.replace(/<[^>]*>/g, "");
-			s = s.replace(/[^\x20-\x7E]/g, "");
-			
-			return s;
-		}
-		catch(error: unknown){
-			return "";
-		}
 	}
 
 	private nickCheck(nick: string){

@@ -1,20 +1,21 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
-import type { Socket, Server } from "socket.io";
 import { EventEmitter } from "events";
-import crypto from 'crypto';
 
-import type { ServerConfig, Identity, UserSum, MarkovConfig, MiniConfig } from "../../shared/schema.ts";
+import type { Socket, Server } from "socket.io";
+
 import { defaultServerConfig, defaultMarkovConfig, mType, defaultMiniConfig, ServerConfigSchema, MarkovConfigSchema, MiniConfigSchema } from '../../shared/schema';
+import type { ServerConfig, Identity, UserSum, MarkovConfig, MiniConfig } from "../../shared/schema";
 
 import { MessageService } from "./message";
-import type { SafeString } from "./moderation.ts";
+import type { SafeString } from "./moderation";
 
-import { mergeDefaults } from "../utils/defaults.js";
+import { mergeDefaults } from "../utils/defaults";
+import { hashIP } from "../utils/hash";
 
 interface EmoteEntry {
 	name: string;
   	data:{
-    	host:{ 
+		host:{ 
 			url: string;
 		};
   };
@@ -274,18 +275,8 @@ export class StateService {
 		return this.markovSleep;
 	}
 
-	public hashIP(ip: string): string{
-		if(!process.env.IP_PEPPER){
-			console.warn('no pepper set');
-		}
-		const pepper = process.env.IP_PEPPER
-		const hash = crypto.createHash('sha256')
-		hash.update(ip + pepper);
-		return hash.digest('hex');
-	}
-
 	public signupQueue(socket: Socket, nick: SafeString): Promise<boolean> {
-		const hashed = this.hashIP(socket.handshake.address);
+		const hashed = hashIP(socket.handshake.address);
    		this.signupBuffer.set(hashed, { socket, nick });
 
 		return new Promise<boolean>(resolve => {

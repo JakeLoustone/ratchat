@@ -1,14 +1,17 @@
-import { Server } from "socket.io";
 import { readFileSync, existsSync } from "fs";
 import { mkdir, writeFile } from "fs/promises";
 import { dirname } from 'path';
 
-import type { Identity } from "../../shared/schema.ts";
+import { Server } from "socket.io";
+
 import { mType } from "../../shared/schema";
+import type { Identity } from "../../shared/schema.ts";
 
 import { StateService } from "./state";
 import { MessageService } from "./message";
 import { IdentityService } from "./identity";
+
+import { hashIP } from '../utils/hash.js'
 
 export interface SecurityServiceDependencies{
 	stateService: StateService;
@@ -32,7 +35,7 @@ export class SecurityService{
 	
 	public checkBan(unhashed: string): boolean {
 		try{
-			const hash = this.deps.stateService.hashIP(unhashed);
+			const hash = hashIP(unhashed);
 			if(this.bans.has(hash)){
 				return true;
 			}
@@ -70,7 +73,7 @@ export class SecurityService{
 			const sentinelId = { guid: 'RESET_IDENTITY' } as Identity;
 			if(socket){
 				try{
-					const banIP = this.deps.stateService.hashIP(socket?.handshake.address);
+					const banIP = hashIP(socket?.handshake.address);
 					this.bans.set(banIP, new Date());
 
 					this.deps.messageService.send(socket, mType.identity, sentinelId);

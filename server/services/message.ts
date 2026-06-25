@@ -1,22 +1,22 @@
-import { Server, Socket } from 'socket.io';
+import { Server } from 'socket.io';
 
-import type { MessageType, UserSum, Identity, ChatMessage } from '../../shared/schema';
 import { mType } from '../../shared/schema';
+import type { MessageType, UserSum, Identity, ChatMessage } from '../../shared/schema';
 
 type Target = { emit: Server['emit'] };
 type TextPayload = typeof mType.chat | typeof mType.ann | typeof mType.error | typeof mType.info | typeof mType.welcome | typeof mType.markov;
 type MessagePayloadMap = {
-[T in MessageType]: 
-	T extends typeof mType.identity ? Identity :
-	T extends typeof mType.list ? UserSum[] :
-	T extends typeof mType.delmsg ? number[] :
-	T extends typeof mType.emote ? Record<string, string> :
-	ChatMessage;
+	[T in MessageType]: 
+		T extends typeof mType.identity ? Identity :
+		T extends typeof mType.list ? UserSum[] :
+		T extends typeof mType.delmsg ? number[] :
+		T extends typeof mType.emote ? Record<string, string> :
+		ChatMessage;
 };
 
 export interface MessageServiceDependencies {
 
-};
+}
 
 export class MessageService{
 	private deps: MessageServiceDependencies;

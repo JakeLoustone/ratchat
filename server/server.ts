@@ -1,11 +1,11 @@
-import { Server } from 'socket.io';
-import express from 'express';
 import { createServer } from 'http';
 import { join } from 'node:path';
 
+import { Server } from 'socket.io';
+import {default as express} from 'express';
 
-import type { Identity } from '../shared/schema';
 import { mType, tType } from '../shared/schema';
+import type { Identity } from '../shared/schema';
 
 import { MessageService } from './services/message';
 import { StateService } from './services/state';
@@ -14,6 +14,11 @@ import { IdentityService } from './services/identity';
 import { SecurityService } from './services/security';
 import { CommandService } from './services/command';
 import { MarkovService } from './services/markov';
+
+if(!process.env.IP_PEPPER){
+	console.error('FATAL ERROR: IP_PEPPER environment variable is not set.');
+	process.exit(1);
+}
 
 const app = express();
 const httpserver = createServer(app);
@@ -289,7 +294,7 @@ app.get('/ratchat', (req, res) => {
 
 //Health check
 app.get('/ratchat/health', (req, res) => {
-    res.status(200).send('ok');
+	res.status(200).send('ok');
 });
 
 //Server standup

@@ -1,13 +1,17 @@
-import { v4 as uuidv4 } from 'uuid';
 import { readFileSync, existsSync } from 'fs';
 import { mkdir, writeFile } from "fs/promises";
 import { dirname } from 'path';
 
-import { IdentitySchema, type DefaultIdentity, type Identity } from '../../shared/schema'
+import { v4 as uuidv4 } from 'uuid';
 
-import { ModerationService, type SafeString } from './moderation';
+import { IdentitySchema} from '../../shared/schema'
+import type { DefaultIdentity, Identity } from '../../shared/schema'
+
+import { ModerationService } from './moderation';
 import { StateService } from './state';
-import { mergeDefaults } from '../utils/defaults.js';
+import type { SafeString } from './moderation';
+
+import { mergeDefaults } from '../utils/defaults';
 
 export interface IdentityServiceDependencies{
 	moderationService: ModerationService;
@@ -42,7 +46,7 @@ export class IdentityService {
 		this.deps.stateService.events.on("afk-check", guid => {
 			this.toggleAfk(guid); 
 		})
-	};
+	}
 
 	public setNick(guid: string | null, nick: SafeString): Identity{
 		//Returning user flow
@@ -79,7 +83,7 @@ export class IdentityService {
 			guid: newGuid,
 			nick: ('#000000') + nick,
 			...this.buildDefault()
-		};
+		}
 
 		this.users.set(newGuid, newIdentity);
 		this.registeredNicks.set(nick.toLowerCase(), newGuid);
@@ -229,7 +233,7 @@ export class IdentityService {
 				const existingNick = identity.nick.substring(7);
 				this.registeredNicks.set(existingNick.toLowerCase(), guid);
 			}
-			
+			this.saveQueue();
 			return this.users.size;
 		} 
 		catch(error: unknown){
@@ -241,6 +245,7 @@ export class IdentityService {
 				throw new Error("Unexpected error");
 			}
 		}
+
 	}
 
 	private saveQueue(){

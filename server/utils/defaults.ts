@@ -1,50 +1,51 @@
 import type { z } from "zod";
-import type { Config, ConfigSchema, DefaultIdentity, Identity } from "../../shared/schema";
+
 import { IdentitySchema, ServerConfigSchema, MarkovConfigSchema, MiniConfigSchema } from "../../shared/schema";
+import type { Config, ConfigSchema, DefaultIdentity, Identity } from "../../shared/schema";
 
 export function mergeDefaults<T extends Config>(input: unknown, defaults: T, schema: ConfigSchema): T
 export function mergeDefaults(input: unknown, defaults: DefaultIdentity, schema: typeof IdentitySchema): Identity
 export function mergeDefaults(input: unknown, defaults: Config | DefaultIdentity, schema: ConfigSchema | typeof IdentitySchema): Config | Identity {
-    const shape = (schema as z.ZodObject<z.ZodRawShape>).shape;
-    const merged: Record<string, unknown> = {};
+	const shape = (schema as z.ZodObject<z.ZodRawShape>).shape;
+	const merged: Record<string, unknown> = {};
 
-    for(const key of Object.keys(shape)){
-        const fieldSchema = shape[key] as z.ZodTypeAny;
-        const val = (input as Record<string, unknown>)?.[key];
-        const def = (defaults as Record<string, unknown>)[key];
+	for(const key of Object.keys(shape)){
+		const fieldSchema = shape[key] as z.ZodTypeAny;
+		const val = (input as Record<string, unknown>)?.[key];
+		const def = (defaults as Record<string, unknown>)[key];
 
-        const parsed = fieldSchema.safeParse(val);
-        merged[key] = parsed.success ? parsed.data : def;
-    }
+		const parsed = fieldSchema.safeParse(val);
+		merged[key] = parsed.success ? parsed.data : def;
+	}
 
-    try{
-        return validateMerge(merged, schema);
-    } 
-    catch(error: unknown){
-        if(error instanceof Error){
-            throw new Error(`mergeDefaults validation failed: ${error.message}`);
-        } 
-        else{
-            console.warn("Unexpected error", error);
-            throw new Error("Unexpected error")
-        }
-    }
+	try{
+		return validateMerge(merged, schema);
+	} 
+	catch(error: unknown){
+		if(error instanceof Error){
+			throw new Error(`mergeDefaults validation failed: ${error.message}`);
+		} 
+		else{
+			console.warn("Unexpected error", error);
+			throw new Error("Unexpected error")
+		}
+	}
 }
 
 function validateMerge(input: Record<string, unknown>, schema: ConfigSchema | typeof IdentitySchema): Config | Identity {
-    if(schema === IdentitySchema){
-        return IdentitySchema.parse(input);
-    } 
-    else if(schema === ServerConfigSchema){
-        return ServerConfigSchema.parse(input);
-    } 
-    else if(schema === MarkovConfigSchema){
-        return MarkovConfigSchema.parse(input);
-    } 
-    else if(schema === MiniConfigSchema){
-        return MiniConfigSchema.parse(input);
-    } 
-    else{
-        throw new Error("unknown merge schema");
-    }
+	if(schema === IdentitySchema){
+		return IdentitySchema.parse(input);
+	} 
+	else if(schema === ServerConfigSchema){
+		return ServerConfigSchema.parse(input);
+	} 
+	else if(schema === MarkovConfigSchema){
+		return MarkovConfigSchema.parse(input);
+	} 
+	else if(schema === MiniConfigSchema){
+		return MiniConfigSchema.parse(input);
+	} 
+	else{
+		throw new Error("unknown merge schema");
+	}
 }

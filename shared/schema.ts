@@ -2,15 +2,15 @@ import{Server, Socket} from 'socket.io';
 import{z} from 'zod';
 
 export const IdentitySchema = z.object({
-    guid: z.string(),
-    nick: z.string(),
-    status: z.string(),
-    lastMessage: z.coerce.date(),
-    lastChanged: z.coerce.date(),
-    isMod: z.boolean(),
-    isAfk: z.boolean(),
-    miniMute: z.boolean(),
-    miniPoints: z.number()
+	guid: z.string(),
+	nick: z.string(),
+	status: z.string(),
+	lastMessage: z.coerce.date(),
+	lastChanged: z.coerce.date(),
+	isMod: z.boolean(),
+	isAfk: z.boolean(),
+	miniMute: z.boolean(),
+	miniPoints: z.number()
 });
 export type Identity = z.infer<typeof IdentitySchema>;
 export type DefaultIdentity = Omit<Identity, "guid" | "nick">
@@ -64,20 +64,20 @@ export interface Command {
 }
 
 export const ServerConfigSchema = z.object({
-    welcomeMsg: z.string(),
-    slowMode: z.number(),
-    nickSlow: z.number(),
-    otherSlow: z.number(),
-    timeoutDef: z.number(),
-    afkDef: z.number(),
-    signupTime: z.number(),
-    maxMsgLen: z.number(),
-    maxNickLen: z.number(),
-    maxStatusLen: z.number(),
-    msgArrayLen: z.number(),
-    stvurl: z.string().optional(),
-    nickres: z.array(z.string()),
-    PORT: z.number()
+	welcomeMsg: z.string(),
+	slowMode: z.number(),
+	nickSlow: z.number(),
+	otherSlow: z.number(),
+	timeoutDef: z.number(),
+	afkDef: z.number(),
+	signupTime: z.number(),
+	maxMsgLen: z.number(),
+	maxNickLen: z.number(),
+	maxStatusLen: z.number(),
+	msgArrayLen: z.number(),
+	stvurl: z.string().optional(),
+	nickres: z.array(z.string()),
+	PORT: z.number()
 });
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 export const defaultServerConfig: ServerConfig = {
@@ -98,13 +98,13 @@ export const defaultServerConfig: ServerConfig = {
 }
 
 export const MarkovConfigSchema = z.object({
-    enabled: z.boolean(),
-    learning: z.boolean(),
-    nick: z.string(),
-    color: z.string(),
-    status: z.string(),
-    cooldown: z.number(),
-    timer: z.number()
+	enabled: z.boolean(),
+	learning: z.boolean(),
+	nick: z.string(),
+	color: z.string(),
+	status: z.string(),
+	cooldown: z.number(),
+	timer: z.number()
 });
 export type MarkovConfig = z.infer<typeof MarkovConfigSchema>;
 export const defaultMarkovConfig: MarkovConfig = {
@@ -118,16 +118,16 @@ export const defaultMarkovConfig: MarkovConfig = {
 }
 
 export const MiniConfigSchema = z.object({
-    enabled: z.boolean(),
-    pointDefault: z.number(),
-    pointMax: z.number(),
-    pointName: z.string(),
-    horseRacing: z.boolean(),
-    raceFrequency: z.number(),
-    dueling: z.boolean(),
-    duelingChallenge: z.boolean(),
-    blackjack: z.boolean(),
-    fishing: z.boolean()
+	enabled: z.boolean(),
+	pointDefault: z.number(),
+	pointMax: z.number(),
+	pointName: z.string(),
+	horseRacing: z.boolean(),
+	raceFrequency: z.number(),
+	dueling: z.boolean(),
+	duelingChallenge: z.boolean(),
+	blackjack: z.boolean(),
+	fishing: z.boolean()
 });
 export type MiniConfig = z.infer<typeof MiniConfigSchema>;
 export const defaultMiniConfig: MiniConfig ={

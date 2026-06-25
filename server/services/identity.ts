@@ -12,6 +12,7 @@ import { StateService } from './state';
 import type { SafeString } from './moderation';
 
 import { mergeDefaults } from '../utils/defaults';
+import { getDisplayNick, getDisplayColor } from '../utils/format';
 
 export interface IdentityServiceDependencies{
 	moderationService: ModerationService;
@@ -39,7 +40,7 @@ export class IdentityService {
 				console.log('user error load:', error.message);
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 			}
 		}
 		
@@ -52,7 +53,7 @@ export class IdentityService {
 		//Returning user flow
 		if(guid && this.users.has(guid)){
 			const user = this.users.get(guid)!;
-			const oldNick = user.nick.substring(7);
+			const oldNick = getDisplayNick(user.nick);
 
 			if(nick === oldNick){
 				throw new Error("that's already your name silly")
@@ -66,7 +67,7 @@ export class IdentityService {
 			this.registeredNicks.delete(oldNick.toLowerCase());
 			this.registeredNicks.set(nick.toLowerCase(), guid);
 
-			const color = user.nick.substring(0,7)
+			const color = getDisplayColor(user.nick);
 			user.nick = color + nick;
 			user.lastChanged = new Date();
 			this.saveQueue();
@@ -94,7 +95,7 @@ export class IdentityService {
 
 	public setColor(guid: string, color: SafeString): Identity{
 		const user = this.users.get(guid)!;
-		user.nick = color.toUpperCase() + user.nick.substring(7)
+		user.nick = color.toUpperCase() + getDisplayNick(user.nick)
 		user.lastChanged = new Date();
 		this.saveQueue();
 		return user;
@@ -173,7 +174,7 @@ export class IdentityService {
 		if(!user){
 			throw new Error('delete user: no matching user found to GUID')
 		}
-		const cleanNick = user.nick.substring(7);
+		const cleanNick = getDisplayNick(user.nick);
 		this.registeredNicks.delete(cleanNick.toLowerCase());
 		this.users.delete(guid);
 		this.saveQueue();
@@ -186,10 +187,10 @@ export class IdentityService {
 		}
 		catch(error: unknown){
 			if(error instanceof Error){
-				throw new Error(error.message);
+				throw error
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 				throw new Error("Unexpected error");
 			}
 		}
@@ -230,7 +231,7 @@ export class IdentityService {
 
 				this.users.set(guid, identity);
 
-				const existingNick = identity.nick.substring(7);
+				const existingNick = getDisplayNick(identity.nick);
 				this.registeredNicks.set(existingNick.toLowerCase(), guid);
 			}
 			this.saveQueue();
@@ -238,10 +239,10 @@ export class IdentityService {
 		} 
 		catch(error: unknown){
 			if(error instanceof Error){
-				throw new Error(error.message);
+				throw error
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 				throw new Error("Unexpected error");
 			}
 		}
@@ -263,10 +264,10 @@ export class IdentityService {
 		} 
 		catch(error: unknown){
 			if(error instanceof Error){			
-				console.warn('failed to save user data', `${error.message}`);
+				console.error('failed to save user data', `${error.message}`);
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 			}
 		}
 	}

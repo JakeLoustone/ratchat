@@ -3,7 +3,7 @@ type Weight = number;
 export type WeightedMap = Map<Candidate, Weight>;
 
 export function weightedRandom(candidates: WeightedMap): Candidate {
-    const firstEntry = candidates.keys().next().value;
+	const firstEntry = candidates.keys().next().value;
 	if(!firstEntry){
 		throw new Error ('No candidates for weighted selection')
 	}
@@ -14,13 +14,13 @@ export function weightedRandom(candidates: WeightedMap): Candidate {
 	}
 
 	let range = Math.random() * total;
-    let currentCandidate: Candidate = firstEntry
+	let currentCandidate: Candidate = firstEntry
 
 	for (const [candidate, weight] of candidates) {
 		range -= weight;
 		if (range <= 0) return candidate;
-        currentCandidate = candidate;
+		currentCandidate = candidate;
 	}
 
-    return currentCandidate;
+	return currentCandidate;
 }

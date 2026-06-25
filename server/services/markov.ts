@@ -11,6 +11,7 @@ import { ModerationService } from './moderation';
 import { IdentityService } from './identity';
 
 import { WeightedMap, weightedRandom } from '../utils/random';
+import { getDisplayNick } from '../utils/format';
 
 type Neuron = {
 	table: string;
@@ -47,10 +48,10 @@ export class MarkovService{
 		}
 		catch(error: unknown){
 			if(error instanceof Error){
-				console.warn('markov load error:', error.message);
+				console.error('markov load error:', error.message);
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 			}
 		}
 		this.markovTimer(this.deps.io);
@@ -73,7 +74,7 @@ export class MarkovService{
 				const seedLow = seed.toLowerCase();
 
 				if(!this.dictionary.has(seedLow)){
-					throw new Error(`${markovUser.nick.substring(7)} don't know nothin about '${seed}'`);
+					throw new Error(`${getDisplayNick(markovUser.nick)} don't know nothin about '${seed}'`);
 				}
 
 				let letter = seedLow[0].toUpperCase();
@@ -81,7 +82,7 @@ export class MarkovService{
 				const candidates = await this.loadNeuron(letter, seedLow);
 
 				if(candidates.length === 0){
-					throw new Error(`${markovUser.nick.substring(7)} don't know nothin about '${seed}'`);
+					throw new Error(`${getDisplayNick(markovUser.nick)} don't know nothin about '${seed}'`);
 				}
 
 				const weightMap: WeightedMap = new Map(
@@ -150,14 +151,14 @@ export class MarkovService{
 			catch(error: unknown){
 				if(error instanceof Error){
    					if(error.message === "watch your profamity"){
-						this.deps.messageService.sendSys(io, mType.ann, `${markovUser.nick.substring(7)} tried to say something naughty`);
+						this.deps.messageService.sendSys(io, mType.ann, `${getDisplayNick(markovUser.nick)} tried to say something naughty`);
 					}
 					else{
 						continue;
 					}
 				}
 				else{
-					console.warn("Unexpected error", error);
+					console.error("Unexpected non-error thrown:", error);
 					continue;
 				}
 			}
@@ -245,7 +246,7 @@ export class MarkovService{
 					console.warn('markov timer error:', error.message);
 				}
 				else{
-					console.warn('Unexpected error:', error);
+					console.error("Unexpected non-error thrown:", error);
 				}
 			}
 		}, this.deps.stateService.getMarkovConfig().timer*1000);
@@ -282,6 +283,7 @@ export class MarkovService{
 		}
 		catch(error: unknown){
 			this.db.exec("ROLLBACK");
+			console.error('Markov Neuron save error', error);
 		}
 	}
 
@@ -408,7 +410,7 @@ export class MarkovService{
 					console.warn(`Error reading table ${table}:`, error.message);
 				} 
 				else{
-					console.warn("Unexpected error", error);
+					console.error("Unexpected non-error thrown:", error);
 				}
 			}
 		}

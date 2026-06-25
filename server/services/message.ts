@@ -3,6 +3,8 @@ import { Server } from 'socket.io';
 import { mType } from '../../shared/schema';
 import type { MessageType, UserSum, Identity, ChatMessage } from '../../shared/schema';
 
+import { getDisplayNick } from '../utils/format';
+
 type Target = { emit: Server['emit'] };
 type TextPayload = typeof mType.chat | typeof mType.ann | typeof mType.error | typeof mType.info | typeof mType.welcome | typeof mType.markov;
 type MessagePayloadMap = {
@@ -45,7 +47,7 @@ export class MessageService{
 	}
 
 	public sendMarkov(to: Target, text: string, markov: Identity, user: Identity, seed?: string){
-		const payload = `${user.nick.substring(7)}|${seed}|${text}`
+		const payload = `${getDisplayNick(user.nick)}|${seed}|${text}`;
 		this.send(to, mType.markov, this.createMessage(false,markov, payload, mType.markov))
 	}
 	

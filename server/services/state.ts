@@ -11,6 +11,8 @@ import type { SafeString } from "./moderation";
 
 import { mergeDefaults } from "../utils/defaults";
 import { hashIP } from "../utils/hash";
+import { getDisplayNick } from "../utils/format";
+import { isValid7TVID } from "../utils/input";
 
 interface EmoteEntry {
 	name: string;
@@ -98,10 +100,8 @@ export class StateService {
 		if(!targetID){
 			throw new Error('no emote url in config')
 		}
-		
-		const isValidId = /^[a-z0-9_-]{17,31}$/i.test(targetID);
-		
-		if(!isValidId){
+				
+		if(!isValid7TVID(targetID)){
 			throw new Error("doesn't look like a 7tv emote set ID")
 		}
 		
@@ -133,7 +133,7 @@ export class StateService {
 				throw new Error(`failed to fetch emotes: ${error.message}`);
 			}
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 				throw new Error("Unknown error")
 			}
 		}
@@ -144,8 +144,7 @@ export class StateService {
 			throw new Error('please provide a target emote setID to remove');
 		}
 
-		const isValidId = /^[a-z0-9_-]{17,31}$/i.test(setID);		
-		if(!isValidId){
+		if(!isValid7TVID(setID)){
 			throw new Error("doesn't look like a 7tv emote url")
 		}
 
@@ -178,7 +177,7 @@ export class StateService {
 				throw new Error(`failed to fetch emotes: ${error.message}`);
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 				throw new Error("Unknown error")
 			}
 		}
@@ -215,7 +214,7 @@ export class StateService {
 			if(a.isMod !== b.isMod){
 				return a.isMod ? -1 : 1;
 			}
-				return a.nick.substring(7).localeCompare(b.nick.substring(7), 'en', {sensitivity: 'base'});
+				return getDisplayNick(a.nick).localeCompare(getDisplayNick(b.nick), 'en', {sensitivity: 'base'});;
 			});
 		
 		const lurkers = io.sockets.sockets.size - this.socketUsers.size;
@@ -276,16 +275,26 @@ export class StateService {
 	}
 
 	public signupQueue(socket: Socket, nick: SafeString): Promise<boolean> {
-		const hashed = hashIP(socket.handshake.address);
-   		this.signupBuffer.set(hashed, { socket, nick });
-
-		return new Promise<boolean>(resolve => {
+	return new Promise<boolean>((resolve, reject) => {
+		try {
+			const hashed = hashIP(socket.handshake.address);
+			this.signupBuffer.set(hashed, { socket, nick });
 			this.signupPromise.set(socket, resolve);
 			if(!this.signupTimer){
 				this.signupTimer = setTimeout(() => this.returnQueue(), this.serverConfig.signupTime * 1000);
 			}
-		});
-	}
+		}
+		catch(error: unknown) {
+			if(error instanceof Error){
+				reject(error);
+			}
+			else{
+				console.error("Unexpected non-error thrown:", error);
+				reject(new Error("Unknown error"));
+			}
+		}
+	});
+}
 
 	private returnQueue(){
 		const queue = Array.from(this.signupBuffer.values());
@@ -315,10 +324,10 @@ export class StateService {
 		}
  		catch(error: unknown){
 			if(error instanceof Error){
-				console.warn(`server config load error: ${error.message}`);
+				console.error(`server config load error: ${error.message}`);
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 			}
 
 		}
@@ -328,10 +337,10 @@ export class StateService {
 		}
 		catch(error: unknown){
 			if(error instanceof Error){
-				console.warn(`server config merge error: ${error.message}`);
+				console.error(`server config merge error: ${error.message}`);
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 			}
 		}
 
@@ -354,10 +363,10 @@ export class StateService {
 		}
  		catch(error: unknown){
 			if(error instanceof Error){
-				console.warn(`markov config load error: ${error.message}`);
+				console.error(`markov config load error: ${error.message}`);
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 			}
 		}
 
@@ -366,10 +375,10 @@ export class StateService {
 		}
 		catch(error: unknown){
 			if(error instanceof Error){
-				console.warn(`markov config merge error: ${error.message}`);
+				console.error(`markov config merge error: ${error.message}`);
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 			}
 		}
 
@@ -409,10 +418,10 @@ export class StateService {
 		}
  		catch(error: unknown){
 			if(error instanceof Error){
-				console.warn(`mini config load error: ${error.message}`);
+				console.error(`mini config load error: ${error.message}`);
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 			}
 		}
 
@@ -421,10 +430,10 @@ export class StateService {
 		}
 		catch(error: unknown){
 			if(error instanceof Error){
-				console.warn(`mini config merge error: ${error.message}`);
+				console.error(`mini config merge error: ${error.message}`);
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 			}
 		}
 		Object.freeze(this.miniConfig);

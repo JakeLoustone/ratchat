@@ -45,10 +45,10 @@ export class SecurityService{
 		}
 		catch(error: unknown){
 			if(error instanceof Error){
-				throw new Error(error.message);
+				throw error
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 				throw new Error("Unknown error")
 			}
 		}
@@ -83,11 +83,11 @@ export class SecurityService{
 				}
 				catch(error: unknown){
 					if(error instanceof Error){
-						console.warn('HASH ERROR:', error.message)
-						throw new Error(error.message);
+						console.error('HASH ERROR:', error.message)
+						throw error;
 					} 
 					else{
-						console.warn("Unexpected error", error);
+						console.error("Unexpected non-error thrown:", error);
 						throw new Error("Unknown error")
 					}
 				}
@@ -116,10 +116,10 @@ export class SecurityService{
 		} 
 		catch(error: unknown){
 			if(error instanceof Error){
-				console.warn('Failed to load ban data', `${error.message}`);
+				console.error('WARNING: Failed to load ban data: ', `${error.message}`);
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 			}
 
 		}
@@ -140,12 +140,10 @@ export class SecurityService{
 		}
 		catch(error: unknown){
 			if(error instanceof Error){
-				console.warn("failed to save user data", error.message);
-				throw new Error(error.message);
+				console.error("WARNING: failed to save ban user data: ", error.message);
 			} 
 			else{
-				console.warn("Unexpected error", error);
-				throw new Error("Unknown error")
+				console.error("Unexpected non-error thrown:", error);
 			}
 		}
 	}

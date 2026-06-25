@@ -15,6 +15,8 @@ import { SecurityService } from './services/security';
 import { CommandService } from './services/command';
 import { MarkovService } from './services/markov';
 
+import { getDisplayNick } from './utils/format';
+
 if(!process.env.IP_PEPPER){
 	console.error('FATAL ERROR: IP_PEPPER environment variable is not set.');
 	process.exit(1);
@@ -103,10 +105,10 @@ io.on('connection', (socket) => {
 	}
 	catch(error: unknown){
 		if(error instanceof Error){
-			console.warn(error.message);
+			console.error(error.message);
 		} 
 		else{
-			console.warn("Unexpected error", error);
+			console.error("Unexpected non-error thrown:", error);
 		}
 	}
 
@@ -136,17 +138,17 @@ io.on('connection', (socket) => {
 	} 
 	catch(error: unknown){
 		if(error instanceof Error){
-			console.warn(error.message);
+			//swallowed, expected new user flow
 		} 
 		else{
-			console.warn("Unexpected error", error);
+			console.error("Unexpected non-error thrown:", error);
 		}
 	}
 
 	if(returningUser){
 		stateService.updateSocketUser(io, socket.id, returningUser);
 		messageService.send(socket, mType.identity, returningUser);
-		messageService.sendSys(socket, mType.info, `welcome back, ${returningUser.nick.substring(7)}`);
+		messageService.sendSys(socket, mType.info, `welcome back, ${getDisplayNick(returningUser.nick)}`);
 		
 		let scount = 0
 		for (const [, u] of stateService.getSocketUsers()){
@@ -155,10 +157,16 @@ io.on('connection', (socket) => {
 		if(scount === 1){
 			try{
 				const broadcast = moderationService.timeCheck(returningUser, tType.joinleave);
-				messageService.sendSys(io.except(socket.id), mType.ann,`${returningUser.nick.substring(7)} connected`);
+				messageService.sendSys(io.except(socket.id), mType.ann,`${getDisplayNick(returningUser.nick)} connected`);
 				identityService.setLastMessage(returningUser.guid, Date.now(), false);
 			}
 			catch(error: unknown){
+				if(error instanceof Error){
+					//swallowing to prevent join/leave spam
+				}
+				else{
+					console.error("Unexpected non-error thrown:", error);
+				}
 			}
 		}
 	} 
@@ -194,7 +202,7 @@ io.on('connection', (socket) => {
 					return;
 				}
 				else{
-					console.warn("Unexpected error", error);
+					console.error("Unexpected non-error thrown:", error);
 				}
 			}
 		}
@@ -219,8 +227,13 @@ io.on('connection', (socket) => {
 						markovService!.markovLearn(safe)
 					}
 					catch(error: unknown){
-						
-					}
+						if(error instanceof Error){
+							console.warn('markov learning error:', error.message);
+						}
+						else{
+							console.error("Unexpected non-error thrown:", error);
+						}
+					}	
 				});
 			}
 
@@ -234,11 +247,11 @@ io.on('connection', (socket) => {
 			catch(error: unknown){
 				if(error instanceof Error){
 					console.warn(error.message);
-					throw new Error(error.message)
+					throw error;
 				} 
 				else{
-					console.warn("Unexpected error", error);
-					throw new Error("Unexpected error")
+					console.error("Unexpected non-error thrown:", error);
+					throw new Error("Unexpected error");
 				}
 
 			}
@@ -252,7 +265,7 @@ io.on('connection', (socket) => {
 				messageService.sendSys(socket, mType.error, `system: ${error.message}`)
 			} 
 			else{
-				console.warn("Unexpected error", error);
+				console.error("Unexpected non-error thrown:", error);
 			}
 			return;
 		}
@@ -272,10 +285,16 @@ io.on('connection', (socket) => {
 			if(scount === 0){
 				try{
 					moderationService.timeCheck(disuser, tType.joinleave);
-					messageService.sendSys(io, mType.ann, `${disuser.nick.substring(7)} disconnected`);
+					messageService.sendSys(io, mType.ann, `${getDisplayNick(disuser.nick)} disconnected`);
 					identityService.setLastMessage(disuser.guid, Date.now());
 				}
 				catch(error: unknown){
+					if(error instanceof Error){
+						//swallowing to prevent join/leave spam
+					}
+					else{
+						console.error("Unexpected non-error thrown:", error);
+					}
 				}
 			}
 		}
@@ -315,7 +334,7 @@ async function startUp(){
 			console.warn(`startup emotes failed: ${error.message}`);
 		} 
 		else{
-			console.warn("Unexpected error", error);
+			console.error("Unexpected non-error thrown:", error);
 		}
 	}
 }
@@ -323,12 +342,12 @@ startUp();
 
 process.on('uncaughtException', err => {
 	const now = new Date();
-	console.log(`Uncaught exception timestamp: ${now.toLocaleString()} error:`, err);
+	console.error(`Uncaught exception timestamp: ${now.toLocaleString()} error:`, err);
 });
 
 process.on('unhandledRejection', err => {
 	const now = new Date();
-	console.log(`Unhandled rejection timestamp: ${now.toLocaleString()} error:`, err);
+	console.error(`Unhandled rejection timestamp: ${now.toLocaleString()} error:`, err);
 });
 
 process.on('SIGTERM', () => {

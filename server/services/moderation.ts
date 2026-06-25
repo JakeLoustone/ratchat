@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import type { Identity, TimeType, TextType } from "../../shared/schema.ts";
 
 import { StateService } from "./state";
-import { textSanitize } from "../utils/sanitize.js";
+import { textSanitize, isValidHexColor } from "../utils/input.js";
 
 export type SafeString = string & {__brand: 'SafeString'};
 
@@ -44,7 +44,7 @@ export class ModerationService {
 					throw new Error(error.message);
 				} 
 				else{
-					console.warn("Unexpected error", error);
+					console.error("Unexpected non-error thrown:", error);
 					throw new Error("Unknown error")
 				}
 			}
@@ -64,7 +64,7 @@ export class ModerationService {
 					throw new Error(error.message);
 				} 
 				else{
-					console.warn("Unexpected error", error);
+					console.error("Unexpected non-error thrown:", error);
 					throw new Error("Unknown error")
 				}
 			}
@@ -87,7 +87,7 @@ export class ModerationService {
 					throw new Error(error.message);
 				} 
 				else{
-					console.warn("Unexpected error", error);
+					console.error("Unexpected non-error thrown:", error);
 					throw new Error("Unknown error")
 				}
 			}
@@ -95,18 +95,20 @@ export class ModerationService {
 			return safe;
 		}
 		else if(type === 'color'){
-			if(!/^#[0-9A-F]{6}$/i.test(clean)){
+
+			if(!isValidHexColor(clean)){
 				throw new Error('invalid hex code. please use format #RRGGBB');
 			}
+
 			try{
-				this.timeCheck(user, 'other')
+				this.timeCheck(user, 'other');
 			}
 			catch(error: unknown){
 				if(error instanceof Error){
 					throw new Error(error.message);
 				} 
 				else{
-					console.warn("Unexpected error", error);
+					console.error("Unexpected non-error thrown:", error);
 					throw new Error("Unknown error")
 				}
 			}
@@ -135,7 +137,7 @@ export class ModerationService {
 					throw new Error(error.message);
 				} 
 				else{
-					console.warn("Unexpected error", error);
+					console.error("Unexpected non-error thrown:", error);
 					throw new Error("Unknown error")
 				}
 			}

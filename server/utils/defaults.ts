@@ -26,7 +26,7 @@ export function mergeDefaults(input: unknown, defaults: Config | DefaultIdentity
 			throw new Error(`mergeDefaults validation failed: ${error.message}`);
 		} 
 		else{
-			console.warn("Unexpected error", error);
+			console.error("Unexpected non-error thrown:", error);
 			throw new Error("Unexpected error")
 		}
 	}

@@ -27,11 +27,11 @@ export class MessageService{
 		  this.deps = dependencies;
 	}
 
-	public send<T extends MessageType>(to: Target, metype: T, msg: MessagePayloadMap[T]) {
+	public send<T extends MessageType>(to: Target, metype: T, msg: MessagePayloadMap[T]){
 		to.emit(metype, msg);
 	}
 
-	public sendSys(to: Target, type: TextPayload, text: string) {
+	public sendSys(to: Target, type: TextPayload, text: string){
 		this.send(to, type, this.createMessage(true,'system',text, type));
 	}
 
@@ -70,7 +70,7 @@ export class MessageService{
 	private updateChatHistory(configSize: number){
 		while (this.chatHistory.size > configSize){
 			const oldestMessage = this.chatHistory.keys().next().value;
-			if (oldestMessage !== undefined) {
+			if(oldestMessage !== undefined){
 				this.chatHistory.delete(oldestMessage);
 			}
 		}

@@ -20,7 +20,7 @@ export class ModerationService {
 	private nickFilter: RegExp[] = [];
 
 
-	constructor(dependencies: ModerationServiceDependencies) {
+	constructor(dependencies: ModerationServiceDependencies){
 		this.deps = dependencies;
 		this.loadFilters(); 
 	}
@@ -28,7 +28,7 @@ export class ModerationService {
 	public textCheck(raw: string, user: Identity, type: TextType): SafeString{
 		const clean = this.sanitize(raw).trim();
 		if(type === 'chat'){
-			if(clean.length > this.deps.stateService.getConfig().maxMsgLen){
+			if(clean.length > this.deps.stateService.getServerConfig().maxMsgLen){
 				throw new Error('sorry your message is too long lmao')
 			}
 			if(clean.length < 1){
@@ -38,39 +38,57 @@ export class ModerationService {
 				this.profCheck(clean);
 				this.timeCheck(user, 'chat')
 			}
-			catch(e: any){
-				throw new Error(e.message);
+			catch(error: unknown){
+				if(error instanceof Error){
+					throw new Error(error.message);
+				} 
+				else{
+					console.warn("Unexpected error", error);
+					throw new Error("Unknown error")
+				}
 			}
 			const safe = this.toSafeString(clean)
 			return safe;
 		}
 		else if(type === 'status'){
-			if(clean.length > this.deps.stateService.getConfig().maxStatusLen){
+			if(clean.length > this.deps.stateService.getServerConfig().maxStatusLen){
 				throw new Error('tl;dr - set something shorter')
 			}
 			try{
 				this.profCheck(clean);
 				this.timeCheck(user, 'other')
 			}
-			catch(e: any){
-				throw new Error(e.message);
+			catch(error: unknown){
+				if(error instanceof Error){
+					throw new Error(error.message);
+				} 
+				else{
+					console.warn("Unexpected error", error);
+					throw new Error("Unknown error")
+				}
 			}
 			const safe = this.toSafeString(clean)
 			return safe;
 		}
 		else if(type === 'nick'){
-			if(clean.length > this.deps.stateService.getConfig().maxNickLen || clean.length < 2){
-				throw new Error(`nickname must be between 2 and ${this.deps.stateService.getConfig().maxNickLen} characters`);
+			if(clean.length > this.deps.stateService.getServerConfig().maxNickLen || clean.length < 2){
+				throw new Error(`nickname must be between 2 and ${this.deps.stateService.getServerConfig().maxNickLen} characters`);
 			}
-			if (/\s/.test(clean)) {
+			if(/\s/.test(clean)){
 				throw new Error('no spaces in usernames');
 			}
 			try{
 				this.nickCheck(clean);
 				this.timeCheck(user, 'nick')
 			}
-			catch(e: any){
-				throw new Error(e.message);
+			catch(error: unknown){
+				if(error instanceof Error){
+					throw new Error(error.message);
+				} 
+				else{
+					console.warn("Unexpected error", error);
+					throw new Error("Unknown error")
+				}
 			}
 			const safe = this.toSafeString(clean)
 			return safe;
@@ -82,8 +100,14 @@ export class ModerationService {
 			try{
 				this.timeCheck(user, 'other')
 			}
-			catch(e: any){
-				throw new Error(e.message);
+			catch(error: unknown){
+				if(error instanceof Error){
+					throw new Error(error.message);
+				} 
+				else{
+					console.warn("Unexpected error", error);
+					throw new Error("Unknown error")
+				}
 			}
 			const safe = this.toSafeString(clean)
 			return safe;
@@ -96,17 +120,23 @@ export class ModerationService {
 	public textCheckNewUser(raw: string, type: TextType): SafeString{
 		const clean = this.sanitize(raw).trim();
 		if(type === 'nick'){
-			if(clean.length > this.deps.stateService.getConfig().maxNickLen || clean.length < 2){
-				throw new Error(`nickname must be between 2 and ${this.deps.stateService.getConfig().maxNickLen} characters`);
+			if(clean.length > this.deps.stateService.getServerConfig().maxNickLen || clean.length < 2){
+				throw new Error(`nickname must be between 2 and ${this.deps.stateService.getServerConfig().maxNickLen} characters`);
 			}
-			if (/\s/.test(clean)) {
+			if(/\s/.test(clean)){
 				throw new Error('no spaces in usernames');
 			}
 			try{
 				this.nickCheck(clean);
 			}
-			catch(e: any){
-				throw new Error(e.message);
+			catch(error: unknown){
+				if(error instanceof Error){
+					throw new Error(error.message);
+				} 
+				else{
+					console.warn("Unexpected error", error);
+					throw new Error("Unknown error")
+				}
 			}
 			const safe = this.toSafeString(clean)
 			return safe;
@@ -125,7 +155,7 @@ export class ModerationService {
 			throw new Error ('ur in timeout rn');
 		};
 		
-		const config = this.deps.stateService.getConfig();
+		const config = this.deps.stateService.getServerConfig();
 		const limits: Record<TimeType, number> = {
 			chat: config.slowMode * 1000,
 			nick: config.nickSlow * 1000,
@@ -136,7 +166,7 @@ export class ModerationService {
 		const last = type === "chat" || type === "joinleave" ? lastMessage : lastChanged;
 		const waitTime = ((last + limits[type]) - now) /1000
 
-		if (waitTime > 0){
+		if(waitTime > 0){
 			throw new Error(`you're doing that too fast, wait ${Math.ceil(waitTime)} seconds.`)
 		};
 
@@ -161,7 +191,7 @@ export class ModerationService {
 			
 			return s;
 		}
-		catch{
+		catch(error: unknown){
 			return "";
 		}
 	}
@@ -169,7 +199,7 @@ export class ModerationService {
 	private nickCheck(nick: string){
 		
 		const matched = this.nickFilter.find(regex => regex.test(nick));
-		if (matched){
+		if(matched){
 			console.log(`nick filter "${nick}" because it matched pattern: ${matched}`);
 			throw new Error(`can't be named that`);
 		}
@@ -180,7 +210,7 @@ export class ModerationService {
 	private profCheck(str: string){
 		
 		const matched = this.profFilter.find(regex => regex.test(str));
-		if (matched){
+		if(matched){
 			console.log(`prof filter "${str}" because it matched pattern: ${matched}`)
 			throw new Error('watch your profamity')
 		}
@@ -188,8 +218,8 @@ export class ModerationService {
 		return;
 	}
 
-	private loadFilters() {
-		try {
+	private loadFilters(){
+		try{
 			const nickLoad = JSON.parse(readFileSync(this.deps.nickFilterPath, 'utf-8')).usernames || [];
 			const profLoad = JSON.parse(readFileSync(this.deps.profFilterPath, 'utf-8'));
 			this.profFilter = Array.isArray(profLoad)
@@ -201,7 +231,7 @@ export class ModerationService {
 							return regex;
 						})
 				: [];
-			const configLoad = [...(this.deps.stateService.getConfig().nickres || [])];
+			const configLoad = [...(this.deps.stateService.getServerConfig().nickres || [])];
 			if(this.deps.stateService.getMarkovConfig().enabled && this.deps.stateService.markovUser){
 				configLoad.push(`^${this.deps.stateService.markovUser.nick}$`)
 			}
@@ -212,7 +242,8 @@ export class ModerationService {
 				...nickFilter.map(pattern => new RegExp(pattern, 'i')),
 				...this.profFilter
 			];
-		} catch (e) {
+		} 
+		catch(error: unknown){
 			console.log('nick filter load issue');
 			this.nickFilter = [];
 		}

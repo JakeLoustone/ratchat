@@ -40,8 +40,14 @@ export class SecurityService{
 				return false;
 			}
 		}
-		catch(e: any){
-			throw new Error (e.message);
+		catch(error: unknown){
+			if(error instanceof Error){
+				throw new Error(error.message);
+			} 
+			else{
+				console.warn("Unexpected error", error);
+				throw new Error("Unknown error")
+			}
 		}
 	}
 
@@ -72,9 +78,15 @@ export class SecurityService{
 					this.deps.stateService.deleteSocketUser(this.deps.io, sid);
 					socket.disconnect(true);
 				}
-				catch(e: any){
-					console.warn('HASH ERROR:', e.message);
-					throw new Error(e.message);
+				catch(error: unknown){
+					if(error instanceof Error){
+						console.warn('HASH ERROR:', error.message)
+						throw new Error(error.message);
+					} 
+					else{
+						console.warn("Unexpected error", error);
+						throw new Error("Unknown error")
+					}
 				}
 			}
 			else{
@@ -86,9 +98,9 @@ export class SecurityService{
 		this.saveQueue();
 	}
 
-	private loadBans() {
-		try {
-			if (!existsSync(this.deps.bansPath)) {
+	private loadBans(){
+		try{
+			if(!existsSync(this.deps.bansPath)){
 				return;
 			}
 
@@ -99,12 +111,18 @@ export class SecurityService{
 
 			console.log(`loaded ${this.bans.size} bans`);
 		} 
-		catch (e: any) {
-			console.log('Failed to load ban data', `${e.message}`);
+		catch(error: unknown){
+			if(error instanceof Error){
+				console.warn('Failed to load ban data', `${error.message}`);
+			} 
+			else{
+				console.warn("Unexpected error", error);
+			}
+
 		}
 	}
 
-	private saveQueue() {
+	private saveQueue(){
 		this.banQ = this.banQ.then(() => this.saveBans());
 	}
 
@@ -117,8 +135,15 @@ export class SecurityService{
 
 			await writeFile(this.deps.bansPath, data);
 		}
-		catch(e: any){
-			console.log("failed to save user data", e.message);
+		catch(error: unknown){
+			if(error instanceof Error){
+				console.warn("failed to save user data", error.message);
+				throw new Error(error.message);
+			} 
+			else{
+				console.warn("Unexpected error", error);
+				throw new Error("Unknown error")
+			}
 		}
 	}
 }

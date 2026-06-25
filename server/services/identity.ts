@@ -3,10 +3,11 @@ import { readFileSync, existsSync } from 'fs';
 import { mkdir, writeFile } from "fs/promises";
 import { dirname } from 'path';
 
-import type { Identity } from '../../shared/schema.ts'
+import { IdentitySchema, type DefaultIdentity, type Identity } from '../../shared/schema'
 
 import { ModerationService, type SafeString } from './moderation';
 import { StateService } from './state';
+import { mergeDefaults } from '../utils/defaults.js';
 
 export interface IdentityServiceDependencies{
 	moderationService: ModerationService;
@@ -21,25 +22,31 @@ export class IdentityService {
 	private userQ = Promise.resolve();
 	private deps: IdentityServiceDependencies;
 
-	constructor(dependencies: IdentityServiceDependencies) {
+
+	constructor(dependencies: IdentityServiceDependencies){
 		this.deps = dependencies;
 		
 		try{
 			const count =this.loadUsers();
 			console.log(`loaded ${count} users from disk`);
 		}
-		catch(e: any){
-			console.log('user error load:', e.message);
+		catch(error: unknown){
+			if(error instanceof Error){
+				console.log('user error load:', error.message);
+			} 
+			else{
+				console.warn("Unexpected error", error);
+			}
 		}
 		
 		this.deps.stateService.events.on("afk-check", guid => {
 			this.toggleAfk(guid); 
-		});
-	}
+		})
+	};
 
 	public setNick(guid: string | null, nick: SafeString): Identity{
 		//Returning user flow
-		if (guid && this.users.has(guid)) {
+		if(guid && this.users.has(guid)){
 			const user = this.users.get(guid)!;
 			const oldNick = user.nick.substring(7);
 
@@ -63,7 +70,7 @@ export class IdentityService {
 		}
 		//New user flow
 		else{
-			if (this.registeredNicks.has(nick.toLowerCase())) {
+			if(this.registeredNicks.has(nick.toLowerCase())){
 				throw new Error('nickname is already in use');
 		}
 
@@ -71,11 +78,7 @@ export class IdentityService {
 		const newIdentity: Identity = {
 			guid: newGuid,
 			nick: ('#000000') + nick,
-			status: 'online',
-			lastMessage: new Date(0),
-			lastChanged: new Date(),
-			isMod: false,
-			isAfk: false,
+			...this.buildDefault()
 		};
 
 		this.users.set(newGuid, newIdentity);
@@ -177,43 +180,75 @@ export class IdentityService {
 			const reload = this.loadUsers();
 			return reload;
 		}
-		catch(e: any){
-			throw new Error(e.message);
+		catch(error: unknown){
+			if(error instanceof Error){
+				throw new Error(error.message);
+			} 
+			else{
+				console.warn("Unexpected error", error);
+				throw new Error("Unexpected error");
+			}
+		}
+	}
+
+	private buildDefault(): DefaultIdentity{
+		return{
+			status: 'online',
+			lastMessage: new Date(0),
+			lastChanged: new Date(),
+			isMod: false,
+			isAfk: false,
+			miniMute: false,
+			miniPoints: this.deps.stateService.getMiniConfig().pointDefault
 		}
 	}
 
 	private loadUsers(): number {
-	try {
-		if (!existsSync(this.deps.usersPath)) {
-			throw new Error('no users.json file to load')
+		try{
+			if(!existsSync(this.deps.usersPath)){
+				throw new Error('no users.json file to load')
+			}
+
+			const data = readFileSync(this.deps.usersPath, 'utf-8');
+			const parseData: [string, unknown][] = JSON.parse(data);
+			const defaultId = this.buildDefault();
+
+			this.users = new Map();
+			this.registeredNicks.clear();
+
+			for (const [guid, raw] of parseData){
+				const identity = mergeDefaults(raw, defaultId, IdentitySchema);
+
+				if(!identity.guid || !identity.nick){
+					console.warn(`skipping invalid user ${guid}: missing guid or nick`);
+					continue;
+				}
+
+				this.users.set(guid, identity);
+
+				const existingNick = identity.nick.substring(7);
+				this.registeredNicks.set(existingNick.toLowerCase(), guid);
+			}
+			
+			return this.users.size;
+		} 
+		catch(error: unknown){
+			if(error instanceof Error){
+				throw new Error(error.message);
+			} 
+			else{
+				console.warn("Unexpected error", error);
+				throw new Error("Unexpected error");
+			}
 		}
-
-		const data = readFileSync(this.deps.usersPath, 'utf-8');
-		const parseData: [string, Identity][] = JSON.parse(data);
-
-		this.users = new Map(parseData);
-		this.registeredNicks.clear();
-
-		let count: number = 0
-		for (const [guid, identity] of this.users.entries()) {
-			const existingNick = identity.nick.substring(7);
-			this.registeredNicks.set(existingNick.toLowerCase(), guid);
-			count++;
-		}
-		
-		return count;
-	} 
-	catch (e: any) {
-		throw new Error(e.message);
-	}
 	}
 
-	private saveQueue() {
+	private saveQueue(){
 		this.userQ = this.userQ.then(() => this.saveUsers());
 	}
 
-	private async saveUsers() {
-		try {
+	private async saveUsers(){
+		try{
 			const dir = dirname(this.deps.usersPath);
 			await mkdir(dir, {recursive: true});
 
@@ -221,8 +256,13 @@ export class IdentityService {
 
 			await writeFile(this.deps.usersPath, data);
 		} 
-		catch (e: any) {
-			console.log('failed to save user data', `${e.message}`);
+		catch(error: unknown){
+			if(error instanceof Error){			
+				console.warn('failed to save user data', `${error.message}`);
+			} 
+			else{
+				console.warn("Unexpected error", error);
+			}
 		}
 	}
 }

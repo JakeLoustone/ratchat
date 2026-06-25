@@ -176,7 +176,7 @@
 		}
 		#user-sidebar.collapsed + .fake-scrollbar, 
 		#user-sidebar.collapsed ~ .fake-scrollbar,
-		#messages-container ~ .fake-scrollbar:has(+ #user-sidebar.collapsed) {
+		#messages-container ~ .fake-scrollbar:has(+ #user-sidebar.collapsed){
 			margin-right: 0;
 		}
 		#user-list {
@@ -195,7 +195,7 @@
 			width: 100%;
 			overflow: hidden;
 		}
-		.user-list-span span:nth-child(3) {
+		.user-list-span span:nth-child(3){
 			flex-shrink: 1;
 			flex-grow: 1;
 			min-width: 0;
@@ -606,14 +606,14 @@
 		let emotes = {};
 
 		const savedTheme = localStorage.getItem('ratMode');
-		if (savedTheme === 'dark') {
+		if(savedTheme === 'dark'){
 			document.documentElement.setAttribute('data-theme', 'dark');
 		}
 
 		//emotify function
 		const emotify = (text) =>{
 			return text.split(' ').map(word => {
-				if (emotes[word]) {
+				if(emotes[word]){
 					return `<img src="${emotes[word]}" title="${word}" alt="${word}" class="emote" crossorigin="anonymous">`;
 				}
 			return word;
@@ -621,20 +621,21 @@
 		};
 
 		//Background loader
-		document.getElementById('bg-upload').addEventListener('change', function(e) {
+		document.getElementById('bg-upload').addEventListener('change', function(e){
 			const file = e.target.files[0];
-			if (file) {
+			if(file){
 				const reader = new FileReader();
 				
-				reader.onload = function(event) {
+				reader.onload = function(event){
 					const imageData = event.target.result;
 					document.getElementById('messages-container').style.backgroundImage = `url('${imageData}')`;
 					document.getElementById('messages-container').classList.add('has-bg');
 					
 					//local storage
-					try {
+					try{
 						localStorage.setItem('ratBG', imageData);
-					} catch (e) {
+					} 
+					catch(e){
 						systemMessage("oh fuk it's too big", 'e-li')
 						console.warn("image too large for localStorage");
 					}
@@ -645,14 +646,14 @@
 		});
 
 		//Fake scrollbar
-		function initFakeScrollbar(config) {
+		function initFakeScrollbar(config){
 			const container = document.getElementById(config.containerId);
 			const thumb = document.getElementById(config.thumbId);
 			const track = document.getElementById(config.trackId);
 			const content = document.getElementById(config.contentId);
 
 			//sync thumb position to scroll
-			container.onscroll = function () {
+			container.onscroll = function (){
 				const scrollPos = container.scrollTop;
 				const maxScroll = container.scrollHeight - container.clientHeight;
 				
@@ -662,12 +663,12 @@
 				thumb.style.top = (clampedScroll / (maxScroll || 1)) * trackSpace + 'px';
 			};
 
-			if (config.btnUpId) {
+			if(config.btnUpId){
 				document.getElementById(config.btnUpId).onclick = () =>
 					container.scrollBy(0, -50);
 			}
 
-			if (config.btnDownId) {
+			if(config.btnDownId){
 				document.getElementById(config.btnDownId).onclick = () =>
 					container.scrollBy(0, 50);
 			}
@@ -730,12 +731,12 @@
 
 		//Identity events
 		socket.on('identity', (identity) => {
-			if (identity && identity.guid === 'RESET_IDENTITY'){
+			if(identity && identity.guid === 'RESET_IDENTITY'){
 				console.log('cleared from local storage');
 				localStorage.clear();
 				setTimeout(() =>{systemMessage('reloading...', 'i-li');}, 200);
 				setTimeout(() =>{window.location.reload();}, 2000);
-			} else if(identity && identity.guid) {
+			} else if(identity && identity.guid){
 				localStorage.setItem('ratGUID', identity.guid);
 				console.log('identity loaded')
 			} else{
@@ -792,11 +793,11 @@
 			//build consolidated listing
 			const consolidate = new Map();
 			uList.forEach(user =>{
-				if (user.nick.startsWith('#NONVAL')) {
+				if(user.nick.startsWith('#NONVAL')){
 					lurkerData = user;
 					return;
 				}
-				if (consolidate.has(user.nick)){
+				if(consolidate.has(user.nick)){
 					consolidate.get(user.nick).count++;
 				}
 				else{
@@ -842,7 +843,7 @@
 					</span>
 					${status}
 				`);
-				if (window.DOMPurify){
+				if(window.DOMPurify){
 					li.innerHTML = DOMPurify.sanitize(dirty);
 				}
 				else{
@@ -853,11 +854,11 @@
 				userListElement.appendChild(li);
 				
 				requestAnimationFrame(() => {
-					if (
+					if(
 						li.querySelector('.status-scroll') &&
 						li.querySelector('.status-scroll').scrollWidth >
 						li.querySelector('.user-status').clientWidth
-					) {
+					){
 						li.querySelector('.status-scroll').classList.add('animate-status');
 					}
 				});
@@ -890,12 +891,12 @@
 			
 			//null after trim return
 			const val = input.value.trim()
-			if (!val) return;
+			if(!val) return;
 
 			//Export command
-			if (val === '/export') {
+			if(val === '/export'){
 				const GUID = localStorage.getItem('ratGUID');
-				if (!GUID) {
+				if(!GUID){
 					systemMessage("couldn't find local ID.", 'e-li');
 					input.value = '';
 					return;
@@ -914,14 +915,14 @@
 			}
 
 			//Background command
-			if (val === '/background' || val === '/bg') {
+			if(val === '/background' || val === '/bg'){
 				document.getElementById('bg-upload').click();
 				systemMessage("pick a file", 'i-li');
 				input.value = '';
 				return;
 			}
 
-			if (val === '/bgreset') {
+			if(val === '/bgreset'){
 				if(localStorage.getItem('ratBG')){
 					localStorage.removeItem('ratBG');
 					document.getElementById('messages-container').style.backgroundImage = '';
@@ -937,8 +938,8 @@
 			}
 
 			//dark mode
-			if (val === '/dark') {
-				if (document.documentElement.hasAttribute('data-theme')) {
+			if(val === '/dark'){
+				if(document.documentElement.hasAttribute('data-theme')){
 					document.documentElement.removeAttribute('data-theme');
 					localStorage.setItem('ratMode', 'light');
 					systemMessage("think fast chucklenuts", 'i-li');
@@ -991,7 +992,7 @@
 
 			//message type classification
 			const className = toClass[msg.type];
-			if (className) item.classList.add(className);
+			if(className) item.classList.add(className);
 
 			//Date constructor
 			if(msg.id !== -1){
@@ -1084,7 +1085,7 @@
 		document.getElementById('btn-emotes').addEventListener('click', () => {
 			const popup = document.getElementById('emotes-popup');
 			popup.classList.toggle('is-visible');
-			if (popup.classList.contains('is-visible')) {
+			if(popup.classList.contains('is-visible')){
 				const search = document.getElementById('search');
 				search.value = '';
 				filterEmotesGrid('');
@@ -1097,7 +1098,7 @@
 		});
 
 		//emote search
-		function filterEmotesGrid(filter) {
+		function filterEmotesGrid(filter){
 			const lowerFilter = (filter || '').trim().toLowerCase();
 			document.querySelectorAll('#emotes-grid-wrapper .emote-selectable').forEach(img => {
 				img.style.display = img.dataset.name.includes(lowerFilter) ? '' : 'none';
@@ -1106,7 +1107,7 @@
 		}
 
 		//background load from storage
-		if (savedBG) {
+		if(savedBG){
 			document.getElementById('messages-container').style.backgroundImage = `url('${savedBG}')`;
 			document.getElementById('messages-container').classList.add('has-bg');
 		}

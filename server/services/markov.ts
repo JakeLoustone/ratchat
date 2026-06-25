@@ -13,8 +13,12 @@ type Neuron = {
 	table: string;
 	word1: string;
 	word2: string;
-	word3: string | null;
+	word3: string;
+	count: number
 }
+type InsertNeuron = Omit<Neuron, 'count' | 'word3'> & {word3?: string}
+type StartNeuron = Omit<Neuron, 'table' | 'word3'>;
+type GramNeuron = Omit<Neuron, 'table'>;
 
 export interface MarkovServiceDependencies {
 	messageService: MessageService;
@@ -38,8 +42,13 @@ export class MarkovService{
 		try{
 			this.loadBrain(this.deps.brainPath);
 		}
-		catch(e: any){
-			console.log('markov load error:', e.message);
+		catch(error: unknown){
+			if(error instanceof Error){
+				console.warn('markov load error:', error.message);
+			} 
+			else{
+				console.warn("Unexpected error", error);
+			}
 		}
 		this.markovTimer(this.deps.io);
 	}
@@ -107,7 +116,7 @@ export class MarkovService{
 
 				for(const c of allStarts){
 					r -= c.count;
-					if (r <= 0) {
+					if(r <= 0){
 						chosen = c;
 						break;
 					}
@@ -138,7 +147,7 @@ export class MarkovService{
 
 				for(const c of candidates){
 					r -= c.count;
-					if (r <= 0) {
+					if(r <= 0){
 						chosen = c;
 						break;
 					}
@@ -146,13 +155,13 @@ export class MarkovService{
 
 				const next = chosen.words[2];
 
-				if(next === "<END>"){
+				if(!next || next === "<END>"){
 					break;
 				}
 
 				raw.push(next);
 
-				if(raw.join(" ").length > this.deps.stateService.getConfig().maxMsgLen){
+				if(raw.join(" ").length > this.deps.stateService.getServerConfig().maxMsgLen){
 					raw.pop();
 					break;
 				}
@@ -166,11 +175,19 @@ export class MarkovService{
 				const safe = this.deps.moderationService.textCheck(raw.join(" "), markovUser, tType.chat);
 				return safe;
 			}
-			catch(e: any){
-				if(e.message === "watch your profamity"){
-					this.deps.messageService.sendSys(io, mType.ann, `${markovUser.nick.substring(7)} tried to say something naughty`);
+			catch(error: unknown){
+				if(error instanceof Error){
+   					if(error.message === "watch your profamity"){
+						this.deps.messageService.sendSys(io, mType.ann, `${markovUser.nick.substring(7)} tried to say something naughty`);
+					}
+					else{
+						continue;
+					}
 				}
-				continue;
+				else{
+					console.warn("Unexpected error", error);
+					continue;
+				}
 			}
 		}
 
@@ -192,7 +209,7 @@ export class MarkovService{
 				try{
 					return !this.deps.identityService.getUserByNick(w);
 				}
-				catch(e:any){
+				catch(error: unknown){
 					return true;
 				}
 			})
@@ -203,13 +220,13 @@ export class MarkovService{
 			return;
 		}
 
-		const entries: Neuron[] = [];
+		const entries: InsertNeuron[] = [];
 
 		const w0 = words[0];
 		const w1 = words[1];
 
 		const startLetter = (w0[0] || "_").toUpperCase().replace(/[^A-Z_]/g, "_");
-		entries.push({table: `start_${startLetter}`, word1: w0, word2: w1, word3: null})
+		entries.push({table: `start_${startLetter}`, word1: w0, word2: w1})
 
 		if(!this.dictionary.has(w0.toLowerCase())){
 			this.dictionary.add(w0.toLowerCase());
@@ -251,16 +268,21 @@ export class MarkovService{
 					this.deps.messageService.sendMarkov(this.deps.io, gentext, this.deps.stateService.markovUser, this.deps.stateService.markovUser, '');
 				}
 			}
-			catch(e: any){
-
+			catch(error: unknown){
+				if(error instanceof Error){
+					console.warn('markov timer error:', error.message);
+				}
+				else{
+					console.warn('Unexpected error:', error);
+				}
 			}
 		}, this.deps.stateService.getMarkovConfig().timer*1000);
 	}
-	private saveQueue(entries: Neuron[]) {
+	private saveQueue(entries: InsertNeuron[]){
 		this.markovQ = this.markovQ.then(() => this.saveNeuron(entries));
 	}
 
-	private async saveNeuron(entries: Neuron[]){
+	private async saveNeuron(entries: InsertNeuron[]){
 		if(!this.db){
 			return;
 		}
@@ -273,6 +295,10 @@ export class MarkovService{
 					this.db.prepare(`INSERT INTO ${n.table} (word1, word2, count) VALUES (?, ?, 1) ON CONFLICT(word1, word2) DO UPDATE SET count = count + 1;`).run(n.word1, n.word2);
 				}
 				else if(n.table.startsWith("gram_") && n.table.length === "gram_".length + 2){
+					    if(!n.word3){
+							console.warn(`skipping gram entry missing word3: ${n.word1} ${n.word2}`);
+							continue;
+						}
 					this.db.prepare(`INSERT INTO ${n.table} (word1, word2, word3, count) VALUES (?, ?, ?, 1) ON CONFLICT(word1, word2, word3) DO UPDATE SET count = count + 1;`).run(n.word1, n.word2, n.word3);
 				}
 				else{
@@ -282,7 +308,7 @@ export class MarkovService{
 
 			this.db.exec("COMMIT");
 		}
-		catch(e: any){
+		catch(error: unknown){
 			this.db.exec("ROLLBACK");
 		}
 	}
@@ -293,14 +319,19 @@ export class MarkovService{
 		}
 
 		if(!letters){
-			const results: any[] = [];
+			const results: { 
+				words: string[], count: number }[] = [];
 
-			const tables = this.db
-				.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'start_%'`).all().map((r: any) => r.name);
+			const tables = 
+				(this.db
+					.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'start_%'`)
+					.all() as {name: string}[]
+				)
+				.map(row => row.name);
 
 			for(const table of tables){
-				const rows = this.db.prepare(`SELECT word1, word2, count FROM ${table}`).all();
-				for (const row of rows) {
+				const rows = this.db.prepare(`SELECT word1, word2, count FROM ${table}`).all() as StartNeuron[];
+				for (const row of rows){
 					results.push({
 						words: [row.word1, row.word2],
 						count: row.count
@@ -314,39 +345,35 @@ export class MarkovService{
 		if(letters.length === 1){
 			const table = `start_${letters}`;
 
-			let rows: any[];
+			let rows: StartNeuron[];
 
 			if(prev && !curr){
-				rows = this.db.prepare(`SELECT word1, word2, count FROM ${table} WHERE LOWER(word1) = LOWER(?)`).all(prev);
+				rows = this.db.prepare(`SELECT word1, word2, count FROM ${table} WHERE LOWER(word1) = LOWER(?)`).all(prev) as StartNeuron[];
 			} else {
-				rows = this.db.prepare(`SELECT word1, word2, count FROM ${table}`).all();
+				rows = this.db.prepare(`SELECT word1, word2, count FROM ${table}`).all() as StartNeuron[];
 			}
 
-			return rows.map(r => ({
-				words: [r.word1, r.word2],
-				count: r.count
+			return rows.map(row => ({
+				words: [row.word1, row.word2],
+				count: row.count
 			}));
 		}
 
 		if(letters.length === 2){
 			const table = `gram_${letters}`;
 
-			let rows: any[];
+			let rows: GramNeuron[];
 
 			if(prev && curr){
-				rows = this.db.prepare(
-					`SELECT word1, word2, word3, count 
-					FROM ${table}
-					WHERE LOWER(word1) = LOWER(?) AND LOWER(word2) = LOWER(?)`
-				).all(prev, curr);
+				rows = this.db.prepare(`SELECT word1, word2, word3, count FROM ${table} WHERE LOWER(word1) = LOWER(?) AND LOWER(word2) = LOWER(?)`).all(prev, curr) as GramNeuron[];
 			} 
 			else{
-				rows = this.db.prepare(`SELECT word1, word2, word3, count FROM ${table}`).all();
+				rows = this.db.prepare(`SELECT word1, word2, word3, count FROM ${table}`).all() as GramNeuron[];
 			}
 
-			return rows.map(r => ({
-				words: [r.word1, r.word2, r.word3],
-				count: r.count
+			return rows.map(row => ({
+				words: [row.word1, row.word2, row.word3],
+				count: row.count
 			}));
 		}
 		throw new Error ('neuron load failure');
@@ -379,7 +406,12 @@ export class MarkovService{
 			this.db.exec("PRAGMA journal_mode = DELETE;");
 		}
 
-		const tables = this.db.prepare(`SELECT name	FROM sqlite_master WHERE type='table' AND name LIKE 'start%';`).all().map((row: any) => row.name);
+		const tables = 
+			(this.db
+				.prepare(`SELECT name	FROM sqlite_master WHERE type='table' AND name LIKE 'start%';`)
+				.all() as {name: string}[]
+			)
+			.map(row => row.name);
 
 		let totalRows = 0;
 		for(const table of tables){
@@ -399,9 +431,15 @@ export class MarkovService{
 
 				totalRows += rows.length;
 			} 
-			catch(e: any){
-				console.log(`Error reading table ${table}:`, e.message);
+			catch(error: unknown){
+				if(error instanceof Error){
+					console.warn(`Error reading table ${table}:`, error.message);
+				} 
+				else{
+					console.warn("Unexpected error", error);
+				}
 			}
 		}
+		console.log(`loaded ${totalRows} markov start entries`);
 	}
 }

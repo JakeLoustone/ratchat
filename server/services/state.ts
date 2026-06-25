@@ -3,17 +3,29 @@ import type { Socket, Server } from "socket.io";
 import { EventEmitter } from "events";
 import crypto from 'crypto';
 
-import type { ServerConfig, Identity, UserSum, MarkovConfig } from "../../shared/schema.ts";
-import { defaultServerConfig, defaultMarkovConfig, mType } from '../../shared/schema';
+import type { ServerConfig, Identity, UserSum, MarkovConfig, MiniConfig } from "../../shared/schema.ts";
+import { defaultServerConfig, defaultMarkovConfig, mType, defaultMiniConfig, ServerConfigSchema, MarkovConfigSchema, MiniConfigSchema } from '../../shared/schema';
 
 import { MessageService } from "./message";
 import type { SafeString } from "./moderation.ts";
 
+import { mergeDefaults } from "../utils/defaults.js";
+
+interface EmoteEntry {
+	name: string;
+  	data:{
+    	host:{ 
+			url: string;
+		};
+  };
+}
+
 export interface StateServiceDependencies{
 	messageService: MessageService;
 	
-	configPath: string;
+	serverConfigPath: string;
 	markovConfigPath: string;
+	miniConfigPath: string;
 	io: Server;
 }
 
@@ -24,8 +36,11 @@ export class StateService {
 	
 	private socketUsers = new Map<string, Identity>();
 	private emotes = new Map<string, string>();
-	private config: ServerConfig = {} as ServerConfig;
-	private markovConfig: MarkovConfig = {} as MarkovConfig;
+
+	private serverConfig: ServerConfig = {...defaultServerConfig};
+	private markovConfig: MarkovConfig = {...defaultMarkovConfig};
+	private miniConfig: MiniConfig = {...defaultMiniConfig};
+
 	private announcement: string = "";
 
 	private signupBuffer: Map<string, {socket: Socket; nick: SafeString}> = new Map();
@@ -34,21 +49,26 @@ export class StateService {
 
 	private deps: StateServiceDependencies;
 
-	constructor(dependencies: StateServiceDependencies) {
+	constructor(dependencies: StateServiceDependencies){
 		this.deps = dependencies;
 		this.socketUsers = new Map;
 	
-		this.loadConfig();
+		this.loadServerConfig();
 		this.loadMarkovConfig();
+		this.loadMiniConfig();
 		this.afkTimer();
 	}
 
-	public getConfig(): ServerConfig{
-		return this.config;
+	public getServerConfig(): ServerConfig{
+		return this.serverConfig;
 	}
 
 	public getMarkovConfig(): MarkovConfig{
 		return this.markovConfig;
+	}
+
+	public getMiniConfig(): MiniConfig{
+		return this.miniConfig;
 	}
 
 	public getAnnouncement(): string{
@@ -56,7 +76,7 @@ export class StateService {
 	}
 
 	public setAnnouncement(io: Server, str: SafeString){
-		if (this.announcement === str){
+		if(this.announcement === str){
 			throw Error("that's already the announcement")
 		}
 
@@ -73,30 +93,30 @@ export class StateService {
 
 	public async updateEmotes(io: Server, setID?: string): Promise<number>{
 
-		const targetID = setID ?? this.config.stvurl;
+		const targetID = setID ?? this.serverConfig.stvurl;
 		if(!targetID){
 			throw new Error('no emote url in config')
 		}
 		
 		const isValidId = /^[a-z0-9_-]{17,31}$/i.test(targetID);
 		
-		if (!isValidId) {
+		if(!isValidId){
 			throw new Error("doesn't look like a 7tv emote set ID")
 		}
 		
-		try {
+		try{
 			const response = await fetch(`https://api.7tv.app/v3/emote-sets/${targetID}`);
-			if (!response.ok){ 
+			if(!response.ok){ 
 				throw new Error(`7tv returned HTTP ${response.status}`); 
 			} 
 
 			const data = await response.json();
-			if (!data.emotes || !Array.isArray(data.emotes)){ 
+			if(!data.emotes || !Array.isArray(data.emotes)){ 
 				throw new Error("invalid 7tv response structure"); 
 			}
 			
 			let size: number = 0
-			data.emotes.forEach((emote: any) => {
+			data.emotes.forEach((emote: EmoteEntry) => {
 				const name = emote.name;
 				const hostUrl = emote.data.host.url; 
 				this.emotes.set(name, `https:${hostUrl}/1x.webp`);
@@ -106,35 +126,41 @@ export class StateService {
 			const emotePayload = Object.fromEntries(this.emotes);
 			this.deps.messageService.send(io, mType.emote, emotePayload);
 			return size;
-			} 
-			catch (e: any) {
-				throw new Error(`failed to fetch emotes: ${e.message}`);
+		} 
+		catch(error: unknown){
+			if(error instanceof Error){
+				throw new Error(`failed to fetch emotes: ${error.message}`);
 			}
+			else{
+				console.warn("Unexpected error", error);
+				throw new Error("Unknown error")
+			}
+		}
 	}
 
 	public async removeEmotes(io: Server, setID: string): Promise<number>{
-		if (setID.length < 1){
+		if(setID.length < 1){
 			throw new Error('please provide a target emote setID to remove');
 		}
 
 		const isValidId = /^[a-z0-9_-]{17,31}$/i.test(setID);		
-		if (!isValidId) {
+		if(!isValidId){
 			throw new Error("doesn't look like a 7tv emote url")
 		}
 
 		try{
 			const response = await fetch(`https://api.7tv.app/v3/emote-sets/${setID}`);
-			if (!response.ok){ 
+			if(!response.ok){ 
 				throw new Error(`7tv returned HTTP ${response.status}`); 
 			}
 
 			const data = await response.json();
-			if (!data.emotes || !Array.isArray(data.emotes)){ 
+			if(!data.emotes || !Array.isArray(data.emotes)){ 
 				throw new Error("invalid 7tv response structure"); 
 			}
 
 			let deleteCount: number = 0;
-			data.emotes.forEach((emote: any) => {
+			data.emotes.forEach((emote: EmoteEntry) => {
 				const name = emote.name;
 				const del = this.emotes.delete(name);
 				if(del){
@@ -146,8 +172,14 @@ export class StateService {
 			this.deps.messageService.send(io, mType.emote, emotePayload);
 			return deleteCount;
 		} 
-		catch (e: any) {
-			throw new Error(`failed to fetch emotes: ${e.message}`);
+		catch(error: unknown){
+			if(error instanceof Error){
+				throw new Error(`failed to fetch emotes: ${error.message}`);
+			} 
+			else{
+				console.warn("Unexpected error", error);
+				throw new Error("Unknown error")
+			}
 		}
 	}
 
@@ -155,11 +187,11 @@ export class StateService {
 		return this.socketUsers;
 	}
 
-	public updateSocketUser(io: Server, socketID: string, identity: Identity) {
+	public updateSocketUser(io: Server, socketID: string, identity: Identity){
 		this.socketUsers.set(socketID, identity);
 
-		for (const [sId, user] of this.socketUsers.entries()) {
-			if (user.guid === identity.guid && sId !== socketID) {
+		for (const [sId, user] of this.socketUsers.entries()){
+			if(user.guid === identity.guid && sId !== socketID){
 				this.socketUsers.set(sId, identity); 
 			}
 		}
@@ -176,10 +208,10 @@ export class StateService {
 		const userList: UserSum[] = Array.from(this.socketUsers.values())
 			.map(({ nick, status, isMod, isAfk }) => ({ nick, status, isMod, isAfk }))
 			.sort((a,b) =>{
-			if (a.isAfk !== b.isAfk) {
+			if(a.isAfk !== b.isAfk){
 				return a.isAfk ? 1 : -1;
 			}
-			if (a.isMod !== b.isMod) {
+			if(a.isMod !== b.isMod){
 				return a.isMod ? -1 : 1;
 			}
 				return a.nick.substring(7).localeCompare(b.nick.substring(7), 'en', {sensitivity: 'base'});
@@ -244,7 +276,7 @@ export class StateService {
 
 	public hashIP(ip: string): string{
 		if(!process.env.IP_PEPPER){
-			throw new Error ('no pepper set')
+			console.warn('no pepper set');
 		}
 		const pepper = process.env.IP_PEPPER
 		const hash = crypto.createHash('sha256')
@@ -258,8 +290,8 @@ export class StateService {
 
 		return new Promise<boolean>(resolve => {
 			this.signupPromise.set(socket, resolve);
-			if (!this.signupTimer) {
-				this.signupTimer = setTimeout(() => this.returnQueue(), this.config.signupTime * 1000);
+			if(!this.signupTimer){
+				this.signupTimer = setTimeout(() => this.returnQueue(), this.serverConfig.signupTime * 1000);
 			}
 		});
 	}
@@ -267,7 +299,7 @@ export class StateService {
 	private returnQueue(){
 		const queue = Array.from(this.signupBuffer.values());
 
-		for (const [socket, resolve] of this.signupPromise.entries()) {
+		for (const [socket, resolve] of this.signupPromise.entries()){
 			const survived = queue.some(entry => entry.socket === socket);
 			resolve(survived);
 		}
@@ -277,51 +309,43 @@ export class StateService {
 		this.signupTimer = null;
 	}
 
-	private loadConfig(){
-		if(!existsSync(this.deps.configPath)){
-			writeFileSync(this.deps.configPath, JSON.stringify(defaultServerConfig, null, 4))
-			Object.assign(this.config, defaultServerConfig);
+	private loadServerConfig(){
+		if(!existsSync(this.deps.serverConfigPath)){
+			writeFileSync(this.deps.serverConfigPath, JSON.stringify(defaultServerConfig, null, 4))
+			Object.assign(this.serverConfig, defaultServerConfig);
 			console.log("created default config.json file")
 			return;
 		}
 
-		let loadedCfg: any;
+		let loadedCfg: unknown = {};
+
 		try{
-			loadedCfg = JSON.parse(readFileSync(this.deps.configPath, 'utf-8'));
+			loadedCfg = JSON.parse(readFileSync(this.deps.serverConfigPath, 'utf-8'));
 		}
- 		catch(e: any){
-			console.warn(`config load error: ${e.message}`);
-			loadedCfg = {};
+ 		catch(error: unknown){
+			if(error instanceof Error){
+				console.warn(`server config load error: ${error.message}`);
+			} 
+			else{
+				console.warn("Unexpected error", error);
+			}
+
 		}
-		for (const key of Object.keys(defaultServerConfig) as Array<keyof ServerConfig>){
-			const def = defaultServerConfig[key];
-			const cfg = loadedCfg[key];
-			if(cfg === undefined || cfg === null){
-				(this.config as any)[key] = def;
-				console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`);
-				continue;
-			} 
-			if(typeof def === "number" && typeof cfg !== "number"){
-				(this.config as any)[key] = def;
-				console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`)
-				continue; 
-			} 
-			if(typeof def === "string" && typeof cfg !== "string"){
-				(this.config as any)[key] = def;
-				console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`)
-				continue; 
-			} 
-			if(Array.isArray(def)){
-				if(!Array.isArray(cfg) || !cfg.every(v => typeof v === "string")){
-					(this.config as any)[key] = def;
-					console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`)
-					continue; 
-				} 
-			} 
-			(this.config as any)[key] = cfg;
-			console.log(`${key} = ${JSON.stringify(cfg)}`);
+
+		try{
+			this.serverConfig = mergeDefaults(loadedCfg, defaultServerConfig, ServerConfigSchema);
 		}
-		Object.freeze(this.config);
+		catch(error: unknown){
+			if(error instanceof Error){
+				console.warn(`server config merge error: ${error.message}`);
+			} 
+			else{
+				console.warn("Unexpected error", error);
+			}
+		}
+
+		Object.freeze(this.serverConfig);
+		console.log('LOADED SERVER CONFIG:', this.serverConfig)
 	}
 
 	private loadMarkovConfig(){
@@ -332,42 +356,36 @@ export class StateService {
 			return;
 		}
 
-		let loadedCfg: any;
+		let loadedCfg: unknown = {};
+
 		try{
 			loadedCfg = JSON.parse(readFileSync(this.deps.markovConfigPath, 'utf-8'));
 		}
- 		catch(e: any){
-			console.warn(`config load error: ${e.message}`);
-			loadedCfg = {};
-		}
-		for (const key of Object.keys(defaultMarkovConfig) as Array<keyof MarkovConfig>){
-			const def = defaultMarkovConfig[key];
-			const cfg = loadedCfg[key];
-			if(cfg === undefined || cfg === null){
-				(this.markovConfig as any)[key] = def;
-				console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`);
-				continue;
+ 		catch(error: unknown){
+			if(error instanceof Error){
+				console.warn(`markov config load error: ${error.message}`);
 			} 
-			if(typeof def === "number" && typeof cfg !== "number"){
-				(this.markovConfig as any)[key] = def;
-				console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`)
-				continue; 
-			} 
-			if(typeof def === "string" && typeof cfg !== "string"){
-				(this.markovConfig as any)[key] = def;
-				console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`)
-				continue; 
-			} 
-			if (typeof def === "boolean" && typeof cfg !== "boolean") {
-				(this.markovConfig as any)[key] = def;
-				console.log(`${key} = ${JSON.stringify(def)} [DEFAULT]`);
-				continue;
+			else{
+				console.warn("Unexpected error", error);
 			}
-			(this.markovConfig as any)[key] = cfg;
-			console.log(`markov ${key} = ${JSON.stringify(cfg)}`);
 		}
+
+		try{
+			this.markovConfig = mergeDefaults(loadedCfg, defaultMarkovConfig, MarkovConfigSchema);
+		}
+		catch(error: unknown){
+			if(error instanceof Error){
+				console.warn(`markov config merge error: ${error.message}`);
+			} 
+			else{
+				console.warn("Unexpected error", error);
+			}
+		}
+
 		Object.freeze(this.markovConfig);
-		if (this.markovConfig.enabled){
+		console.log('LOADED MARKOV CONFIG:', this.markovConfig)
+
+		if(this.markovConfig.enabled){
 			this.markovUser = {
 			guid: 'markov',
 			nick: this.markovConfig.color + this.markovConfig.nick,
@@ -376,17 +394,56 @@ export class StateService {
 			lastChanged: new Date(0),
 			isMod: false,
 			isAfk: false,
+			miniMute: true,
+			miniPoints: 0
 			}
 		}
 		else{
 			this.markovUser = null;
-		}	
+		}		
+	}
+
+	private loadMiniConfig(){
+		if(!existsSync(this.deps.miniConfigPath)){
+			writeFileSync(this.deps.miniConfigPath, JSON.stringify(defaultMiniConfig, null, 4))
+			Object.assign(this.miniConfig, defaultMiniConfig);
+			console.log("created default minigames.json file")
+			return;
+		}
+
+		let loadedCfg: unknown = {};
+
+		try{
+			loadedCfg = JSON.parse(readFileSync(this.deps.miniConfigPath, 'utf-8'));
+		}
+ 		catch(error: unknown){
+			if(error instanceof Error){
+				console.warn(`mini config load error: ${error.message}`);
+			} 
+			else{
+				console.warn("Unexpected error", error);
+			}
+		}
+
+		try{
+			this.miniConfig = mergeDefaults(loadedCfg, defaultMiniConfig, MiniConfigSchema);
+		}
+		catch(error: unknown){
+			if(error instanceof Error){
+				console.warn(`mini config merge error: ${error.message}`);
+			} 
+			else{
+				console.warn("Unexpected error", error);
+			}
+		}
+		Object.freeze(this.miniConfig);
+		console.log('LOADED MINI CONFIG: ', this.miniConfig);
 	}
 
 	private afkTimer(){
 		setInterval(() =>{
 			const now = Date.now();
-			const afkTime = this.config.afkDef * 1000;
+			const afkTime = this.serverConfig.afkDef * 1000;
 			const updates: Array<{ id: string; user: Identity }> = [];
 
 			for(const [id, user] of this.socketUsers.entries()){

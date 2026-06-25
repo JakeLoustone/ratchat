@@ -1,15 +1,19 @@
 import{Server, Socket} from 'socket.io';
+import{z} from 'zod';
 
-export interface Identity {
-	guid: string;
-	nick: string;
-	status: string;
-	lastMessage: Date;
-	lastChanged: Date;
-	isMod: boolean;
-	isAfk: boolean;
-}
-
+export const IdentitySchema = z.object({
+    guid: z.string(),
+    nick: z.string(),
+    status: z.string(),
+    lastMessage: z.coerce.date(),
+    lastChanged: z.coerce.date(),
+    isMod: z.boolean(),
+    isAfk: z.boolean(),
+    miniMute: z.boolean(),
+    miniPoints: z.number()
+});
+export type Identity = z.infer<typeof IdentitySchema>;
+export type DefaultIdentity = Omit<Identity, "guid" | "nick">
 export type UserSum = Pick<Identity, "nick" | "status" | "isMod" | "isAfk"> 
 
 export const mType = {
@@ -25,7 +29,6 @@ export const mType = {
 	delmsg: "deleteMsg",
 	emote: "emote",
 } as const;
-
 export type MessageType = typeof mType[keyof typeof mType];
 
 export const tType = {
@@ -33,8 +36,7 @@ export const tType = {
 	nick: "nick",
 	joinleave: "joinleave",
 	other:"other"
-}
-
+} as  const;
 export type TimeType = typeof tType[keyof typeof tType];
 
 export const xType = {
@@ -42,8 +44,7 @@ export const xType = {
 	status: "status",
 	nick: "nick",
 	color: "color"
-}
-
+} as const;
 export type TextType = typeof xType[keyof typeof xType];
 
 export interface ChatMessage {
@@ -54,22 +55,31 @@ export interface ChatMessage {
 	type: MessageType;
 }
 
-export interface ServerConfig {
-	welcomeMsg: string;
-	slowMode: number;
-	nickSlow: number;
-	otherSlow: number;
-	timeoutDef: number;
-	afkDef: number;
-	signupTime: number;
-	maxMsgLen: number;
-	maxNickLen: number;
-	maxStatusLen: number;
-	msgArrayLen: number;
-	stvurl?: string;
-	nickres: string[];
-	PORT: number;
+export interface Command {
+	socket: Socket;
+	io: Server;
+	args: string[];
+	fullArgs: string;
+	commandUser: Identity | null;
 }
+
+export const ServerConfigSchema = z.object({
+    welcomeMsg: z.string(),
+    slowMode: z.number(),
+    nickSlow: z.number(),
+    otherSlow: z.number(),
+    timeoutDef: z.number(),
+    afkDef: z.number(),
+    signupTime: z.number(),
+    maxMsgLen: z.number(),
+    maxNickLen: z.number(),
+    maxStatusLen: z.number(),
+    msgArrayLen: z.number(),
+    stvurl: z.string().optional(),
+    nickres: z.array(z.string()),
+    PORT: z.number()
+});
+export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 export const defaultServerConfig: ServerConfig = {
 	welcomeMsg: 'Welcome!',
 	slowMode: 1,
@@ -87,16 +97,16 @@ export const defaultServerConfig: ServerConfig = {
 	PORT: 3666,
 }
 
-export interface MarkovConfig{
-	enabled: boolean;
-	learning: boolean;
-	nick: string;
-	color: string;
-	status: string;
-	cooldown: number;
-	timer: number;
-}
-
+export const MarkovConfigSchema = z.object({
+    enabled: z.boolean(),
+    learning: z.boolean(),
+    nick: z.string(),
+    color: z.string(),
+    status: z.string(),
+    cooldown: z.number(),
+    timer: z.number()
+});
+export type MarkovConfig = z.infer<typeof MarkovConfigSchema>;
 export const defaultMarkovConfig: MarkovConfig = {
 	enabled: false,
 	learning: false,
@@ -107,10 +117,31 @@ export const defaultMarkovConfig: MarkovConfig = {
 	timer: 300
 }
 
-export interface Command {
-	socket: Socket;
-	io: Server;
-	args: string[];
-	fullArgs: string;
-	commandUser: Identity | null;
+export const MiniConfigSchema = z.object({
+    enabled: z.boolean(),
+    pointDefault: z.number(),
+    pointMax: z.number(),
+    pointName: z.string(),
+    horseRacing: z.boolean(),
+    raceFrequency: z.number(),
+    dueling: z.boolean(),
+    duelingChallenge: z.boolean(),
+    blackjack: z.boolean(),
+    fishing: z.boolean()
+});
+export type MiniConfig = z.infer<typeof MiniConfigSchema>;
+export const defaultMiniConfig: MiniConfig ={
+	enabled: false,
+	pointDefault: 100,
+	pointMax: 4000000000,
+	pointName: 'points',
+	horseRacing: false,
+	raceFrequency: 900,
+	dueling: false,
+	duelingChallenge: false,
+	blackjack: false,
+	fishing: false
 }
+
+export type ConfigSchema = typeof ServerConfigSchema | typeof MarkovConfigSchema | typeof MiniConfigSchema;
+export type Config = ServerConfig | MarkovConfig | MiniConfig;

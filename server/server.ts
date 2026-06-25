@@ -19,8 +19,9 @@ const app = express();
 const httpserver = createServer(app);
 const io = new Server(httpserver, {path:"/ratchat/socket.io/", connectionStateRecovery:{}});
 const usersPath = join(__dirname, 'data', 'users.json');
-const configPath = join(__dirname, 'config.json');
+const serverConfigPath = join(__dirname, 'config.json');
 const markovConfigPath = join(__dirname, 'markov.json');
+const miniConfigPath = join(__dirname, 'minigames.json');
 const nickFilterPath = join(__dirname, 'nickfilter.json');
 const profFilterPath = join(__dirname, 'profanityfilter.json');
 const bansPath = join(__dirname, 'data', 'bans.json');
@@ -33,8 +34,9 @@ const messageService = new MessageService({
 const stateService = new StateService({
 	messageService: messageService,
 
-	configPath: configPath,
+	serverConfigPath: serverConfigPath,
 	markovConfigPath: markovConfigPath,
+	miniConfigPath: miniConfigPath,
 	io: io
 });
 
@@ -62,7 +64,7 @@ const securityService = new SecurityService({
 })
 
 let markovService: MarkovService | null = null; 
-if (stateService.getMarkovConfig().enabled){
+if(stateService.getMarkovConfig().enabled){
 	markovService = new MarkovService({
 		messageService: messageService,
 		stateService: stateService,
@@ -94,12 +96,17 @@ io.on('connection', (socket) => {
 			console.log('a banned user attempted to join')
 		}
 	}
-	catch(e: any){
-		console.warn(e.message);
+	catch(error: unknown){
+		if(error instanceof Error){
+			console.warn(error.message);
+		} 
+		else{
+			console.warn("Unexpected error", error);
+		}
 	}
 
 	//On connection welcome, announcement messages, emote payload, message history
-	const welcomeMsg = stateService.getConfig().welcomeMsg;
+	const welcomeMsg = stateService.getServerConfig().welcomeMsg;
 	const announcement = stateService.getAnnouncement();
 	const emotes = stateService.getEmotes();
 	
@@ -111,7 +118,7 @@ io.on('connection', (socket) => {
 		messageService.send(socket, mType.chat, msg)
 	}
 	messageService.sendSys(socket, mType.welcome, `${welcomeMsg}`)
-	if (announcement){
+	if(announcement){
 		messageService.sendSys(socket, mType.ann, `announcement: ${announcement}`)
 	}
 
@@ -121,18 +128,24 @@ io.on('connection', (socket) => {
 	
 	try{
 		returningUser = identityService.getUser(clientGUID)
-	} catch (error: any){
-		console.warn(`${error.message}`);
+	} 
+	catch(error: unknown){
+		if(error instanceof Error){
+			console.warn(error.message);
+		} 
+		else{
+			console.warn("Unexpected error", error);
+		}
 	}
 
-	if (returningUser) {
+	if(returningUser){
 		stateService.updateSocketUser(io, socket.id, returningUser);
 		messageService.send(socket, mType.identity, returningUser);
 		messageService.sendSys(socket, mType.info, `welcome back, ${returningUser.nick.substring(7)}`);
 		
 		let scount = 0
-		for (const [, u] of stateService.getSocketUsers()) {
-			if (u.guid === returningUser.guid) scount++;
+		for (const [, u] of stateService.getSocketUsers()){
+			if(u.guid === returningUser.guid) scount++;
 		}
 		if(scount === 1){
 			try{
@@ -140,7 +153,7 @@ io.on('connection', (socket) => {
 				messageService.sendSys(io.except(socket.id), mType.ann,`${returningUser.nick.substring(7)} connected`);
 				identityService.setLastMessage(returningUser.guid, Date.now(), false);
 			}
-			catch(e: any){
+			catch(error: unknown){
 			}
 		}
 	} 
@@ -160,26 +173,31 @@ io.on('connection', (socket) => {
 		const user = stateService.getSocketUsers().get(socket.id);
 
 		// Check if it's a command
-		if (msg.startsWith('/')) {
+		if(msg.startsWith('/')){
 			try{
 				let clear = await commandService.commandHandler(msg, socket, io, user);
-				if (clear){
-					if (typeof callback === 'function'){
+				if(clear){
+					if(typeof callback === 'function'){
 						callback();
 					}
 				}
 				return;
 			}
-			catch(e: any){
-				messageService.sendSys(socket, mType.error, `system: ${e.message}`)
-				return;
+			catch(error: unknown){
+				if(error instanceof Error){
+					messageService.sendSys(socket, mType.error, `system: ${error.message}`)
+					return;
+				}
+				else{
+					console.warn("Unexpected error", error);
+				}
 			}
 		}
 
 		//Prevent users from chatting without an identity
-		if (!user) {
+		if(!user){
 			messageService.sendSys(socket, mType.error, "system: please set your nickname with /chrat <nickname> before chatting");
-			if (typeof callback === 'function'){
+			if(typeof callback === 'function'){
 				callback();
 			} 
 			return;
@@ -188,14 +206,14 @@ io.on('connection', (socket) => {
 		//Sanitize and broadcast
 		try{
 			const safe = moderationService.textCheck(msg, user, 'chat');
-			messageService.sendChat(io, user, safe, stateService.getConfig().msgArrayLen);
+			messageService.sendChat(io, user, safe, stateService.getServerConfig().msgArrayLen);
 			
 			if(markovService && stateService.getMarkovConfig().learning){
 				queueMicrotask(() => {
 					try{
 						markovService!.markovLearn(safe)
 					}
-					catch(e:any){
+					catch(error: unknown){
 						
 					}
 				});
@@ -207,17 +225,30 @@ io.on('connection', (socket) => {
 				if(wasAfk){
 					stateService.broadcastUsers(io);
 				}
-			} catch (e: any){
-				console.warn(`${e.message}`);
-				throw new Error(e.message);
+			} 
+			catch(error: unknown){
+				if(error instanceof Error){
+					console.warn(error.message);
+					throw new Error(error.message)
+				} 
+				else{
+					console.warn("Unexpected error", error);
+					throw new Error("Unexpected error")
+				}
+
 			}
 
-			if (typeof callback === 'function') {
+			if(typeof callback === 'function'){
 				callback();
 			}
 		}
-		catch(e: any){
-			messageService.sendSys(socket, mType.error, `system: ${e.message}`)
+		catch(error: unknown){
+			if(error instanceof Error){
+				messageService.sendSys(socket, mType.error, `system: ${error.message}`)
+			} 
+			else{
+				console.warn("Unexpected error", error);
+			}
 			return;
 		}
 	});
@@ -230,8 +261,8 @@ io.on('connection', (socket) => {
 			stateService.deleteSocketUser(io, socket.id);
 
 			let scount = 0;
-			for (const [, u] of stateService.getSocketUsers()) {
-				if (u.guid === disuser.guid) scount++;
+			for (const [, u] of stateService.getSocketUsers()){
+				if(u.guid === disuser.guid) scount++;
 			}
 			if(scount === 0){
 				try{
@@ -239,7 +270,7 @@ io.on('connection', (socket) => {
 					messageService.sendSys(io, mType.ann, `${disuser.nick.substring(7)} disconnected`);
 					identityService.setLastMessage(disuser.guid, Date.now());
 				}
-				catch(e:any){
+				catch(error: unknown){
 				}
 			}
 		}
@@ -262,20 +293,25 @@ app.get('/ratchat/health', (req, res) => {
 });
 
 //Server standup
-httpserver.listen(stateService.getConfig().PORT, () => {
-	console.log(`server running at http://localhost:${stateService.getConfig().PORT}`);
+httpserver.listen(stateService.getServerConfig().PORT, () => {
+	console.log(`server running at http://localhost:${stateService.getServerConfig().PORT}`);
 	const now = new Date();
 	console.log ('server startup timestamp: ', now.toLocaleString());
 });
-8
+
 //Fetch emotes on startup
 async function startUp(){
 	try{
 		await stateService.updateEmotes(io)
 		console.log('startup emotes loaded');
 	}
-	catch(e: any){
-		console.warn(`startup emotes failed: ${e.message}`);
+	catch(error: unknown){
+		if(error instanceof Error){
+			console.warn(`startup emotes failed: ${error.message}`);
+		} 
+		else{
+			console.warn("Unexpected error", error);
+		}
 	}
 }
 startUp();

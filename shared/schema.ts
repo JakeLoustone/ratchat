@@ -1,5 +1,5 @@
-import{Server, Socket} from 'socket.io';
-import{z} from 'zod';
+import{ Server, Socket } from 'socket.io';
+import{ z } from 'zod';
 
 export const IdentitySchema = z.object({
 	guid: z.string(),

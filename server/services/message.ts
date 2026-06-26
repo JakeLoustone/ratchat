@@ -1,4 +1,5 @@
 import { Server } from 'socket.io';
+import type { RedisClientType } from 'redis';
 
 import { mType } from '../../shared/schema';
 import type { MessageType, UserSum, Identity, ChatMessage } from '../../shared/schema';
@@ -17,7 +18,7 @@ type MessagePayloadMap = {
 };
 
 export interface MessageServiceDependencies {
-
+	redisClient: RedisClientType | null;
 }
 
 export class MessageService{
@@ -71,6 +72,10 @@ export class MessageService{
 
 	public startPruneTimer(msgArrayTimeout: number){
 		this.pruneTimer(msgArrayTimeout);
+	}
+
+	public redisFallback(){
+		return;
 	}
 
 	private updateChatHistory(configSize: number){

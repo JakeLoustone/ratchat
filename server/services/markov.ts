@@ -151,7 +151,7 @@ export class MarkovService{
 			catch(error: unknown){
 				if(error instanceof Error){
    					if(error.message === "watch your profamity"){
-						this.deps.messageService.sendSys(io, mType.ann, `${getDisplayNick(markovUser.nick)} tried to say something naughty`);
+						this.deps.messageService.sendSystemChat(io, mType.ann, `${getDisplayNick(markovUser.nick)} tried to say something naughty`);
 					}
 					else{
 						continue;
@@ -238,7 +238,7 @@ export class MarkovService{
 			try{
 				const gentext = await this.markovGen(io);
 				if(this.deps.stateService.markovUser){
-					this.deps.messageService.sendMarkov(this.deps.io, gentext, this.deps.stateService.markovUser, this.deps.stateService.markovUser, '');
+					this.deps.messageService.sendMarkovChat(io, gentext, this.deps.stateService.markovUser, this.deps.stateService.markovUser, '');
 				}
 			}
 			catch(error: unknown){

@@ -24,7 +24,7 @@ export const mType = {
 	welcome: "toClientWelcome",
 	markov: "toClientMarkov",
 	identity: "identity",
-	list: "userlist",
+	ulist: "userlist",
 	schat: "toServerChat",
 	delmsg: "deleteMsg",
 	emote: "emote",

@@ -76,8 +76,8 @@ export class SecurityService{
 					const banIP = hashIP(socket?.handshake.address);
 					this.bans.set(banIP, new Date());
 
-					this.deps.messageService.send(socket, mType.identity, sentinelId);
-					this.deps.messageService.sendSys(socket, mType.error, 'You have been banned.');
+					this.deps.messageService.sendIdentity(socket, sentinelId);
+					this.deps.messageService.sendSystemChat(socket, mType.error, 'You have been banned.');
 					this.deps.stateService.deleteSocketUser(this.deps.io, sid);
 					socket.disconnect(true);
 				}

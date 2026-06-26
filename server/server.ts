@@ -186,7 +186,7 @@ async function main(){
 		
 		try{
 			if(securityService.checkBan(socket.handshake.address)){
-				messageService.sendSys(socket, mType.error, 'You are banned.');
+				messageService.sendSystemChat(socket, mType.error, 'You are banned.');
 				socket.disconnect(true);
 				console.log('a banned user attempted to join')
 			}
@@ -207,14 +207,12 @@ async function main(){
 		
 		if(emotes.size > 0){
 			const emotePayload = Object.fromEntries(emotes);
-			messageService.send(socket, mType.emote, emotePayload);
+			messageService.sendEmoteList(socket, emotePayload);
 		}
-		for (const [id, msg] of messageService.getChatHistory()){
-			messageService.send(socket, mType.chat, msg)
-		}
-		messageService.sendSys(socket, mType.welcome, `${welcomeMsg}`)
+		messageService.sendChatHistory(socket);
+		messageService.sendSystemChat(socket, mType.welcome, `${welcomeMsg}`)
 		if(announcement){
-			messageService.sendSys(socket, mType.ann, `announcement: ${announcement}`)
+			messageService.sendSystemChat(socket, mType.ann, `announcement: ${announcement}`)
 		}
 
 		//Identity Service
@@ -235,8 +233,8 @@ async function main(){
 
 		if(returningUser){
 			stateService.updateSocketUser(io, socket.id, returningUser);
-			messageService.send(socket, mType.identity, returningUser);
-			messageService.sendSys(socket, mType.info, `welcome back, ${getDisplayNick(returningUser.nick)}`);
+			messageService.sendIdentity(socket, returningUser);
+			messageService.sendSystemChat(socket, mType.info, `welcome back, ${getDisplayNick(returningUser.nick)}`);
 			
 			let scount = 0
 			for (const [, u] of stateService.getSocketUsers()){
@@ -245,7 +243,7 @@ async function main(){
 			if(scount === 1){
 				try{
 					moderationService.timeCheck(returningUser, tType.joinleave);
-					messageService.sendSys(io.except(socket.id), mType.ann,`${getDisplayNick(returningUser.nick)} connected`);
+					messageService.sendSystemChat(io.except(socket.id), mType.ann,`${getDisplayNick(returningUser.nick)} connected`);
 					identityService.setLastMessage(returningUser.guid, Date.now(), false);
 				}
 				catch(error: unknown){
@@ -259,11 +257,11 @@ async function main(){
 			}
 		} 
 		else {
-			messageService.sendSys(socket,mType.error,"system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
+			messageService.sendSystemChat(socket,mType.error,"system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
 			//GDPR warning
-			messageService.sendSys(socket,mType.error,"system: be aware either command will store data regarding your session. type '/gdpr info' for more info");
-			messageService.sendSys(socket,mType.info,"system: feel free to use /help or /h to see all available commands. some commands will not be available until you set your nickname!");
-			messageService.sendSys(socket,mType.info,"we recommend increasing the zoom of your browser to 200% for the best viewing experience :)");
+			messageService.sendSystemChat(socket,mType.error,"system: be aware either command will store data regarding your session. type '/gdpr info' for more info");
+			messageService.sendSystemChat(socket,mType.info,"system: feel free to use /help or /h to see all available commands. some commands will not be available until you set your nickname!");
+			messageService.sendSystemChat(socket,mType.info,"we recommend increasing the zoom of your browser to 200% for the best viewing experience :)");
 			
 			//force broadcastUsers for lurkers check
 			stateService.broadcastUsers(io);
@@ -286,7 +284,7 @@ async function main(){
 				}
 				catch(error: unknown){
 					if(error instanceof Error){
-						messageService.sendSys(socket, mType.error, `system: ${error.message}`)
+						messageService.sendSystemChat(socket, mType.error, `system: ${error.message}`)
 						return;
 					}
 					else{
@@ -297,7 +295,7 @@ async function main(){
 
 			//Prevent users from chatting without an identity
 			if(!user){
-				messageService.sendSys(socket, mType.error, "system: please set your nickname with /chrat <nickname> before chatting");
+				messageService.sendSystemChat(socket, mType.error, "system: please set your nickname with /chrat <nickname> before chatting");
 				if(typeof callback === 'function'){
 					callback();
 				} 
@@ -350,7 +348,7 @@ async function main(){
 			}
 			catch(error: unknown){
 				if(error instanceof Error){
-					messageService.sendSys(socket, mType.error, `system: ${error.message}`)
+					messageService.sendSystemChat(socket, mType.error, `system: ${error.message}`)
 				} 
 				else{
 					console.error("Unexpected non-error thrown:", error);
@@ -373,7 +371,7 @@ async function main(){
 				if(scount === 0){
 					try{
 						moderationService.timeCheck(disuser, tType.joinleave);
-						messageService.sendSys(io, mType.ann, `${getDisplayNick(disuser.nick)} disconnected`);
+						messageService.sendSystemChat(io, mType.ann, `${getDisplayNick(disuser.nick)} disconnected`);
 						identityService.setLastMessage(disuser.guid, Date.now());
 					}
 					catch(error: unknown){

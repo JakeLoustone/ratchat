@@ -87,7 +87,7 @@ export class StateService {
 		this.announcement = str;
 		
 		if(str){
-		  	this.deps.messageService.sendSys(io, mType.ann,`announcement: ${str}`);
+		  	this.deps.messageService.sendSystemChat(io, mType.ann,`announcement: ${str}`);
 		}
 	}
 
@@ -126,7 +126,7 @@ export class StateService {
 			});
 
 			const emotePayload = Object.fromEntries(this.emotes);
-			this.deps.messageService.send(io, mType.emote, emotePayload);
+			this.deps.messageService.sendEmoteList(io, emotePayload);
 			return size;
 		} 
 		catch(error: unknown){
@@ -170,7 +170,7 @@ export class StateService {
 			});
 
 			const emotePayload = Object.fromEntries(this.emotes);
-			this.deps.messageService.send(io, mType.emote, emotePayload);
+			this.deps.messageService.sendEmoteList(io, emotePayload);
 			return deleteCount;
 		} 
 		catch(error: unknown){
@@ -246,7 +246,7 @@ export class StateService {
 			isAfk: true
 		})
 
-		this.deps.messageService.send(io, mType.list, userList);
+		this.deps.messageService.sendUserList(io, userList);
 	}
 
 	public toggleMarkov(io: Server){

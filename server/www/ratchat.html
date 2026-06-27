@@ -935,8 +935,12 @@
 		//FUNCTIONS//
 
 		function renderMessage(msg){
-			if (msg.id !== -1 && document.querySelector(`li[data-id="${msg.id}"]`)){
-				return;
+			//deduper
+			if(msg.id >= 0){
+				const dupe = document.querySelector(`li[data-id="${msg.id}"]`);
+				if(dupe && dupe.dataset.timestamp === String(msg.timestamp)){
+					return;
+				}
 			}
 			
 			const item = document.createElement('li');
@@ -949,7 +953,7 @@
 			}
 
 			//Date constructor
-			if(msg.id !== -1){
+			if(msg.id >=0){
 				const date = new Date(msg.timestamp);
 				const dateStr = date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
 				const timeSpan = document.createElement('span');
@@ -959,7 +963,7 @@
 			}
 
 			//Nickname constructor and styling
-			if(msg.id !== -1 && msg.author){
+			if(msg.id >=0 && msg.author){
 				const userName = msg.author.substring(7);
 				const userColor = msg.author.substring(0,7);
 				const nameSpan = document.createElement('span');
@@ -977,15 +981,18 @@
 					if(seed){
 						item.setAttribute('title', `Msg ID: ${msg.id} by: ${gen} with seed: ${seed}`);
 						item.setAttribute('data-id', msg.id);
+						item.setAttribute('data-timestamp', msg.timestamp);
 					}
 					else{
 						item.setAttribute('title', `Msg ID: ${msg.id} by: ${gen}`);
 						item.setAttribute('data-id', msg.id);
+						item.setAttribute('data-timestamp', msg.timestamp);
 					}
 				}
 				else{
 					item.setAttribute('title', `Msg ID: ${msg.id}`);
 					item.setAttribute('data-id', msg.id);
+					item.setAttribute('data-timestamp', msg.timestamp);
 				}
 			}
 
@@ -999,7 +1006,7 @@
 				raw = parts.slice(2).join('|');
 			}
 
-			if(window.DOMPurify && msg.id !== -1){
+			if(window.DOMPurify && msg.id >=0){
 				const emoted = emotify(raw);
 				contentSpan.innerHTML = DOMPurify.sanitize(emoted);
 			}

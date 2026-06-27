@@ -787,11 +787,13 @@
 				if(id < 0){
 					return
 				}
-				document.querySelectorAll(`li[data-id="${id}"]`).forEach(target => {
+				const targets = document.querySelectorAll(`li[data-id="${id}"]`);
+				const target = targets[targets.length - 1];
+				if(target){
 					target.replaceChildren('[message deleted]');
 					target.className = 'i-li';
 					target.removeAttribute('title');
-				});
+				}
 			});
 		});
 

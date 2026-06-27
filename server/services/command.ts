@@ -122,7 +122,7 @@ export class CommandService {
 					'/announce or /announcement <text> : Send an announcement to all users.',
 					'/ban <user> : Permanently IP bans a user with nickname "user" - huge pain to reverse so no jokes',
 					`/timeout or /to <user> <#> : Mutes nickname "user" for # seconds. defaults to ${config.timeoutDef} seconds if blank`,
-					'/delete <1> : Delete a message with ID 1.',
+					"/delete <msgID (#)> : Delete the most recent message with ID <msgID>. If it's not the most recent, fire it off again.",
 					'/emotes <emotesetID> : adds an emote set from 7tv. leave blank to reload from config',
 					'/unemotes <emotesetID> : remove all emotes whose names match an emote set from 7tv. consider using /emotes after to reload baseline emotes',
 					'/loadusers : reload users from disk. locks server thread while doing it, so only call if you know what you are doing'

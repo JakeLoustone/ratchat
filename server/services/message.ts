@@ -21,6 +21,7 @@ type MessagePayloadMap = {
 
 const REDIS_HISTORY_KEY = 'ratchat:chatHistory';
 const REDIS_COUNTER_KEY = 'ratchat:messageCounter';
+const REDIS_HISTORY_TTL = 604800
 
 export interface MessageServiceDependencies {
 	redisClient: RedisClientType | null;
@@ -37,12 +38,12 @@ export class MessageService{
 		  this.deps = dependencies;
 	}
 
-	public sendChat(to: Target, author: Identity, content:string, configSize: number){
+	public sendChat(to: Target, author: Identity, content:string, msgArrayLen: number){
 		const msg = this.createMessage(false, author, content, mType.chat);
 		this.sendPayload(to, mType.chat, msg);
-		if(configSize > 0){
+		if(msgArrayLen > 0){
 			this.chatHistory.set(msg.id, msg);
-			this.trimChatHistory(configSize);
+			this.trimChatHistory(msgArrayLen);
 		}
 	}
 
@@ -93,7 +94,7 @@ export class MessageService{
 		return this.chatHistory;
 	}
 
-	public async restoreChatHistory(configSize: number){
+	public async restoreChatHistory(msgArrayLen: number, msgArrayTimeout: number){
 		if(!this.deps.redisClient){
 			return;
 		}
@@ -101,8 +102,11 @@ export class MessageService{
 		try{
 			const historyLoad = await this.deps.redisClient.get(REDIS_HISTORY_KEY);
 			if(historyLoad){
+				const now = Date.now();
+				const expireTime = (msgArrayTimeout - 60) * 1000;
 				const entries: [number, ChatMessage][] = JSON.parse(historyLoad);
-				const trimmed = entries.slice(-configSize);
+				const fresh = entries.filter(([, msg]) => msg.timestamp + expireTime > now);
+				const trimmed = fresh.slice(-msgArrayLen);
 				this.chatHistory = new Map(trimmed);
 				console.log(`Restored ${this.chatHistory.size} messages from Redis`);
 			}
@@ -186,8 +190,8 @@ export class MessageService{
 		return id;
 	}
 
-	private trimChatHistory(configSize: number){
-		while (this.chatHistory.size > configSize){
+	private trimChatHistory(msgArrayLen: number){
+		while (this.chatHistory.size > msgArrayLen){
 			const oldestMessage = this.chatHistory.keys().next().value;
 			if(oldestMessage !== undefined){
 				this.chatHistory.delete(oldestMessage);
@@ -209,7 +213,7 @@ export class MessageService{
 				return;
 		}
 		try {
-			await this.deps.redisClient.set(REDIS_HISTORY_KEY, JSON.stringify([...this.chatHistory.entries()]));
+			await this.deps.redisClient.set(REDIS_HISTORY_KEY, JSON.stringify([...this.chatHistory.entries()]), { EX: REDIS_HISTORY_TTL });
 		} 
 		catch(error: unknown){
 			if(error instanceof Error){
@@ -226,7 +230,7 @@ export class MessageService{
 				return;
 		}
 		try {
-			await this.deps.redisClient.set(REDIS_COUNTER_KEY, this.messageCounter.toString());
+			await this.deps.redisClient.set(REDIS_COUNTER_KEY, this.messageCounter.toString(), { EX: REDIS_HISTORY_TTL });
 		} 
 		catch(error: unknown){
 			if(error instanceof Error){
@@ -238,10 +242,10 @@ export class MessageService{
 		}
 	}
 
-	private expireMessageTimer(timeout: number){
+	private expireMessageTimer(msgArrayTimeout: number){
 		setInterval(() => {
 			const now = Date.now();
-			const expireTime = (timeout - 60) * 1000;
+			const expireTime = (msgArrayTimeout - 60) * 1000;
 			let changed = false;
 
 			for(const [id, msg] of this.chatHistory){

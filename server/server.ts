@@ -121,7 +121,7 @@ async function main(){
 
 	//Redis history load
 	if(redisClient){
-		await messageService.restoreChatHistory(stateService.getServerConfig().msgArrayLen);
+		await messageService.restoreChatHistory(stateService.getServerConfig().msgArrayLen, stateService.getServerConfig().msgArrayTimeout);
 		await messageService.restoreMessageCounter();
 	}
 

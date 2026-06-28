@@ -12,12 +12,14 @@ export interface ModerationServiceDependencies{
 
 	nickFilterPath: string;
 	profFilterPath: string;
+	clientCommands: string[];
+	clientSubCommands: string[];
 }
-
 
 export class ModerationService {
 	private profFilter: RegExp[] = [];
 	private nickFilter: RegExp[] = [];
+	private startup: boolean = true;
 
 	private deps: ModerationServiceDependencies;
 	constructor(dependencies: ModerationServiceDependencies){
@@ -177,6 +179,16 @@ export class ModerationService {
 		return;
 
 	}
+
+	public addToNickFilter(commands: string[]){
+		if(!this.startup){
+			throw new Error('No longer starting up, illegal call');
+		}
+		const added = commands.map(cmd => new RegExp(`^${cmd}$`, 'i')); //exact commands only
+		this.nickFilter.push(...added);
+		this.startup = false;
+	}
+	
 	
 	private toSafeString(str: string): SafeString{
 		return str as SafeString
@@ -226,7 +238,9 @@ export class ModerationService {
 
 			this.nickFilter = [
 				...nickFilter.map(pattern => new RegExp(pattern, 'i')),
-				...this.profFilter
+				...this.profFilter,
+				...this.deps.clientCommands.map(cmd => new RegExp(`^${cmd}$`, 'i')), //exact commands only
+				...this.deps.clientSubCommands.map(cmd => new RegExp(`^${cmd}$`, 'i')) 
 			];
 		} 
 		catch(error: unknown){

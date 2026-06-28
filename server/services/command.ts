@@ -66,6 +66,9 @@ export class CommandService {
 		}
 	}
 
+	public getCommands(): string[]{
+		return Object.keys(this.commands);
+	}
 
 	//execute the command, true to clear 
 	private async execute(name: string, ctx: Command): Promise<boolean> {

@@ -6,7 +6,7 @@ import type { RedisClientType } from 'redis';
 import { Server } from 'socket.io';
 import {default as express} from 'express';
 
-import { mType, tType } from '../shared/schema';
+import { eType, mType, tType } from '../shared/schema';
 import type { Identity } from '../shared/schema';
 
 import { MessageService } from './services/message';
@@ -143,7 +143,9 @@ async function main(){
 		stateService: stateService, 
 
 		nickFilterPath: nickFilterPath,
-		profFilterPath: profFilterPath
+		profFilterPath: profFilterPath,
+		clientCommands: ['export', 'clear', 'clr', 'background', 'bg', 'bgreset', 'dark', 'mute'],
+		clientSubCommands: ['info', 'ip', 'list', ...Object.values(eType)]
 	});
 
 	const gameIdentityService = new GameIdentityService({
@@ -191,8 +193,9 @@ async function main(){
 		securityService: securityService,
 		markovService: markovService,
 	});
+	moderationService.addToNickFilter(commandService.getCommands());
 
-	//Emote fetch
+	//Emote fetchs
 	try{
 		await stateService.updateEmotes(io)
 		console.log('startup emotes loaded');

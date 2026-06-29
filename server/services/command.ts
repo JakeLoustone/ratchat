@@ -111,6 +111,15 @@ export class CommandService {
 				'/status or /me : set your status in the user listing',
 				'/background or /bg : set your background image. use /bgreset to clear',
 				'/gdpr <flag> : <info> for more information, <export> for a copy of your data, and <delete> to wipe your data.',
+				//./mute and /m are handled client side
+				'/mute or /m <event> : suppress minigame announcements from a specific <event>. will not retroactively remove event notfications.',
+				'/mute or /m <user> : hide all messages from a <user>. also hides historical messages you may have recieved.',
+				'/mute list or /m list : displays a list of all muted users and events',
+				'/mute eventlist or /m eventlist : displays a list of events that can be muted',
+				//./unmute is handled client side
+				'/unmute <user/event> : unmutes a <user> or an <event>. also will unhide hidden messages from <user> that you may have recieved.',
+				'/unmute all : unmutes all muted names and events.',
+				"/spoiler <text> : wraps your message in a spoiler warning. btw darth vader is luke's dad"
 			];
 
 			if(this.deps.markovService){
@@ -358,6 +367,8 @@ export class CommandService {
 						'lastMessage	|	Timestamp of last message sent for timeout enforcement and nickname cleanup',
 						'isAfk			|	AFK flag for user listing set by /afk command',
 						`chatHistory	|	Up to ${config.msgArrayLen} messages are temporarily cached for session contintunity and automatically expire after ${config.msgArrayTimeout} seconds.`,
+						'---------------------------------------------------------------------------------------------',
+						'We also store some data for minigames server side:',
 						'gamePoints		|	A number representing the minigame points earned',
 						'lastGame		|	Timestamp of when the last time locked minigame was played to prevent spam',
 						'---------------------------------------------------------------------------------------------',
@@ -365,6 +376,8 @@ export class CommandService {
 						'ratGUID		|	a local copy of the GUID for message construction',
 						'ratBG			|	a local version of image selected for background image (not sent to server)',
 						'ratMode		| 	a local indicator if dark mode is enabled for client appearence',
+						'ratMutedUsers	|	a local list of usernames whose messages are hidden by default in the client',
+						'ratMutedEvents	|	a local list of minigame events whose announcements are ignored',
 						'---------------------------------------------------------------------------------------------',
 					];
 					if(this.deps.stateService.getMarkovConfig().learning){

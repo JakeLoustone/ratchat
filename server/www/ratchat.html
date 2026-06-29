@@ -988,6 +988,16 @@
 							input.value = '';
 							return;
 						}
+						else if(fullArgs === 'eventlist'){
+							systemMessage(`muteable events: ${eventList}`, 'i-li');
+							input.value = '';
+							return;
+						}
+						else if(fullArgs === 'all'){
+							systemMessage("system: Hahahahahahahaha How The Fuck Is Cyber Bullying Real Hahahaha Just Walk Away From The Screen Like Close Your Eyes Haha", 'e-li')
+							input.value = '';
+							return;
+						}
 						else if(eventList.includes(fullArgs)){
 							if(mutedEvents.includes(fullArgs)){
 								systemMessage(`${fullArgs} event is already muted, did you mean to /unmute?`, 'i-li');
@@ -1046,6 +1056,21 @@
 						else if(fullArgs === 'list'){
 							systemMessage(`users muted: ${mutedUsers}`, 'i-li');
 							systemMessage(`events muted: ${mutedEvents}`, 'i-li');
+							return;
+						}
+						else if(fullArgs === 'eventlist'){
+							systemMessage(`muteable events: ${eventList}`, 'i-li');
+							input.value = '';
+							return;
+						}
+						else if(fullArgs === 'all'){
+							mutedUsers.forEach(nick => unmuteMessageHistory(nick));
+							mutedUsers = [];
+							mutedEvents = [];
+							localStorage.setItem('ratMutedUsers', JSON.stringify(mutedUsers));
+							localStorage.setItem('ratMutedEvents', JSON.stringify(mutedEvents));
+							systemMessage('all mutes cleared', 'i-li');
+							input.value = '';
 							return;
 						}
 						else if(eventList.includes(fullArgs)){

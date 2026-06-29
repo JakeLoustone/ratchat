@@ -146,7 +146,7 @@ async function main(){
 		nickFilterPath: nickFilterPath,
 		profFilterPath: profFilterPath,
 		clientCommands: ['export', 'clear', 'clr', 'background', 'bg', 'bgreset', 'dark', 'mute'],
-		clientSubCommands: ['info', 'ip', 'list', 'all', 'eventlist', ...Object.values(eType)]
+		clientSubCommands: ['info', 'ip', 'list', 'all', 'allevents', 'eventlist', ...Object.values(eType)]
 	});
 
 	const gameIdentityService = new GameIdentityService({

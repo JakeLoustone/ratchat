@@ -116,9 +116,11 @@ export class CommandService {
 				'/mute or /m <user> : hide all messages from a <user>. also hides historical messages you may have recieved.',
 				'/mute list or /m list : displays a list of all muted users and events',
 				'/mute eventlist or /m eventlist : displays a list of events that can be muted',
+				'/mute allevents : mute all events',
 				//./unmute is handled client side
 				'/unmute <user/event> : unmutes a <user> or an <event>. also will unhide hidden messages from <user> that you may have recieved.',
 				'/unmute all : unmutes all muted names and events.',
+				'/unmute allevents : unmutes all events. users remain muted',
 				"/spoiler <text> : wraps your message in a spoiler warning. btw darth vader is luke's dad"
 			];
 

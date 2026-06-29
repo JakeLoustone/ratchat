@@ -8,14 +8,14 @@ import { mType } from "../../shared/schema";
 import type { Identity } from "../../shared/schema.ts";
 
 import { StateService } from "./state";
-import { MessageService } from "./message";
+import { DispatchService } from "./dispatch";
 import { IdentityService } from "./identity";
 
 import { hashIP } from '../utils/hash.js'
 
 export interface SecurityServiceDependencies{
 	stateService: StateService;
-	messageService: MessageService;
+	dispatchService: DispatchService;
 	identityService: IdentityService;
 	
 	bansPath: string;
@@ -76,8 +76,8 @@ export class SecurityService{
 					const banIP = hashIP(socket?.handshake.address);
 					this.bans.set(banIP, new Date());
 
-					this.deps.messageService.sendIdentity(socket, sentinelId);
-					this.deps.messageService.sendSystemChat(socket, mType.error, 'You have been banned.');
+					this.deps.dispatchService.sendIdentity(socket, sentinelId);
+					this.deps.dispatchService.sendSystemChat(socket, mType.error, 'You have been banned.');
 					this.deps.stateService.deleteSocketUser(this.deps.io, sid);
 					socket.disconnect(true);
 				}

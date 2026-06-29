@@ -5,7 +5,7 @@ import { Server } from 'socket.io';
 
 import { mType, tType} from '../../shared/schema';
 
-import { MessageService } from './message';
+import { DispatchService } from './dispatch';
 import { StateService } from './state';
 import { ModerationService } from './moderation';
 import { IdentityService } from './identity';
@@ -25,7 +25,7 @@ type StartNeuron = Omit<Neuron, 'table' | 'word3'>;
 type GramNeuron = Omit<Neuron, 'table'>;
 
 export interface MarkovServiceDependencies {
-	messageService: MessageService;
+	dispatchService: DispatchService;
 	stateService: StateService;
 	moderationService: ModerationService;
 	identityService: IdentityService;
@@ -150,7 +150,7 @@ export class MarkovService{
 			catch(error: unknown){
 				if(error instanceof Error){
    					if(error.message === "watch your profamity"){
-						this.deps.messageService.sendSystemChat(io, mType.ann, `${getDisplayNick(markovUser.nick)} tried to say something naughty`);
+						this.deps.dispatchService.sendSystemChat(io, mType.ann, `${getDisplayNick(markovUser.nick)} tried to say something naughty`);
 					}
 					else{
 						continue;
@@ -237,7 +237,7 @@ export class MarkovService{
 			try{
 				const gentext = await this.markovGen(io);
 				if(this.deps.stateService.markovUser){
-					this.deps.messageService.sendMarkovChat(io, gentext, this.deps.stateService.markovUser, this.deps.stateService.markovUser, '');
+					this.deps.dispatchService.sendMarkovChat(io, gentext, this.deps.stateService.markovUser, this.deps.stateService.markovUser, '');
 				}
 			}
 			catch(error: unknown){

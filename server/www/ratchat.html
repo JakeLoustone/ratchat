@@ -667,7 +667,8 @@
 		socket.on('toClientAnnouncement', handleMessage);
 		socket.on('toClientWelcome', handleMessage);
 		socket.on('toClientMarkov', handleMessage);
-		socket.on('toClientGame', handleMessage);
+		
+		socket.on('toClientGame', handleGameEvent);
 
 		socket.on('identity', (identity) => {
 			if(identity && identity.guid === 'RESET_IDENTITY'){
@@ -768,7 +769,7 @@
 		});
 
 		socket.on('eventlist', (payload) =>{
-			eventList = payload;
+			eventList = payload.map(event => event.toLowerCase());
 		});
 
 		socket.on('emotelist', (payload) =>{
@@ -825,7 +826,7 @@
 					const fresh = target.cloneNode(false);
 					fresh.className = 'i-li';
 					fresh.textContent = '[message deleted]';
-					fresh.title = `Msg ID: ${msg.id}`;
+					fresh.title = `Msg ID: ${id}`;
 					fresh.setAttribute('data-id', id);
 					target.replaceWith(fresh);
 				}
@@ -898,7 +899,7 @@
 			if(val.startsWith('/')){
 				const args = val.slice(1).trim().split(/ +/);
 				const commandName = args.shift()?.toLowerCase() || '';
-				const fullArgs = args.join(' ');
+				const fullArgs = args.join(' ').toLowerCase();
 
 				switch(commandName){
 					case 'export':{
@@ -958,7 +959,7 @@
 						if (eventList.length === 0) {
 							systemMessage('fetching event list...', 'i-li');
 
-							const received = await Promise.race([
+							await Promise.race([
 								new Promise(resolve => socket.emit('requesteventlist', resolve)),
 								new Promise(resolve => setTimeout(resolve, 3000))
 							]);
@@ -1008,6 +1009,7 @@
 							else{
 								mutedUsers.push(fullArgs);
 								localStorage.setItem('ratMutedUsers', JSON.stringify(mutedUsers));
+								muteMessageHistory(fullArgs);
 								systemMessage(`muted user: ${fullArgs}`, 'i-li');
 								input.value = '';
 								return;
@@ -1018,7 +1020,7 @@
 						if (eventList.length === 0) {
 							systemMessage('fetching event list...', 'i-li');
 
-							const received = await Promise.race([
+							await Promise.race([
 								new Promise(resolve => socket.emit('requesteventlist', resolve)),
 								new Promise(resolve => setTimeout(resolve, 3000))
 							]);
@@ -1067,6 +1069,7 @@
 							else{
 								mutedUsers.splice(mutedUsers.indexOf(fullArgs), 1);
 								localStorage.setItem('ratMutedUsers', JSON.stringify(mutedUsers));
+								unmuteMessageHistory(fullArgs);
 								systemMessage(`unmuted user: ${fullArgs}`, 'i-li');
 								input.value = '';
 								return;
@@ -1101,6 +1104,14 @@
 			renderMessage(li);
 		}
 
+		function handleGameEvent(msg){
+			if(mutedEvents.includes(msg.event.toLowerCase())){
+				return;
+			}
+			
+			systemMessage(msg.content, 'g-li');
+		}
+
 		function handleMessage(msg){
 			if(msg.id >= 0){
 				const dupe = document.querySelector(`li[data-id="${msg.id}"]`);
@@ -1111,9 +1122,27 @@
 
 			const className = toClass[msg.type];
 			const li = buildMessage(msg, className);
+			if(msg.spoiler){
+				li.dataset.spoiler = 'true';
+			}
 
-			if(msg.author && mutedUsers.includes(msg.author.substring(7))){
-				renderMessage(hideMessage(li, `[a muted user said something. click to reveal]`, '[MUTED]', msg.id, msg.timestamp));
+			if(msg.author && mutedUsers.includes(msg.author.substring(7).toLowerCase())){
+				let wrapper = null;
+				if(msg.spoiler){
+					wrapper = hideMessage(li, '[a muted user sent a spoiler. click to reveal]', '[MUTED][SPOILER]', msg.id, msg.timestamp);
+				}
+				else{
+					wrapper = hideMessage(li, `[a muted user said something. click to reveal]`, '[MUTED]', msg.id, msg.timestamp);
+				}
+				if(wrapper){
+					renderMessage(wrapper);
+				}
+				return;
+			}
+			
+			if(msg.author && msg.spoiler){
+				const wrapper = hideMessage(li, `[${msg.author.substring(7)} sent a spoiler — click to reveal]`, '[SPOILER]', msg.id, msg.timestamp);
+				renderMessage(wrapper);
 				return;
 			}
 
@@ -1182,35 +1211,61 @@
 		function hideMessage(li, placeholderText, helperText, id, timestamp){
 			const wrapper = document.createElement('li');
 			let revealed = false;
+
 			li.title += ' — click to hide';
+			li.style.display = 'none';
+			li.dataset.inside = 'true';
 
 			const helperSpan = document.createElement('span');
 			helperSpan.textContent = helperText;
 			helperSpan.style.cssText = 'color:grey; font-size:small; margin-right:0.5rem';
+			helperSpan.classList.add('helper-span');
 			li.prepend(helperSpan);
 
+			const placeholder = document.createElement('span');
+			placeholder.textContent = placeholderText;
+
 			wrapper.classList.add('i-li', 'hidden-message');
-			wrapper.textContent = placeholderText;
 			wrapper.setAttribute('data-id', id);
 			wrapper.setAttribute('data-timestamp', timestamp);
 			wrapper.title = `Msg ID: ${id} — click to reveal`;
+			wrapper.appendChild(placeholder);
+			wrapper.appendChild(li);
+
 			wrapper.addEventListener('click', () => {
 				if(!revealed){
+					placeholder.style.display = 'none';
+					li.style.display = '';
 					wrapper.classList.remove('i-li');
-					wrapper.classList.add('revealed-message');
-					wrapper.replaceChildren(li);
+					wrapper.title = `Msg ID: ${id} — click to hide`;
 					revealed = true;
 				}
 				else{
+					placeholder.style.display = '';
+					li.style.display = 'none';
 					wrapper.classList.add('i-li');
-					wrapper.classList.remove('revealed-message');
-					wrapper.textContent = placeholderText;
 					wrapper.title = `Msg ID: ${id} — click to reveal`;
 					revealed = false;
 				}
 			});
 
 			return wrapper;
+		}
+
+		function unhideMessage(wrapper){
+			const inner = wrapper.querySelector('[data-inside="true"]');
+			if(inner){
+				const helperSpan = inner.querySelector('.helper-span');
+				if(helperSpan){
+					helperSpan.remove();
+				}
+
+				inner.title = inner.title.replace(' — click to hide', '');
+				inner.style.display = '';
+
+				return inner;
+			}
+			return null;
 		}
 
 		function renderMessage(li){
@@ -1225,7 +1280,84 @@
 			}
 		}
 
-		//Helper function for non user messages
+		function muteMessageHistory(nick){
+			const candidates = Array.from(messages.children);
+			const matches = candidates.filter(li => {
+				//defensive check to prevent muting a muted message
+				if(li.classList.contains('hidden-message')){
+					const inner = li.querySelector('[data-inside="true"]');
+					if(!inner || inner.dataset.spoiler !== 'true'){
+						return false;
+					}
+				}
+
+				const nameSpan = li.querySelector('.user-name');
+				if(!nameSpan){
+					return false;
+				}
+
+				return nameSpan.textContent.trim().toLowerCase() === (nick + ':').toLowerCase();
+			});
+
+			matches.forEach(li => {
+				let target = null;
+				let wrapper = null;
+
+				if(li.classList.contains('hidden-message')){
+					target = unhideMessage(li);
+					if(!target){
+						return;
+					}
+				} 
+				else{
+					target = li;
+				}
+
+				const clone = target.cloneNode(true);
+				if(clone.dataset.spoiler === 'true'){
+					wrapper = hideMessage(clone, '[a muted user sent a spoiler. click to reveal]', '[MUTED][SPOILER]', clone.dataset.id, clone.dataset.timestamp);
+				}
+				else{
+					wrapper = hideMessage(clone, '[a muted user said something. click to reveal]', '[MUTED]', clone.dataset.id, clone.dataset.timestamp);
+				}
+
+				if(wrapper){
+					li.replaceWith(wrapper);
+				}
+
+				return;
+			});
+		}
+
+		function unmuteMessageHistory(nick){
+			const candidates = Array.from(messages.children);
+			const matches = candidates.filter(wrapper =>{
+				const nameSpan = wrapper.querySelector('.user-name');
+				if(!wrapper.classList.contains('hidden-message')){
+					return false;
+				}
+				if(!nameSpan){
+					return false;
+				}
+
+				return nameSpan.textContent.trim().toLowerCase() === (nick + ':').toLowerCase();
+			});
+
+			matches.forEach(wrapper => {
+				const inner = unhideMessage(wrapper);
+				if(!inner){
+					return;
+				}
+
+				if(inner.dataset.spoiler === 'true'){
+					const userName = inner.querySelector('.user-name')?.textContent.trimEnd().slice(0, -1) || 'someone';
+					wrapper.replaceWith(hideMessage(inner, `[${userName} sent a spoiler — click to reveal]`, '[SPOILER]', inner.dataset.id, inner.dataset.timestamp));
+				} 
+				else{
+					wrapper.replaceWith(inner);
+				}
+			});
+		}
 
 		function emotify(text){
 			return text.split(' ').map(word => {

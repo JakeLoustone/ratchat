@@ -9,14 +9,15 @@ import {default as express} from 'express';
 import { eType, mType, tType } from '../shared/schema';
 import type { Identity } from '../shared/schema';
 
-import { MessageService } from './services/message';
+import { DispatchService } from './services/dispatch';
 import { StateService } from './services/state';
 import { ModerationService } from './services/moderation';
 import { GameIdentityService } from './services/games/game-identity';
 import { IdentityService } from './services/identity';
 import { SecurityService } from './services/security';
-import { CommandService } from './services/command';
 import { MarkovService } from './services/markov';
+import { MessageService } from './services/message';
+import { CommandService } from './services/command';
 
 import { getDisplayNick } from './utils/format';
 
@@ -86,13 +87,13 @@ async function main(){
 		console.warn('WARNING: REDIS_URL environment variable is not set. Restart persistence is not available.');
 	}
 
-	const messageService = new MessageService({
+	const dispatchService = new DispatchService({
 		redisClient: redisClient,
 		redisTTL: REDIS_TTL
 	});
 
 	const stateService = new StateService({
-		messageService: messageService,
+		dispatchService: dispatchService,
 
 		serverConfigPath: serverConfigPath,
 		markovConfigPath: markovConfigPath,
@@ -114,7 +115,7 @@ async function main(){
 						redisClient.removeAllListeners();
 						redisClient.destroy();
 						redisClient = null;
-						messageService.messageRedisFallback();
+						dispatchService.messageRedisFallback();
 						stateService.stateRedisFallback();
 						console.error('Redis reconnection timeout exceeded 5s, fell back to stateless');
 					}
@@ -134,8 +135,8 @@ async function main(){
 
 	//Redis history load
 	if(redisClient){
-		await messageService.restoreChatHistory(stateService.getServerConfig().msgArrayLen, stateService.getServerConfig().msgArrayTimeout);
-		await messageService.restoreMessageCounter();
+		await dispatchService.restoreChatHistory(stateService.getServerConfig().msgArrayLen, stateService.getServerConfig().msgArrayTimeout);
+		await dispatchService.restoreMessageCounter();
 		await stateService.restoreAnnouncement();
 	}
 
@@ -164,7 +165,7 @@ async function main(){
 
 	const securityService = new SecurityService({
 		stateService: stateService,
-		messageService: messageService,
+		dispatchService: dispatchService,
 		identityService: identityService,
 
 		bansPath: bansPath,
@@ -174,24 +175,35 @@ async function main(){
 	let markovService: MarkovService | null = null; 
 	if(stateService.getMarkovConfig().enabled){
 		markovService = new MarkovService({
-			messageService: messageService,
+			dispatchService: dispatchService,
 			stateService: stateService,
 			moderationService: moderationService,
 			identityService: identityService,
 
 			brainPath: brainPath,
-			io: io,
+			io: io
 		})
 	}
 
+	const messageService = new MessageService({
+		dispatchService: dispatchService,
+		stateService: stateService,
+		moderationService: moderationService,
+		identityService: identityService,
+		markovService: markovService,
+
+		io: io
+	});
+
 	const commandService = new CommandService({
-		messageService: messageService,
+		dispatchService: dispatchService,
 		stateService: stateService,
 		moderationService: moderationService,
 		gameIdentityService: gameIdentityService,
 		identityService: identityService,
 		securityService: securityService,
 		markovService: markovService,
+		messageService: messageService
 	});
 	moderationService.addToNickFilter(commandService.getCommands());
 
@@ -214,7 +226,7 @@ async function main(){
 		
 		try{
 			if(securityService.checkBan(socket.handshake.address)){
-				messageService.sendSystemChat(socket, mType.error, 'You are banned.');
+				dispatchService.sendSystemChat(socket, mType.error, 'You are banned.');
 				socket.disconnect(true);
 				console.log('a banned user attempted to join')
 			}
@@ -235,15 +247,15 @@ async function main(){
 		
 		if(emotes.size > 0){
 			const emotePayload = Object.fromEntries(emotes);
-			messageService.sendEmoteList(socket, emotePayload);
+			dispatchService.sendEmoteList(socket, emotePayload);
 		}
-		messageService.sendChatHistory(socket);
-		messageService.sendEventList(socket);
+		dispatchService.sendChatHistory(socket);
+		dispatchService.sendEventList(socket);
 
 		if(!inGrace){
-			messageService.sendSystemChat(socket, mType.welcome, `${welcomeMsg}`)
+			dispatchService.sendSystemChat(socket, mType.welcome, `${welcomeMsg}`)
 			if(announcement){
-				messageService.sendSystemChat(socket, mType.ann, `announcement: ${announcement}`)
+				dispatchService.sendSystemChat(socket, mType.ann, `announcement: ${announcement}`)
 			}
 		}
 
@@ -265,9 +277,9 @@ async function main(){
 
 		if(returningUser){
 			stateService.updateSocketUser(io, socket.id, returningUser);
-			messageService.sendIdentity(socket, returningUser);
+			dispatchService.sendIdentity(socket, returningUser);
 			if(!inGrace){
-				messageService.sendSystemChat(socket, mType.info, `welcome back, ${getDisplayNick(returningUser.nick)}`);
+				dispatchService.sendSystemChat(socket, mType.info, `welcome back, ${getDisplayNick(returningUser.nick)}`);
 			}
 			let scount = 0
 			for (const [, u] of stateService.getSocketUsers()){
@@ -277,7 +289,7 @@ async function main(){
 				try{
 					moderationService.timeCheck(returningUser, tType.joinleave);
 					if(!inGrace){
-						messageService.sendSystemChat(io.except(socket.id), mType.ann,`${getDisplayNick(returningUser.nick)} connected`);
+						dispatchService.sendSystemChat(io.except(socket.id), mType.ann,`${getDisplayNick(returningUser.nick)} connected`);
 					}
 					identityService.setLastMessage(returningUser.guid, Date.now(), false);
 				}
@@ -292,11 +304,11 @@ async function main(){
 			}
 		} 
 		else {
-			messageService.sendSystemChat(socket,mType.error,"system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
+			dispatchService.sendSystemChat(socket,mType.error,"system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one");
 			//GDPR warning
-			messageService.sendSystemChat(socket,mType.error,"system: be aware either command will store data regarding your session. type '/gdpr info' for more info");
-			messageService.sendSystemChat(socket,mType.info,"system: feel free to use /help or /h to see all available commands. some commands will not be available until you set your nickname!");
-			messageService.sendSystemChat(socket,mType.info,"we recommend increasing the zoom of your browser to 200% for the best viewing experience :)");
+			dispatchService.sendSystemChat(socket,mType.error,"system: be aware either command will store data regarding your session. type '/gdpr info' for more info");
+			dispatchService.sendSystemChat(socket,mType.info,"system: feel free to use /help or /h to see all available commands. some commands will not be available until you set your nickname!");
+			dispatchService.sendSystemChat(socket,mType.info,"we recommend increasing the zoom of your browser to 200% for the best viewing experience :)");
 			
 			//force broadcastUsers for lurkers check
 			stateService.broadcastUsers(io);
@@ -315,7 +327,7 @@ async function main(){
 				}
 				catch(error: unknown){
 					if(error instanceof Error){
-						messageService.sendSystemChat(socket, mType.error, `system: ${error.message}`)
+						dispatchService.sendSystemChat(socket, mType.error, `system: ${error.message}`)
 					}
 					else{
 						console.error("Unexpected non-error thrown:", error);
@@ -327,69 +339,18 @@ async function main(){
 
 			//Prevent users from chatting without an identity
 			if(!user){
-				messageService.sendSystemChat(socket, mType.error, "system: please set your nickname with /chrat <nickname> before chatting");
+				dispatchService.sendSystemChat(socket, mType.error, "system: please set your nickname with /chrat <nickname> before chatting");
 				callback(clearInput);
 				return;
 			}
 
 			//Sanitize and broadcast
-			try{
-				const safe = moderationService.textCheck(msg, user, 'chat');
-				messageService.sendChat(io, user, safe, stateService.getServerConfig().msgArrayLen);			
-				callback(clearInput);
-				
-				if(markovService && stateService.getMarkovConfig().learning){
-					queueMicrotask(() => {
-						try{
-							markovService!.markovLearn(safe)
-						}
-						catch(error: unknown){
-							if(error instanceof Error){
-								console.warn('markov learning error:', error.message);
-							}
-							else{
-								console.error("Unexpected non-error thrown:", error);
-							}
-						}	
-					});
-				}
-
-				try{
-					const wasAfk = user.isAfk;
-					identityService.setLastMessage(user.guid, Date.now());
-					if(wasAfk){
-						stateService.broadcastUsers(io);
-					}
-				} 
-				catch(error: unknown){
-					if(error instanceof Error){
-						console.warn(error.message);
-						throw error;
-					} 
-					else{
-						console.error("Unexpected non-error thrown:", error);
-						throw new Error("Unexpected error");
-					}
-
-				}
-
-				return;
-
-			}
-			catch(error: unknown){
-				if(error instanceof Error){
-					messageService.sendSystemChat(socket, mType.error, `system: ${error.message}`)
-				} 
-				else{
-					console.error("Unexpected non-error thrown:", error);
-				}
-				callback(keepInput);
-				return;
-			}
+			callback(messageService.handleChat(msg, user, socket, false));
+			return;
 		});
 
 		socket.on('requesteventlist', (callback) => {
-			messageService.sendEventList(socket);
+			dispatchService.sendEventList(socket);
 			callback();
 		});
 
@@ -408,7 +369,7 @@ async function main(){
 					try{
 						moderationService.timeCheck(disuser, tType.joinleave);
 						if(!inGrace){
-							messageService.sendSystemChat(io, mType.ann, `${getDisplayNick(disuser.nick)} disconnected`);
+							dispatchService.sendSystemChat(io, mType.ann, `${getDisplayNick(disuser.nick)} disconnected`);
 						}
 						identityService.setLastMessage(disuser.guid, Date.now());
 					}

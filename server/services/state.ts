@@ -7,7 +7,7 @@ import type { Socket, Server } from "socket.io";
 import { defaultServerConfig, defaultMarkovConfig, mType, defaultGameConfig, ServerConfigSchema, MarkovConfigSchema, GameConfigSchema } from '../../shared/schema';
 import type { ServerConfig, Identity, UserSum, MarkovConfig, GameConfig } from "../../shared/schema";
 
-import { MessageService } from "./message";
+import { DispatchService } from "./dispatch";
 import type { SafeString } from "./moderation";
 
 import { mergeDefaults } from "../utils/defaults";
@@ -27,7 +27,7 @@ interface EmoteEntry {
 const REDIS_ANNOUNCEMENT_KEY = 'ratchat:announcement';
 
 export interface StateServiceDependencies{
-	messageService: MessageService;
+	dispatchService: DispatchService;
 	
 	serverConfigPath: string;
 	markovConfigPath: string;
@@ -66,7 +66,7 @@ export class StateService {
 		this.loadMarkovConfig();
 		this.loadGameConfig();
 		this.afkTimer();
-		this.deps.messageService.startExpireMessageTimer(this.serverConfig.msgArrayTimeout);
+		this.deps.dispatchService.startExpireMessageTimer(this.serverConfig.msgArrayTimeout);
 	}
 
 	public getServerConfig(): ServerConfig{
@@ -93,7 +93,7 @@ export class StateService {
 		this.announcement = str;
 		
 		if(str){
-		  	this.deps.messageService.sendSystemChat(io, mType.ann,`announcement: ${str}`);
+		  	this.deps.dispatchService.sendSystemChat(io, mType.ann,`announcement: ${str}`);
 		}
 
 		this.saveAnnouncementQueue();
@@ -134,7 +134,7 @@ export class StateService {
 			});
 
 			const emotePayload = Object.fromEntries(this.emotes);
-			this.deps.messageService.sendEmoteList(io, emotePayload);
+			this.deps.dispatchService.sendEmoteList(io, emotePayload);
 			return size;
 		} 
 		catch(error: unknown){
@@ -178,7 +178,7 @@ export class StateService {
 			});
 
 			const emotePayload = Object.fromEntries(this.emotes);
-			this.deps.messageService.sendEmoteList(io, emotePayload);
+			this.deps.dispatchService.sendEmoteList(io, emotePayload);
 			return deleteCount;
 		} 
 		catch(error: unknown){
@@ -254,7 +254,7 @@ export class StateService {
 			isAfk: true
 		})
 
-		this.deps.messageService.sendUserList(io, userList);
+		this.deps.dispatchService.sendUserList(io, userList);
 	}
 
 	public toggleMarkov(io: Server){

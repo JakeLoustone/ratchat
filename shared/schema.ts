@@ -76,6 +76,7 @@ export interface ChatMessage {
 	content: string;
 	timestamp: number;
 	type: MessageType;
+	spoiler: boolean;
 }
 
 export interface GameEvent{

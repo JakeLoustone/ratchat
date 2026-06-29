@@ -606,7 +606,6 @@
 		const form = document.getElementById('form');
 		const input = document.getElementById('input');
 		const messages = document.getElementById('messages');
-		let eventList = [];
 
 		const savedBG = localStorage.getItem('ratBG');
 		const savedTheme = localStorage.getItem('ratMode');
@@ -614,8 +613,13 @@
 		const savedMutedEvents = localStorage.getItem('ratMutedEvents');
 
 		let emotes = {};
+		let eventList = [];
 		let mutedUsers = [];
 		let mutedEvents = [];
+
+		let sentHistory = [];
+		let historyIndex = -1;
+		let draftMessage = '';
 
 		//message type to css class
 		const toClass = {
@@ -858,13 +862,13 @@
 			}
 		});
 
-		document.getElementById('search').addEventListener('input', (e) => {
-			filterEmotesGrid(e.target.value);
+		document.getElementById('search').addEventListener('input', (search) => {
+			filterEmotesGrid(search.target.value);
 		});
 
 		//Background loader
-		document.getElementById('bg-upload').addEventListener('change', function(e){
-			const file = e.target.files[0];
+		document.getElementById('bg-upload').addEventListener('change', function(event){
+			const file = event.target.files[0];
 			if(file){
 				const reader = new FileReader();
 				
@@ -887,6 +891,43 @@
 			}
 		});
 
+		//message history
+		input.addEventListener('keydown', (event) =>{
+			if(event.key === 'ArrowUp'){
+				if(sentHistory.length === 0){
+					return;
+				}
+				//bail if cursor isn't at beginning
+				if(input.selectionStart !== 0){
+					return;
+				}
+				if(historyIndex === -1){
+					draftMessage = input.value;
+				}
+				if(historyIndex === sentHistory.length -1){
+					return;
+				}
+				historyIndex = Math.min(historyIndex + 1, sentHistory.length - 1);
+				input.value = sentHistory[historyIndex];
+			}
+			else if(event.key === 'ArrowDown'){
+				if(historyIndex === -1){
+					return;
+				}
+				if(input.selectionStart !== input.value.length){
+					return;
+				}
+				historyIndex--;
+				if(historyIndex === -1){
+					input.value = draftMessage;
+				}
+				else{
+					input.value = sentHistory[historyIndex];
+				}
+			}
+		});
+
+
 		//Client submission
 		form.addEventListener('submit', async (submitEvent) => {
 			submitEvent.preventDefault();
@@ -895,6 +936,8 @@
 			if(!val){
 				return;
 			}
+
+			addMessageHistory(val);
 
 			if(val.startsWith('/')){
 				const args = val.slice(1).trim().split(/ +/);
@@ -1399,6 +1442,15 @@
 				img.style.display = img.dataset.name.includes(lowerFilter) ? '' : 'none';
 			});
 			document.getElementById('emotes-grid-wrapper').scrollTop = 0;
+		}
+
+		function addMessageHistory(text){
+			sentHistory.unshift(text)
+			if(sentHistory.length > 50){
+				sentHistory.pop();
+			}
+			historyIndex = -1;
+			draftMessage = '';
 		}
 
 		//Fake scrollbar

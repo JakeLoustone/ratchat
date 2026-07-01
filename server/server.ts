@@ -112,8 +112,8 @@ async function main(){
 						redisClient.removeAllListeners();
 						redisClient.destroy();
 						redisClient = null;
-						dispatchService.messageRedisFallback();
-						stateService.stateRedisFallback();
+						dispatchService.disableRedis();
+						stateService.disableRedis();
 						console.error('Redis reconnection timeout exceeded 5s, fell back to stateless');
 					}
 				}, 5000);
@@ -210,7 +210,7 @@ async function main(){
 		messageService: messageService,
 		gameCommandService: gameCommandService,
 	});
-	moderationService.addToNickFilter([...commandService.getCommands(), ...gameCommandService.getGameCommands()]);
+	moderationService.appendNickFilter([...commandService.getCommands(), ...gameCommandService.getGameCommands()]);
 
 	//Emote fetchs
 	try{
@@ -276,7 +276,7 @@ async function main(){
 			}
 			if(scount === 1){
 				try{
-					moderationService.timeCheck(returningUser, tType.joinleave);
+					moderationService.moderateTime(returningUser, tType.joinleave);
 					if(!inGrace){
 						dispatchService.sendSystemChat(io.except(socket.id), mType.ann,`${getDisplayNick(returningUser.nick)} connected`);
 					}
@@ -354,7 +354,7 @@ async function main(){
 				}
 				if(scount === 0){
 					try{
-						moderationService.timeCheck(disuser, tType.joinleave);
+						moderationService.moderateTime(disuser, tType.joinleave);
 						if(!inGrace){
 							dispatchService.sendSystemChat(io, mType.ann, `${getDisplayNick(disuser.nick)} disconnected`);
 						}

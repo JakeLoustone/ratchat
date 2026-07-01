@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import type { Identity, TimeType, TextType } from "../../shared/schema.ts";
 
 import { StateService } from "./state";
-import { textSanitize, isValidHexColor } from "../utils/input.js";
+import { sanitizeText, isValidHexColor } from "../utils/input.js";
 import { handleError, AppError } from "../utils/errors.js";
 
 export type SafeString = string & {__brand: 'SafeString'};
@@ -28,8 +28,8 @@ export class ModerationService {
 		this.loadFilters(); 
 	}
 
-	public textCheck(raw: string, user: Identity, type: TextType): SafeString{
-		const clean = textSanitize(raw).trim();
+	public moderateText(raw: string, user: Identity, type: TextType): SafeString{
+		const clean = sanitizeText(raw).trim();
 		let safe = this.toSafeString('');
 		switch(type){
 			case 'chat':
@@ -40,16 +40,16 @@ export class ModerationService {
 					throw new AppError('no content in message, try resending with ASCII only', 'user');
 				}
 				try{
-					this.profCheck(clean);
-					this.timeCheck(user, 'chat');
+					this.moderateProfanity(clean);
+					this.moderateTime(user, 'chat');
 				}
 				catch(error: unknown){
 					if(error instanceof AppError){
 						throw error;
 					}
-					handleError(error, 'Text Check - Chat');
+					handleError(error, 'Moderate Text - Chat');
 					
-					throw new AppError(`failed validate your message: unknown error`, 'user');
+					throw new AppError(`failed to validate your message: unknown error`, 'user');
 				}
 				safe = this.toSafeString(clean);
 				return safe;
@@ -58,16 +58,16 @@ export class ModerationService {
 					throw new AppError('tl;dr - set something shorter', 'user');
 				}
 				try{
-					this.profCheck(clean);
-					this.timeCheck(user, 'other');
+					this.moderateProfanity(clean);
+					this.moderateTime(user, 'other');
 				}
 				catch(error: unknown){
 					if(error instanceof AppError){
 						throw error;
 					}
-					handleError(error, 'Text Check - Status');
+					handleError(error, 'Moderate Text - Status');
 					
-					throw new AppError(`failed validate your message: unknown error`, 'user');
+					throw new AppError(`failed to validate your message: unknown error`, 'user');
 				}
 				safe = this.toSafeString(clean);
 				return safe;
@@ -80,16 +80,16 @@ export class ModerationService {
 					throw new AppError('no spaces in usernames', 'user');
 				}
 				try{
-					this.nickCheck(clean);
-					this.timeCheck(user, 'nick');
+					this.moderateNick(clean);
+					this.moderateTime(user, 'nick');
 				}
 				catch(error: unknown){
 					if(error instanceof AppError){
 						throw error;
 					}
-					handleError(error, 'Text Check - Nick');
+					handleError(error, 'Moderate Text - Nick');
 					
-					throw new AppError(`failed validate your message: unknown error`, 'user');
+					throw new AppError(`failed to validate your message: unknown error`, 'user');
 				}
 				safe = this.toSafeString(clean);
 				return safe;
@@ -100,26 +100,26 @@ export class ModerationService {
 				}
 
 				try{
-					this.timeCheck(user, 'other');
+					this.moderateTime(user, 'other');
 				}
 				catch(error: unknown){
 					if(error instanceof AppError){
 						throw error;
 					}
-					handleError(error, 'Text Check - Color');
+					handleError(error, 'Moderate Text - Color');
 					
-					throw new AppError(`failed validate your message: unknown error`, 'user');
+					throw new AppError(`failed to validate your message: unknown error`, 'user');
 				}
 				safe = this.toSafeString(clean);
 				return safe;
 			
 			default:
-				throw new AppError('textcheck text type missing', 'bug');
+				throw new AppError('moderateText text type missing', 'bug');
 		}
 	}
 
-	public textCheckNewUser(raw: string, type: TextType): SafeString{
-		const clean = textSanitize(raw).trim();
+	public moderateNewUserNick(raw: string, type: TextType): SafeString{
+		const clean = sanitizeText(raw).trim();
 		if(type === 'nick'){
 			if(clean.length > this.deps.stateService.getServerConfig().maxNickLen || clean.length < 2){
 				throw new AppError(`nickname must be between 2 and ${this.deps.stateService.getServerConfig().maxNickLen} characters`, 'user');
@@ -128,25 +128,25 @@ export class ModerationService {
 				throw new AppError('no spaces in usernames', 'user');
 			}
 			try{
-				this.nickCheck(clean);
+				this.moderateNick(clean);
 			}
 				catch(error: unknown){
 					if(error instanceof AppError){
 						throw error;
 					}
-					handleError(error, 'Text Check New User');
+					handleError(error, 'Moderate New User Nick');
 					
-					throw new AppError(`failed validate your nickname: unknown error`, 'user');
+					throw new AppError(`failed to validate your nickname: unknown error`, 'user');
 				}
 			const safe = this.toSafeString(clean);
 			return safe;
 		}
 		else{
-			throw new AppError('textchecknewuser text type missing', 'bug');
+			throw new AppError('moderateNewUserNick text type missing', 'bug');
 		}		
 	}
 		
-	public timeCheck(user: Identity, type: TimeType){
+	public moderateTime(user: Identity, type: TimeType){
 		const now = Date.now();
 		const lastMessage = new Date(user.lastMessage).getTime();
 		const lastChanged = new Date(user.lastChanged).getTime();
@@ -176,9 +176,9 @@ export class ModerationService {
 
 	}
 
-	public addToNickFilter(commands: string[]){
+	public appendNickFilter(commands: string[]){
 		if(!this.startup){
-			throw new AppError('No longer starting up, illegal addToNickFilter call', 'bug');
+			throw new AppError('No longer starting up, illegal appendNickFilter call', 'bug');
 		}
 		const added = commands.map(cmd => new RegExp(`^${cmd}$`, 'i')); //exact commands only
 		this.nickFilter.push(...added);
@@ -190,7 +190,7 @@ export class ModerationService {
 		return str as SafeString;
 	}
 
-	private nickCheck(nick: string){
+	private moderateNick(nick: string){
 		
 		const matched = this.nickFilter.find(regex => regex.test(nick));
 		if(matched){
@@ -201,7 +201,7 @@ export class ModerationService {
 		return;
 	}
 
-	private profCheck(str: string){
+	private moderateProfanity(str: string){
 		
 		const matched = this.profFilter.find(regex => regex.test(str));
 		if(matched){

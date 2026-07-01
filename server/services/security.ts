@@ -54,12 +54,12 @@ export class SecurityService{
 		}
 	}
 
-	public banUser(banUser: Identity){
+	public banUser(target: Identity){
 		const socketUsers = this.deps.stateService.getSocketUsers();
 		let socketIDs = [] as string[];
 
 		socketUsers.forEach((user, id) => {
-			if(user.guid === banUser.guid){
+			if(user.guid === target.guid){
 				socketIDs.push(id);
 			}
 		});
@@ -75,7 +75,7 @@ export class SecurityService{
 					const banIP = hashIP(socket?.handshake.address);
 					this.bans.set(banIP, new Date());
 
-					this.deps.dispatchService.sendClearLocalData(socket, banUser.guid);
+					this.deps.dispatchService.sendClearLocalData(socket, target.guid);
 					this.deps.dispatchService.sendSystemChat(socket, mType.error, 'You have been banned.');
 					this.deps.stateService.deleteSocketUser(this.deps.io, sid);
 					socket.disconnect(true);
@@ -87,8 +87,8 @@ export class SecurityService{
 			return;
 		});
 
-		this.deps.identityService.deleteUser(banUser.guid);
-		this.saveBanQueue();
+		this.deps.identityService.deleteUser(target.guid);
+		this.queueSaveBans();
 	}
 
 	private loadBans(){
@@ -109,7 +109,7 @@ export class SecurityService{
 		}
 	}
 
-	private saveBanQueue(){
+	private queueSaveBans(){
 		this.banQ = this.banQ.then(() => this.saveBans());
 	}
 

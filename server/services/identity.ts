@@ -67,7 +67,7 @@ export class IdentityService {
 			const color = getDisplayColor(user.nick);
 			user.nick = color + nick;
 			user.lastChanged = new Date();
-			this.saveUserQueue();
+			this.queueSaveUsers();
 			return user;
 		}
 		//New user flow
@@ -80,7 +80,7 @@ export class IdentityService {
 		const newIdentity: Identity = {
 			guid: newGuid,
 			nick: ('#000000') + nick,
-			...this.buildDefault()
+			...this.buildDefaultIdentity()
 		};
 
 		this.users.set(newGuid, newIdentity);
@@ -91,7 +91,7 @@ export class IdentityService {
 		catch(error: unknown){
 			handleError(error, 'New User Game User Create');
 		}
-		this.saveUserQueue();
+		this.queueSaveUsers();
 		return newIdentity;
 		}
 	}
@@ -103,7 +103,7 @@ export class IdentityService {
 		}
 		user.nick = color.toUpperCase() + getDisplayNick(user.nick);
 		user.lastChanged = new Date();
-		this.saveUserQueue();
+		this.queueSaveUsers();
 		return user;
 	}
 
@@ -114,11 +114,11 @@ export class IdentityService {
 		}
 		if(user.isAfk){
 			user.isAfk = false;
-			this.saveUserQueue();
+			this.queueSaveUsers();
 		}
 		else{
 			user.isAfk = true;
-			this.saveUserQueue();
+			this.queueSaveUsers();
 		}
 		return user;
 	}
@@ -136,7 +136,7 @@ export class IdentityService {
 
 		user.status = status;
 		user.lastChanged = new Date();
-		this.saveUserQueue();
+		this.queueSaveUsers();
 		return user;
 	}
 
@@ -150,7 +150,7 @@ export class IdentityService {
 		if(clearAfk && user.isAfk){
 			user.isAfk = false;
 		}
-		this.saveUserQueue();
+		this.queueSaveUsers();
 		return user;
 	}
 
@@ -203,7 +203,7 @@ export class IdentityService {
 		this.registeredNicks.delete(cleanNick.toLowerCase());
 		this.deps.gameIdentityService.deleteGameUser(guid);
 		this.users.delete(guid);
-		this.saveUserQueue();
+		this.queueSaveUsers();
 	}
 
 	public reloadUsers(): number{
@@ -215,13 +215,13 @@ export class IdentityService {
 			if(error instanceof AppError){
 				throw error;
 			}
-			handleError(error, 'Reload Game Users');
+			handleError(error, 'Reload Users');
 			
 			throw new AppError(`failed to reload users: unknown error`, 'user');
 		}
 	}
 
-	private buildDefault(): DefaultIdentity{
+	private buildDefaultIdentity(): DefaultIdentity{
 		return{
 			status: 'online',
 			lastMessage: new Date(0),
@@ -244,7 +244,7 @@ export class IdentityService {
 
 			const data = readFileSync(this.deps.usersPath, 'utf-8');
 			const parseData: [string, unknown][] = JSON.parse(data);
-			const defaultId = this.buildDefault();
+			const defaultId = this.buildDefaultIdentity();
 
 			this.users = new Map();
 			this.registeredNicks.clear();
@@ -271,7 +271,7 @@ export class IdentityService {
 				continue;
 			}
 
-			this.saveUserQueue();
+			this.queueSaveUsers();
 			return this.users.size;
 		} 
 		catch(error: unknown){
@@ -284,7 +284,7 @@ export class IdentityService {
 		}
 	}
 
-	private saveUserQueue(){
+	private queueSaveUsers(){
 		this.userQ = this.userQ.then(() => this.saveUsers());
 	}
 

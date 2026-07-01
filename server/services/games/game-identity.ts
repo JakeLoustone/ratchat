@@ -37,7 +37,7 @@ export class GameIdentityService {
 
 	public setLastGame(guid: string, gamedate: number): GameIdentity {
 		if(!this.deps.stateService.getGameConfig().enabled){
-			throw new AppError('setLastGame call wih minigames disabled', 'bug');
+			throw new AppError('setLastGame call with minigames disabled', 'bug');
 		}
 
 		const user = this.gameUsers.get(guid);
@@ -47,13 +47,13 @@ export class GameIdentityService {
 		}
 		user.lastGame = new Date(newDate);
 
-		this.saveGameUserQueue();
+		this.queueSaveGameUsers();
 		return user;
 	}
 
 	public setGamePoints(guid:string, rawnumber: number): GameIdentity{
 		if(!this.deps.stateService.getGameConfig().enabled){
-			throw new AppError('setGamePoints call wih minigames disabled', 'bug');;
+			throw new AppError('setGamePoints call with minigames disabled', 'bug');
 		}
 		
 		const gameId = this.gameUsers.get(guid);
@@ -64,7 +64,7 @@ export class GameIdentityService {
 		const newPoints = gameId.gamePoints + amount;
 		if(newPoints >= MAX_INT){
 			gameId.gamePoints = MAX_INT;
-			this.saveGameUserQueue();
+			this.queueSaveGameUsers();
 			throw new AppError('you won the game, max points gained. use /broke to start again', 'user');
 		}
 		if(newPoints < 0){
@@ -72,13 +72,13 @@ export class GameIdentityService {
 		}
 		gameId.gamePoints = newPoints;
 
-		this.saveGameUserQueue();
+		this.queueSaveGameUsers();
 		return gameId;
 	}
 
 	public setGamePointsDefault(guid:string): GameIdentity{
 		if(!this.deps.stateService.getGameConfig().enabled){
-			throw new AppError('setGamePointsDefault call wih minigames disabled', 'bug');;
+			throw new AppError('setGamePointsDefault call with minigames disabled', 'bug');
 		}
 
 		const gameId = this.gameUsers.get(guid);
@@ -87,7 +87,7 @@ export class GameIdentityService {
 		}
 		const newPoints = Math.round(this.deps.stateService.getGameConfig().pointStartAmt);
 		gameId.gamePoints = newPoints;
-		this.saveGameUserQueue();
+		this.queueSaveGameUsers();
 		return gameId;
 	}
 
@@ -113,10 +113,10 @@ export class GameIdentityService {
 		}
 		const newGameIdentity : GameIdentity = {
 			guid: inputGuid,
-			...this.buildGameDefault()
+			...this.buildDefaultGameIdentity()
 		};
 		this.gameUsers.set(inputGuid, newGameIdentity);
-		this.saveGameUserQueue();
+		this.queueSaveGameUsers();
 		return newGameIdentity;
 	}
 
@@ -126,7 +126,7 @@ export class GameIdentityService {
 			throw new AppError('delete game user: no matching game user found to GUID', 'internal', 'error');
 		}
 		this.gameUsers.delete(guid);
-		this.saveGameUserQueue();
+		this.queueSaveGameUsers();
 	}
 
 	public reloadGameUsers(): number{
@@ -144,7 +144,7 @@ export class GameIdentityService {
 		}
 	}
 
-	private buildGameDefault(): DefaultGameIdentity{
+	private buildDefaultGameIdentity(): DefaultGameIdentity{
 		return{
 			gamePoints: Math.round(this.deps.stateService.getGameConfig().pointStartAmt),
 			lastGame: new Date(0),
@@ -163,7 +163,7 @@ export class GameIdentityService {
 
 			const data = readFileSync(this.deps.gameUsersPath, 'utf-8');
 			const parseData: [string, unknown][] = JSON.parse(data);
-			const defaultGameId = this.buildGameDefault();
+			const defaultGameId = this.buildDefaultGameIdentity();
 
 			this.gameUsers = new Map();
 
@@ -177,7 +177,7 @@ export class GameIdentityService {
 
 				this.gameUsers.set(guid, gameIdentity);
 			}
-			this.saveGameUserQueue();
+			this.queueSaveGameUsers();
 			return this.gameUsers.size;
 		} 
 		catch(error: unknown){
@@ -190,7 +190,7 @@ export class GameIdentityService {
 		}
 	}
 
-	private saveGameUserQueue(){
+	private queueSaveGameUsers(){
 		this.gameUserQ = this.gameUserQ.then(() => this.saveGameUsers());
 	}
 

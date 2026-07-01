@@ -1,6 +1,6 @@
 import { handleError } from "./errors";
 
-export function textSanitize(str: string): string{
+export function sanitizeText(str: string): string{
 	if(typeof str !== "string"){
 		return "";
 	}

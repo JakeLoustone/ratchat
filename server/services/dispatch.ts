@@ -108,7 +108,7 @@ export class DispatchService{
 			}
 		});
 		if(deleted.length > 0){
-			this.saveChatHistoryQueue();
+			this.queueSaveChatHistory();
 		}
 		return;
 	}
@@ -165,11 +165,11 @@ export class DispatchService{
 			}
 		}
 		catch(error: unknown){
-			handleError(error, 'Redis Message ID Counter Load')
+			handleError(error, 'Redis Message ID Counter Load');
 		}
 	}
 	
-	public messageRedisFallback(){
+	public disableRedis(){
 		this.deps.redisClient = null;
 	}
 
@@ -199,7 +199,7 @@ export class DispatchService{
 			this.messageCounter = 0;
 		}
 		const id = this.messageCounter++;
-		this.saveMessageCounterQueue();
+		this.queueSaveMessageCounter();
 		return id;
 	}
 
@@ -210,14 +210,14 @@ export class DispatchService{
 				this.chatHistory.delete(oldestMessage);
 			}
 		}
-		this.saveChatHistoryQueue();
+		this.queueSaveChatHistory();
 	}
 
-	private saveChatHistoryQueue(){
+	private queueSaveChatHistory(){
 		this.historyQ = this.historyQ.then(() => this.saveChatHistory());
 	}
 
-	private saveMessageCounterQueue(){
+	private queueSaveMessageCounter(){
 		this.counterQ = this.counterQ.then(() => this.saveMessageCounter());
 	}
 
@@ -259,7 +259,7 @@ export class DispatchService{
 			}
 
 			if(changed){
-				this.saveChatHistoryQueue();
+				this.queueSaveChatHistory();
 			}
 		}, 60000);	
 

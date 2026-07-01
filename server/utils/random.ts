@@ -2,9 +2,9 @@ import { AppError } from "./errors";
 
 type Candidate = string;
 type Weight = number;
-export type WeightedMap = Map<Candidate, Weight>;
+export type RandomCandidateMap = Map<Candidate, Weight>;
 
-export function weightedRandom(candidates: WeightedMap): Candidate {
+export function pickWeighted(candidates: RandomCandidateMap): Candidate {
 	const firstEntry = candidates.keys().next().value;
 	if(!firstEntry){
 		throw new AppError('No candidates for weighted selection', 'bug');

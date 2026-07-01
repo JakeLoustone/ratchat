@@ -31,7 +31,7 @@ export class MessageService {
 	public handleChat(msg: string, user: Identity, socket: Socket, spoiler: boolean): boolean{
 		let safe = '';
 		try{
-			safe = this.deps.moderationService.textCheck(msg, user, 'chat');
+			safe = this.deps.moderationService.moderateText(msg, user, 'chat');
 			this.deps.dispatchService.sendChat(this.deps.io, user, safe, this.deps.stateService.getServerConfig().msgArrayLen, spoiler);			
 		}
 		catch(error: unknown){
@@ -58,11 +58,11 @@ export class MessageService {
 			queueMicrotask(async () => {
 				try{
 					if(safe){
-						await this.deps.markovService!.markovLearn(safe);
+						await this.deps.markovService!.learnMarkovText(safe);
 					}
 				}
 				catch(error: unknown){
-					handleError(error, 'handleChat Markov Learn');
+					handleError(error, 'handleChat Learn Markov');
 				}	
 			});
 		}

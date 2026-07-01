@@ -10,7 +10,7 @@ import { StateService } from './state';
 import { ModerationService } from './moderation';
 import { IdentityService } from './identity';
 
-import { WeightedMap, weightedRandom } from '../utils/random';
+import { RandomCandidateMap, pickWeighted } from '../utils/random';
 import { getDisplayNick } from '../utils/format';
 import { AppError, handleError } from '../utils/errors';
 
@@ -49,17 +49,17 @@ export class MarkovService{
 		catch(error: unknown){
 			handleError(error, 'Load Markov Brain (Startup)');
 		}
-		this.markovTimer(this.deps.io);
+		this.startMarkovTimer(this.deps.io);
 	}
 
-	public async markovGen(io: Server, seed?: string): Promise<string> {
+	public async generateMarkovText(io: Server, seed?: string): Promise<string> {
 		if(!this.db){
 			throw new AppError('brain db not initialized', 'internal', 'warn');
 		}
 
 		const markovUser = this.deps.stateService.markovUser;
 		if(!markovUser){
-			throw new AppError('markovGen call with markov disabled', 'bug');
+			throw new AppError('generateMarkovText call with markov disabled', 'bug');
 		}
 
 		for(let attempt = 0; attempt < 5; attempt++){
@@ -80,11 +80,11 @@ export class MarkovService{
 					throw new AppError(`${getDisplayNick(markovUser.nick)} don't know nothin about '${seed}'`, 'user');
 				}
 
-				const weightMap: WeightedMap = new Map(
+				const weightMap: RandomCandidateMap = new Map(
 					candidates.map((candidate, candidateIndex) => [String(candidateIndex), candidate.count])
 				);
 
-				const chosen = candidates[Number(weightedRandom(weightMap))];
+				const chosen = candidates[Number(pickWeighted(weightMap))];
 				
 				raw.push(chosen.words[0], chosen.words[1]);
 			}
@@ -95,11 +95,11 @@ export class MarkovService{
 					throw new AppError("no start entries in markov brain", 'internal', 'warn');
 				}
 
-				const weightMap: WeightedMap = new Map(
+				const weightMap: RandomCandidateMap = new Map(
 					candidates.map((candidate, candidateIndex) => [String(candidateIndex), candidate.count])
 				);
 
-				const chosen = candidates[Number(weightedRandom(weightMap))];
+				const chosen = candidates[Number(pickWeighted(weightMap))];
 				
 
 				raw.push(chosen.words[0], chosen.words[1]);
@@ -116,11 +116,11 @@ export class MarkovService{
 				if(candidates.length === 0){
 					break;
 				}
-				const weightMap: WeightedMap = new Map(
+				const weightMap: RandomCandidateMap = new Map(
 					candidates.map((candidate, candidateIndex) => [String(candidateIndex), candidate.count])
 				);
 
-				const chosen = candidates[Number(weightedRandom(weightMap))];
+				const chosen = candidates[Number(pickWeighted(weightMap))];
 				const next = chosen.words[2];
 
 				if(!next || next === "<END>"){
@@ -140,7 +140,7 @@ export class MarkovService{
 			}
 
 			try{
-				const safe = this.deps.moderationService.textCheck(raw.join(" "), markovUser, tType.chat);
+				const safe = this.deps.moderationService.moderateText(raw.join(" "), markovUser, tType.chat);
 				return safe;
 			}
 			catch(error: unknown){
@@ -150,11 +150,11 @@ export class MarkovService{
 						continue;
 					}
 					else{
-						handleError(error, 'Markov Gen');
+						handleError(error, 'Generate Markov Text');
 						continue;
 					}
 				}
-				handleError(error, 'Markov Gen');
+				handleError(error, 'Generate Markov Text');
 				
 				throw new AppError(`failed to generate markov text: unknown error`, 'user');
 			}
@@ -163,7 +163,7 @@ export class MarkovService{
 		throw new AppError("no valid text generated after 5 attempts", 'user');
 	}
 
-	public async markovLearn(str: string){
+	public async learnMarkovText(str: string){
 		if(!this.deps.stateService.getMarkovConfig().learning){
 			return;
 		}
@@ -197,7 +197,7 @@ export class MarkovService{
 		if(words.length === 2){
 			const letters = (w0[0] + w1[0]).toUpperCase().replace(/[^A-Z_]/g, "_");
 			entries.push({table: `gram_${letters}`, word1: w0, word2: w1, word3: '<END>'});
-			this.saveNeuronQueue(entries);
+			this.queueSaveNeuron(entries);
 			return;
 		}
 
@@ -215,17 +215,17 @@ export class MarkovService{
 		const endLetters = (lastA[0] + lastB[0]).toUpperCase().replace(/[^A-Z_]/g, "_");
 		entries.push({table: `gram_${endLetters}`, word1: lastA, word2: lastB, word3: '<END>'});
 
-		this.saveNeuronQueue(entries);
+		this.queueSaveNeuron(entries);
 		return;
 	}
 
-	private markovTimer(io: Server){
+	private startMarkovTimer(io: Server){
 		setInterval(async () =>{
 			if(this.deps.stateService.markovSleep){
 				return;
 			}
 			try{
-				const gentext = await this.markovGen(io);
+				const gentext = await this.generateMarkovText(io);
 				if(this.deps.stateService.markovUser){
 					this.deps.dispatchService.sendMarkovChat(io, gentext, this.deps.stateService.markovUser, this.deps.stateService.markovUser, '');
 				}
@@ -235,7 +235,7 @@ export class MarkovService{
 			}
 		}, this.deps.stateService.getMarkovConfig().timer*1000);
 	}
-	private saveNeuronQueue(entries: InsertNeuron[]){
+	private queueSaveNeuron(entries: InsertNeuron[]){
 		this.markovQ = this.markovQ.then(() => this.saveNeuron(entries));
 	}
 
@@ -390,7 +390,7 @@ export class MarkovService{
 				totalRows += rows.length;
 			} 
 			catch(error: unknown){
-				handleError(error, 'Markov Load Brain');
+				handleError(error, 'Load Brain Markov');
 			}
 		}
 		console.log(`loaded ${totalRows} markov start entries`);

@@ -66,7 +66,7 @@ export class StateService {
 		this.loadServerConfig();
 		this.loadMarkovConfig();
 		this.loadGameConfig();
-		this.afkTimer();
+		this.startAfkTimer();
 		this.deps.dispatchService.startExpireMessageTimer(this.serverConfig.msgArrayTimeout);
 	}
 
@@ -97,7 +97,7 @@ export class StateService {
 		  	this.deps.dispatchService.sendSystemChat(io, mType.ann,`announcement: ${str}`);
 		}
 
-		this.saveAnnouncementQueue();
+		this.queueSaveAnnouncement();
 	}
 
 	public getEmotes(): Map<string, string>{
@@ -271,7 +271,7 @@ export class StateService {
 		}, this.markovConfig.cooldown * 1000);
 	}
 
-	public sleepMarkov(io: Server): Boolean{
+	public toggleMarkovSleep(io: Server): boolean{
 		if(this.markovSleep){
 			this.markovSleep = false;
 		}
@@ -308,18 +308,18 @@ export class StateService {
 		}
 	}
 
-	public stateRedisFallback(){
+	public disableRedis(){
 		this.deps.redisClient = null;
 	}
 
-	public signupQueue(socket: Socket, nick: SafeString): Promise<boolean> {
+	public queueSignup(socket: Socket, nick: SafeString): Promise<boolean> {
 		return new Promise<boolean>((resolve, reject) => {
 			try {
 				const hashed = hashIP(socket.handshake.address);
 				this.signupBuffer.set(hashed, { socket, nick });
 				this.signupPromise.set(socket, resolve);
 				if(!this.signupTimer){
-					this.signupTimer = setTimeout(() => this.returnQueue(), this.serverConfig.signupTime * 1000);
+					this.signupTimer = setTimeout(() => this.resolveSignups(), this.serverConfig.signupTime * 1000);
 				}
 			}
 			catch(error: unknown) {
@@ -333,7 +333,7 @@ export class StateService {
 		});
 	}
 
-	private returnQueue(){
+	private resolveSignups(){
 		const queue = Array.from(this.signupBuffer.values());
 
 		for (const [socket, resolve] of this.signupPromise.entries()){
@@ -346,7 +346,7 @@ export class StateService {
 		this.signupTimer = null;
 	}
 
-	private saveAnnouncementQueue(){
+	private queueSaveAnnouncement(){
 		this.announcementQ= this.announcementQ.then(() => this.saveAnnouncement());
 	}
 
@@ -461,7 +461,7 @@ export class StateService {
 		console.log('LOADED GAME CONFIG: ', this.gameConfig);
 	}
 
-	private afkTimer(){
+	private startAfkTimer(){
 		setInterval(() =>{
 			const now = Date.now();
 			const afkTime = this.serverConfig.afkDef * 1000;

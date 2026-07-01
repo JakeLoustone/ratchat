@@ -31,7 +31,7 @@ export class GameCommandService {
 		this.registerGameCommands();
 	}
 
-	public async gameCommandHandler(msg: string, socket: Socket, io: Server, user: Identity): Promise<boolean>{
+	public async handleGameCommand(msg: string, socket: Socket, io: Server, user: Identity): Promise<boolean>{
 		const args = msg.slice(1).trim().split(/ +/);
 		const commandName = args.shift()?.toLowerCase() || '';
 		
@@ -42,7 +42,7 @@ export class GameCommandService {
 		this.activeGameCommands.set(socket.id, true);
 		
 		try{
-			const clearText = await this.execute(commandName, {
+			const clearText = await this.executeGameCommand(commandName, {
 				socket,
 				io,
 				args,
@@ -63,7 +63,7 @@ export class GameCommandService {
 	}
 
 	//execute the command, true to clear 
-	private async execute(name: string, ctx: Command): Promise<boolean> {
+	private async executeGameCommand(name: string, ctx: Command): Promise<boolean> {
 		const handler = this.gameCommands[name];
 		if(handler){
 
@@ -76,7 +76,7 @@ export class GameCommandService {
 
 	private registerGameCommands(){
 		this.gameCommands['gamehelp'] = (ctx) => {
-			const config = this.deps.stateService.getServerConfig();
+			const config = this.deps.stateService.getGameConfig();
 			const helpMessages = [
 				'/gamehelp  : View this list.',
 			];

@@ -74,7 +74,7 @@ export class CommandService {
 			}
 
 			if(userOrUndef){
-				return await this.deps.gameCommandService.gameCommandHandler(msg, socket, io, userOrUndef);
+				return await this.deps.gameCommandService.handleGameCommand(msg, socket, io, userOrUndef);
 			}
 			else{
 				this.deps.dispatchService.sendSystemChat(socket, mType.error, "system: please use /chrat <nickname> before gaming, gamer");
@@ -239,13 +239,13 @@ export class CommandService {
 				const helpMessages = [
 					"/mutehelp : information on how to use the /mute feature. you're looking at it",
 					//./mute and /m are handled client side
-					'/mute or /m <event> : suppress minigame announcements from a specific <event>. will not retroactively remove event notfications.',
-					'/mute or /m <user> : hide all messages from a <user>. also hides historical messages you may have recieved.',
+					'/mute or /m <event> : suppress minigame announcements from a specific <event>. will not retroactively remove event notifications.',
+					'/mute or /m <user> : hide all messages from a <user>. also hides historical messages you may have received.',
 					'/mute list or /m list : displays a list of all muted users and events',
 					'/mute eventlist or /m eventlist : displays a list of events that can be muted',
 					'/mute allevents : mute all events',
 					//./unmute is handled client side
-					'/unmute <user/event> : unmutes a <user> or an <event>. also will unhide hidden messages from <user> that you may have recieved.',
+					'/unmute <user/event> : unmutes a <user> or an <event>. also will unhide hidden messages from <user> that you may have received.',
 					'/unmute all : unmutes all muted names and events.',
 					'/unmute allevents : unmutes all events. users remain muted',
 				];
@@ -265,7 +265,7 @@ export class CommandService {
 				if(ctx.commandUser){
 					try{
 						const oldNick = getDisplayNick(ctx.commandUser.nick);
-						const safe = this.deps.moderationService.textCheck(newNick, ctx.commandUser, 'nick');
+						const safe = this.deps.moderationService.moderateText(newNick, ctx.commandUser, 'nick');
 						const user = this.deps.identityService.setNick(ctx.commandUser.guid, safe);
 						this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
 						this.deps.dispatchService.sendIdentity(ctx.socket, user);
@@ -278,11 +278,11 @@ export class CommandService {
 				}
 				else{
 					try{
-						const safe = this.deps.moderationService.textCheckNewUser(newNick, 'nick');
+						const safe = this.deps.moderationService.moderateNewUserNick(newNick, 'nick');
 						this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `creating user...`);
-						const batch = await this.deps.stateService.signupQueue(ctx.socket, safe);
+						const batch = await this.deps.stateService.queueSignup(ctx.socket, safe);
 						if(batch){
-							const user = this.deps.identityService.setNick(ctx.commandUser, safe);
+							const user = this.deps.identityService.setNick(null, safe);
 							this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
 							this.deps.dispatchService.sendIdentity(ctx.socket, user);
 							this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, 'system: your new identity has been loaded. consider using /export to save for later use');
@@ -308,7 +308,7 @@ export class CommandService {
 					return this.sendRegistrationWarning(ctx, 'set a color');
 				}
 				try{
-					const safe = this.deps.moderationService.textCheck(ctx.args[0], ctx.commandUser, 'color');
+					const safe = this.deps.moderationService.moderateText(ctx.args[0], ctx.commandUser, 'color');
 					const user = this.deps.identityService.setColor(ctx.commandUser.guid, safe);
 
 					this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user,);
@@ -375,7 +375,7 @@ export class CommandService {
 				} 
 				
 				try{
-					this.deps.moderationService.timeCheck(ctx.commandUser, tType.other);
+					this.deps.moderationService.moderateTime(ctx.commandUser, tType.other);
 					const afkUser = this.deps.identityService.toggleAfk(ctx.commandUser.guid);
 					
 
@@ -402,7 +402,7 @@ export class CommandService {
 					return this.sendRegistrationWarning(ctx, 'facebook post');
 				}
 				try{
-					const safe = this.deps.moderationService.textCheck(ctx.fullArgs, ctx.commandUser, 'status');
+					const safe = this.deps.moderationService.moderateText(ctx.fullArgs, ctx.commandUser, 'status');
 					const user = this.deps.identityService.setStatus(ctx.commandUser.guid, safe);
 
 					this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
@@ -436,7 +436,7 @@ export class CommandService {
 					return this.sendRegistrationWarning(ctx, 'generate random text');
 				}
 				try{
-					this.deps.moderationService.timeCheck(ctx.commandUser, tType.chat);
+					this.deps.moderationService.moderateTime(ctx.commandUser, tType.chat);
 
 					const markovUser = this.deps.stateService.markovUser;
 					if(!markovUser){
@@ -456,7 +456,7 @@ export class CommandService {
 
 					let seed = '';
 					if(ctx.args[0]){
-						seed = this.deps.moderationService.textCheck(ctx.args[0], ctx.commandUser, tType.chat);
+						seed = this.deps.moderationService.moderateText(ctx.args[0], ctx.commandUser, tType.chat);
 					}
 
 					if(!this.deps.markovService){
@@ -465,7 +465,7 @@ export class CommandService {
 
 					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, 'generating markov text...');
 
-					const gentext = await this.deps.markovService.markovGen(ctx.io, seed);
+					const gentext = await this.deps.markovService.generateMarkovText(ctx.io, seed);
 
 					this.deps.dispatchService.sendMarkovChat(ctx.io, gentext, markovUser, ctx.commandUser, seed);
 					if(!ctx.commandUser.isMod){
@@ -520,7 +520,7 @@ export class CommandService {
 					if(!ctx.commandUser){
 						throw new AppError('Undefined user in Mod Command Call', 'bug');
 					}
-					const safe = this.deps.moderationService.textCheck(ctx.fullArgs, ctx.commandUser, 'chat');
+					const safe = this.deps.moderationService.moderateText(ctx.fullArgs, ctx.commandUser, 'chat');
 					this.deps.stateService.setAnnouncement(ctx.io, safe);
 					if(safe.length === 0){
 						this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, 'announcement cleared');
@@ -704,7 +704,7 @@ export class CommandService {
 					if(!ctx.commandUser){
 						throw new AppError('Undefined user in Mod Command Call', 'bug');
 					}
-					const safe = this.deps.moderationService.textCheck(ctx.fullArgs, ctx.commandUser, 'status');
+					const safe = this.deps.moderationService.moderateText(ctx.fullArgs, ctx.commandUser, 'status');
 					markovUser.status = safe;
 					this.deps.stateService.broadcastUsers(ctx.io);
 					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `${this.markovNick} status is now: ${markovUser.status}`);
@@ -726,7 +726,7 @@ export class CommandService {
 					return keepInput;
 				}
 
-				const markovSleep = this.deps.stateService.sleepMarkov(ctx.io);
+				const markovSleep = this.deps.stateService.toggleMarkovSleep(ctx.io);
 
 				if(markovSleep){
 					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `${this.markovNick} is sleepin now. honk shoo`);
@@ -777,7 +777,7 @@ export class CommandService {
 								'---------------------------------------------------------------------------------------------',
 								'This server uses an optional Markov chain feature that learns from user chat messages.',
 								'Messages are stripped of usernames and fully deconstructed into anonymous word fragments before being saved.',
-								'No identifiable or reconstructable message information is saved. No authors, no timestamps, no messsage history, etc.',
+								'No identifiable or reconstructable message information is saved. No authors, no timestamps, no message history, etc.',
 								'As such, portions of your messages may be used as Markov chain text in an anonymous capacity consistent with Recital 26 of the GDPR.',
 							);
 						}

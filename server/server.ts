@@ -305,7 +305,7 @@ async function main(){
 			// Check if it's a command
 			if(msg.startsWith('/')){
 				try{
-					const result = await commandService.commandHandler(msg, socket, io, user);
+					const result = await commandService.handleCommand(msg, socket, io, user);
 					callback(result);
 					return;
 				}

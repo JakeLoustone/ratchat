@@ -97,7 +97,7 @@ export class DispatchService{
 		this.sendPayload(to, mType.clrlocal, guid);
 	}
 	
-	public deleteMessage(io: Server, msgArray: number[]): number[] {
+	public deleteMessage(io: Server, msgArray: number[]){
 		const deleted: number[] = [];
 
 		this.sendPayload(io, mType.delmsg, msgArray);
@@ -110,7 +110,7 @@ export class DispatchService{
 		if(deleted.length > 0){
 			this.saveChatHistoryQueue();
 		}
-		return deleted;
+		return;
 	}
 
 	public getChatHistory(): ChatHistory{

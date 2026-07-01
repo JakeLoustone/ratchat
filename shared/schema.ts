@@ -1,6 +1,8 @@
 import{ Server, Socket } from 'socket.io';
 import{ z } from 'zod';
 
+import { isValid7TVID, isValidHexColor } from "../server/utils/input";
+
 export const IdentitySchema = z.object({
 	guid: z.string(),
 	nick: z.string(),
@@ -95,22 +97,22 @@ export interface Command{
 }
 
 export const ServerConfigSchema = z.object({
-	welcomeMsg: z.string(),
-	slowMode: z.number(),
-	nickSlow: z.number(),
-	otherSlow: z.number(),
-	timeoutDef: z.number(),
-	afkDef: z.number(),
-	signupTime: z.number(),
-	maxMsgLen: z.number(),
-	maxNickLen: z.number(),
-	maxStatusLen: z.number(),
-	msgArrayLen: z.number(),
-	msgArrayTimeout: z.number(),
-	stvurl: z.string().optional(),
-	nickres: z.array(z.string()),
-	gdprcontact: z.string(),
-	PORT: z.number()
+	welcomeMsg: z.string().min(0).max(512),
+	slowMode: z.number().int().min(0).max(86400),
+	nickSlow: z.number().int().min(0).max(86400),
+	otherSlow: z.number().int().min(0).max(86400),
+	timeoutDef: z.number().int().min(0).max(86400),
+	afkDef: z.number().int().min(1).max(86400),
+	signupTime: z.number().int().min(1).max(60),
+	maxMsgLen: z.number().int().min(1).max(1024),
+	maxNickLen: z.number().int().min(2).max(64),
+	maxStatusLen: z.number().int().min(1).max(128),
+	msgArrayLen: z.number().int().min(0).max(1024),
+	msgArrayTimeout: z.number().int().min(60).max(2592000),
+	stvurl: z.string().refine(isValid7TVID, { message: "doesn't look like a 7tv emote set ID" }).optional(),
+	nickres: z.array(z.string().min(2).max(64).regex(/^\S+$/)).max(32),
+	gdprcontact: z.email().or(z.string().min(1).max(255)),
+	PORT: z.number().int().min(1).max(65535)
 });
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 export const defaultServerConfig: ServerConfig = {
@@ -135,11 +137,11 @@ export const defaultServerConfig: ServerConfig = {
 export const MarkovConfigSchema = z.object({
 	enabled: z.boolean(),
 	learning: z.boolean(),
-	nick: z.string(),
-	color: z.string(),
-	status: z.string(),
-	cooldown: z.number(),
-	timer: z.number()
+	nick: z.string().min(2).max(64).regex(/^\S+$/),
+	color: z.string().refine(isValidHexColor, { message: "must be a valid hex color, e.g. #A1B2C3" }),
+	status: z.string().min(1).max(128),
+	cooldown: z.number().int().min(5).max(86400),
+	timer: z.number().int().min(60).max(86400)
 });
 export type MarkovConfig = z.infer<typeof MarkovConfigSchema>;
 export const defaultMarkovConfig: MarkovConfig = {
@@ -154,11 +156,11 @@ export const defaultMarkovConfig: MarkovConfig = {
 
 export const GameConfigSchema = z.object({
 	enabled: z.boolean(),
-	pointStartAmt: z.number(),
-	pointName: z.string(),
-	gameSlow: z.number(),
+	pointStartAmt: z.number().int().min(0).max(65536),
+	pointName: z.string().min(1).max(64),
+	gameSlow: z.number().int().min(0).max(86400),
 	horseRacing: z.boolean(),
-	raceFrequency: z.number(),
+	raceFrequency: z.number().int().min(60).max(86400),
 	dueling: z.boolean(),
 	duelingChallenge: z.boolean(),
 	blackjack: z.boolean(),

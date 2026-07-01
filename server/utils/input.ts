@@ -14,7 +14,7 @@ export function sanitizeText(str: string): string{
 		return s;
 	}
 	catch(error: unknown){
-		handleError(error, 'Text Sanitize');
+		handleError(error, 'Sanitize Text');
 		return "";
 	}
 }

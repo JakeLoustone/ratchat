@@ -421,13 +421,13 @@ export class StateService {
 
 		if(this.markovConfig.enabled){
 			this.markovUser = {
-			guid: 'markov',
-			nick: this.markovConfig.color + this.markovConfig.nick,
-			status: this.markovConfig.status,
-			lastMessage: new Date(0),
-			lastChanged: new Date(0),
-			isMod: false,
-			isAfk: false,
+				guid: 'markov',
+				nick: this.markovConfig.color + this.markovConfig.nick,
+				status: this.markovConfig.status,
+				lastMessage: new Date(0),
+				lastChanged: new Date(0),
+				isMod: false,
+				isAfk: false
 			};
 		}
 		else{

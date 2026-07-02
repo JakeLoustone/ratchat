@@ -55,7 +55,7 @@ export class SecurityService{
 	}
 
 	public banUser(target: Identity){
-		const socketUsers = this.deps.stateService.getSocketUsers();
+		const socketUsers = this.deps.stateService.getSocketUsersMap();
 		let socketIDs = [] as string[];
 
 		socketUsers.forEach((user, id) => {

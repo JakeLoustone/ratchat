@@ -191,8 +191,12 @@ export class StateService {
 		}
 	}
 
-	public getSocketUsers(): Map<string, Identity>{
+	public getSocketUsersMap(): Map<string, Identity>{
 		return this.socketUsers;
+	}
+
+	public getSocketUser(socketID: string): Identity | null {
+		return this.socketUsers.get(socketID) ?? null;
 	}
 
 	public updateSocketUser(io: Server, socketID: string, identity: Identity){

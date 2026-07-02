@@ -1,13 +1,14 @@
 import { Server, Socket } from 'socket.io';
 
-import { tType, mType } from '../../../shared/schema';
-import type { Command, Identity } from '../../../shared/schema';
+import { tType, mType, allGames } from '../../../shared/schema';
+import type { Command, Identity, GameType } from '../../../shared/schema';
 
 import { DispatchService } from '../dispatch';
 import { StateService } from '../state';
 import { GameIdentityService } from './game-identity';
 import { IdentityService } from '../identity';
 
+import { AppError, handleError } from '../../utils/errors';
 import { getDisplayNick, getDisplayColor } from '../../utils/format';
 import { isValidGUID } from '../../utils/input';
 
@@ -21,8 +22,13 @@ export interface GameCommandServiceDependencies {
 	identityService: IdentityService;
 }
 
+export interface GameCommandEntry{
+	enabledFor: GameType[];
+	handler: (ctx: Command) => boolean | Promise<boolean>;
+}
+
 export class GameCommandService {
-	private gameCommands: Record<string, (ctx: Command) => boolean | Promise<boolean>> = {};
+	private gameCommands: Record<string, GameCommandEntry> = {};
 	private activeGameCommands: Map<string, boolean> = new Map();
 	
 	private deps: GameCommandServiceDependencies;
@@ -31,9 +37,13 @@ export class GameCommandService {
 		this.registerGameCommands();
 	}
 
-	public async handleGameCommand(msg: string, socket: Socket, io: Server, user: Identity): Promise<boolean>{
+	public async handleGameCommand(msg: string, socket: Socket, io: Server, caller: Identity): Promise<boolean>{
 		const args = msg.slice(1).trim().split(/ +/);
 		const commandName = args.shift()?.toLowerCase() || '';
+
+		if(!this.deps.stateService.getGameConfig().enabled){
+			return this.sendNotCommand(socket);
+		}
 		
 		if(this.activeGameCommands.get(socket.id)){
 			return keepInput;
@@ -42,17 +52,20 @@ export class GameCommandService {
 		this.activeGameCommands.set(socket.id, true);
 		
 		try{
-			const clearText = await this.executeGameCommand(commandName, {
+			const result = await this.executeGameCommand(commandName, {
 				socket,
 				io,
 				args,
 				fullArgs: args.join(' '),
-				commandUser: user
+				commandUser: caller
 				});
 			
-			return clearText;
+			return result;
 		}
-
+		catch(error: unknown){
+			this.deps.dispatchService.sendUserError(socket, error, `Handle Game Command: ${commandName}`);
+			return keepInput;
+		}
 		finally{
 			this.activeGameCommands.delete(socket.id);
 		}
@@ -62,34 +75,45 @@ export class GameCommandService {
 		return Object.keys(this.gameCommands);
 	}
 
+	private sendNotCommand(socket: Socket): boolean {
+		this.deps.dispatchService.sendSystemChat(socket, mType.error, "system: that's not a command lol");
+		return keepInput;
+	}
+
 	//execute the command, true to clear 
 	private async executeGameCommand(name: string, ctx: Command): Promise<boolean> {
-		const handler = this.gameCommands[name];
-		if(handler){
+		const entry = this.gameCommands[name];
 
-			return await handler(ctx);
-		} else {
-			this.deps.dispatchService.sendSystemChat(ctx.socket, mType.error, "system: that's not a command lol");
-			return keepInput;
+		if(!entry){
+			return this.sendNotCommand(ctx.socket);
 		}
+
+		if(!entry.enabledFor.some(game => this.deps.stateService.getGameConfig()[game])){
+			return this.sendNotCommand(ctx.socket);
+		}
+
+		return await entry.handler(ctx);
 	}
 
 	private registerGameCommands(){
-		this.gameCommands['gamehelp'] = (ctx) => {
-			const config = this.deps.stateService.getGameConfig();
-			const helpMessages = [
-				'/gamehelp  : View this list.',
-			];
+		this.gameCommands['gamehelp'] = {
+			enabledFor: allGames,
+				handler: (ctx) => {
+				const config = this.deps.stateService.getGameConfig();
+				const helpMessages = [
+					'/gamehelp  : View this list.',
+				];
 
-			const formatTable = helpMessages.join('\n');
-			this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, formatTable);
-			return clearInput;
-		}
+				const formatTable = helpMessages.join('\n');
+				this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, formatTable);
+				return clearInput;
+			}
 	
 		// ------------------------------------------------------------------
 		// ALIASES
 		// ------------------------------------------------------------------
 
 		//this.commands['h'] = this.commands['commands'] = this.commands['help'];
+		}
 	}
 }

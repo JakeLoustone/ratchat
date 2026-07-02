@@ -179,6 +179,8 @@ export const defaultGameConfig: GameConfig = {
 	blackjack: false,
 	fishing: false
 };
+export type GameType = keyof Pick<GameConfig, 'horseRacing' | 'duelingChallenge' | 'dueling' | 'blackjack' | 'fishing'>;
+export const allGames = ['horseRacing', 'duelingChallenge', 'dueling', 'blackjack', 'fishing'] as const satisfies GameType[];
 
 export type ConfigSchema = typeof ServerConfigSchema | typeof MarkovConfigSchema | typeof GameConfigSchema;
 export type Config = ServerConfig | MarkovConfig | GameConfig;

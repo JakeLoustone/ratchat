@@ -14,7 +14,7 @@ import { MessageService } from './message';
 
 import { getDisplayNick, getDisplayColor } from '../utils/format';
 import { isValidGUID } from '../utils/input';
-import { AppError, handleError } from '../utils/errors';
+import { AppError } from '../utils/errors';
 
 import { GameCommandService } from './games/game-command';
 
@@ -63,26 +63,22 @@ export class CommandService {
 		}
 	}
 
-	public async handleCommand(msg: string, socket: Socket, io: Server, userOrUndef?: Identity | undefined): Promise<boolean>{
+	public async handleCommand(msg: string, socket: Socket, io: Server, caller: Identity | null): Promise<boolean>{
 		const args = msg.slice(1).trim().split(/ +/);
 		const commandName = args.shift()?.toLowerCase() || '';
 
 		if(this.gameCommandNames.has(commandName)){
 			if(!this.deps.stateService.getGameConfig().enabled){
-				this.deps.dispatchService.sendSystemChat(socket, mType.error, "system: that's not a command lol");
-				return keepInput;
+				return this.sendNotCommand(socket);
 			}
 
-			if(userOrUndef){
-				return await this.deps.gameCommandService.handleGameCommand(msg, socket, io, userOrUndef);
+			if(caller){
+				return await this.deps.gameCommandService.handleGameCommand(msg, socket, io, caller);
 			}
 			else{
-				this.deps.dispatchService.sendSystemChat(socket, mType.error, "system: please use /chrat <nickname> before gaming, gamer");
-				return clearInput;
+				return this.sendRegistrationWarning(socket, "game, gamer");
 			}
 		}
-
-		let user = userOrUndef ?? null;
 
 		if(this.activeCommands.get(socket.id)){
 			return keepInput;
@@ -91,15 +87,19 @@ export class CommandService {
 		this.activeCommands.set(socket.id, true);
 		
 		try{
-			const clearText = await this.executeCommand(commandName, {
+			const result = await this.executeCommand(commandName, {
 				socket,
 				io,
 				args,
 				fullArgs: args.join(' '),
-				commandUser: user
+				commandUser: caller
 				});
 			
-			return clearText;
+			return result;
+		}
+		catch(error: unknown){
+			this.deps.dispatchService.sendUserError(socket, error, `Handle Command: ${commandName}`);
+			return keepInput;
 		}
 		finally{
 			this.activeCommands.delete(socket.id);
@@ -110,37 +110,26 @@ export class CommandService {
 		return Object.keys(this.commands);
 	}
 	
-	private sendUserError(error: unknown, prefix: string, ctx: Command): boolean{
-		const response = handleError(error, prefix);
-		if(response){
-			this.deps.dispatchService.sendSystemChat(ctx.socket, mType.error, `system: ${response}`);
-		} 
-		else{
-			this.deps.dispatchService.sendSystemChat(ctx.socket, mType.error, `system: unknown error. try again`);
-		}
-		return keepInput;
-	}
-
-	private sendRegistrationWarning(ctx: Command, action: string = 'do that'): boolean{
-		this.deps.dispatchService.sendSystemChat(ctx.socket, mType.error, `system: please use /chrat <nickname> before trying to ${action}`);
+	private sendRegistrationWarning(socket: Socket, action: string = 'do that'): boolean{
+		this.deps.dispatchService.sendSystemChat(socket, mType.error, `system: please use /chrat <nickname> before trying to ${action}`);
 		return clearInput;
 	}
 
-	private sendNotCommand(ctx: Command): boolean {
-		this.deps.dispatchService.sendSystemChat(ctx.socket, mType.error, "system: that's not a command lol");
+	private sendNotCommand(socket: Socket): boolean {
+		this.deps.dispatchService.sendSystemChat(socket, mType.error, "system: that's not a command lol");
 		return keepInput;
 	}
 
 	private async executeCommand(name: string, ctx: Command): Promise<boolean> {
 		const entry = this.commands[name];
 		if(!entry){
-			return this.sendNotCommand(ctx);
+			return this.sendNotCommand(ctx.socket);
 		}
 
 		const noMarkov = !this.deps.markovService;
 		const notMod = !ctx.commandUser?.isMod;
 		if(entry.requiresMarkov && noMarkov){
-			return this.sendNotCommand(ctx);
+			return this.sendNotCommand(ctx.socket);
 		}
 		if(entry.requiresMod && notMod){
 			this.deps.dispatchService.sendSystemChat(ctx.socket, mType.error, "naughty naughty");
@@ -273,7 +262,8 @@ export class CommandService {
 						return clearInput;
 					} 
 					catch(error: unknown){
-						return this.sendUserError(error, 'Nick Command', ctx);
+						this.deps.dispatchService.sendUserError(ctx.socket, error, 'Nick Command');
+						return keepInput;
 					}
 				}
 				else{
@@ -294,7 +284,8 @@ export class CommandService {
 						}
 					}
 					catch(error: unknown){
-						return this.sendUserError(error,'Nick Command New User', ctx);
+						this.deps.dispatchService.sendUserError(ctx.socket, error,'Nick Command New User');
+						return keepInput;
 					}
 				}
 			}
@@ -305,20 +296,21 @@ export class CommandService {
 			requiresMarkov: false,		
 			handler: (ctx) => {
 				if(!ctx.commandUser){
-					return this.sendRegistrationWarning(ctx, 'set a color');
+					return this.sendRegistrationWarning(ctx.socket, 'set a color');
 				}
 				try{
 					const safe = this.deps.moderationService.moderateText(ctx.args[0], ctx.commandUser, 'color');
 					const user = this.deps.identityService.setColor(ctx.commandUser.guid, safe);
 
-					this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user,);
+					this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
 					this.deps.dispatchService.sendIdentity(ctx.socket, user);
 					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `system: your color has been updated to ${getDisplayColor(user.nick)}`);
 
 					return clearInput;
 				}
 				catch(error: unknown){
-					return this.sendUserError(error, 'Color Command', ctx);
+					this.deps.dispatchService.sendUserError(ctx.socket, error, 'Color Command');
+					return keepInput;
 				}
 			}
 		}
@@ -329,7 +321,7 @@ export class CommandService {
 			requiresMarkov: false,
 			handler: (ctx) => {
 				if(!ctx.commandUser){
-					return this.sendRegistrationWarning(ctx, 'set a colour');
+					return this.sendRegistrationWarning(ctx.socket, 'set a colour');
 				}
 				this.deps.dispatchService.sendSystemChat(ctx.socket, mType.error, "system: lern to speak american");
 				return keepInput;
@@ -361,7 +353,8 @@ export class CommandService {
 					return clearInput;
 				} 
 				catch(error: unknown){
-					return this.sendUserError(error, 'GUID Import Command', ctx);
+					this.deps.dispatchService.sendUserError(ctx.socket, error, 'GUID Import Command');
+					return keepInput;
 				}
 			}
 		}
@@ -371,7 +364,7 @@ export class CommandService {
 			requiresMarkov: false,
 			handler: (ctx) => {
 				if(!ctx.commandUser){
-					return this.sendRegistrationWarning(ctx, 'go afk lmao');
+					return this.sendRegistrationWarning(ctx.socket, 'go afk lmao');
 				} 
 				
 				try{
@@ -389,7 +382,8 @@ export class CommandService {
 					return clearInput;
 				} 
 				catch(error: unknown){
-					return this.sendUserError(error, 'AFK Command', ctx);
+					this.deps.dispatchService.sendUserError(ctx.socket, error, 'AFK Command');
+					return keepInput;
 				}
 			}
 		}
@@ -399,7 +393,7 @@ export class CommandService {
 			requiresMarkov: false,
 			handler: (ctx) => {
 				if(!ctx.commandUser){
-					return this.sendRegistrationWarning(ctx, 'facebook post');
+					return this.sendRegistrationWarning(ctx.socket, 'facebook post');
 				}
 				try{
 					const safe = this.deps.moderationService.moderateText(ctx.fullArgs, ctx.commandUser, 'status');
@@ -412,7 +406,8 @@ export class CommandService {
 
 				}
 				catch(error: unknown){
-					return this.sendUserError(error, 'Status Command', ctx);
+					this.deps.dispatchService.sendUserError(ctx.socket, error, 'Status Command');
+					return keepInput;
 				}
 			}
 		}
@@ -422,7 +417,7 @@ export class CommandService {
 			requiresMarkov: false,
 			handler: (ctx) => {
 			if(!ctx.commandUser){
-				return this.sendRegistrationWarning(ctx, 'ruin things for everyone else');
+				return this.sendRegistrationWarning(ctx.socket, 'ruin things for everyone else');
 			}
 			return this.deps.messageService.handleChat(ctx.fullArgs, ctx.commandUser, ctx.socket, true);
 			}
@@ -433,7 +428,7 @@ export class CommandService {
 			requiresMarkov: true,
 			handler: async (ctx) => {
 				if(!ctx.commandUser){
-					return this.sendRegistrationWarning(ctx, 'generate random text');
+					return this.sendRegistrationWarning(ctx.socket, 'generate random text');
 				}
 				try{
 					this.deps.moderationService.moderateTime(ctx.commandUser, tType.chat);
@@ -460,7 +455,7 @@ export class CommandService {
 					}
 
 					if(!this.deps.markovService){
-						return this.sendNotCommand(ctx);
+						return this.sendNotCommand(ctx.socket);
 					}
 
 					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, 'generating markov text...');
@@ -475,7 +470,8 @@ export class CommandService {
 				}
 				catch(error: unknown){
 					this.deps.identityService.setLastMessage(ctx.commandUser.guid, Date.now());
-					return this.sendUserError(error, 'Markov Command Generation', ctx);
+					this.deps.dispatchService.sendUserError(ctx.socket, error, 'Markov Command Generation');
+					return keepInput;
 				}
 			}
 		}
@@ -528,7 +524,8 @@ export class CommandService {
 					return clearInput;
 				}
 				catch(error: unknown){
-					return this.sendUserError(error, 'Announce Command', ctx);
+					this.deps.dispatchService.sendUserError(ctx.socket, error, 'Announce Command');
+					return keepInput;
 				}
 			}
 		}
@@ -561,7 +558,8 @@ export class CommandService {
 					
 				}
 				catch(error: unknown){
-					return this.sendUserError(error, 'Ban Command', ctx);
+					this.deps.dispatchService.sendUserError(ctx.socket, error, 'Ban Command');
+					return keepInput;
 				}
 			}
 		}
@@ -611,7 +609,8 @@ export class CommandService {
 					return clearInput;
 				} 
 				catch(error: unknown){
-					return this.sendUserError(error, 'Timeout Command', ctx);
+					this.deps.dispatchService.sendUserError(ctx.socket, error, 'Timeout Command');
+					return keepInput;
 				}
 			}
 		}
@@ -623,7 +622,7 @@ export class CommandService {
 				const id = Number(ctx.args[0]);
 
 				if(!ctx.args[0] || !Number.isInteger(id) || id < 0){
-					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.error, "please provide a valid message id");
+					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.error, "system: please provide a valid message id");
 					return keepInput;
 				}
 
@@ -652,7 +651,8 @@ export class CommandService {
 					return clearInput;
 				} 
 				catch(error: unknown){
-					return this.sendUserError(error, 'Emotes Command', ctx);
+					this.deps.dispatchService.sendUserError(ctx.socket, error, 'Emotes Command');
+					return keepInput;
 				}
 			}
 		}
@@ -670,7 +670,8 @@ export class CommandService {
 					return clearInput;
 				} 
 				catch(error: unknown){
-					return this.sendUserError(error, 'Unemotes Command', ctx);
+					this.deps.dispatchService.sendUserError(ctx.socket, error, 'Unemotes Command');
+					return keepInput;
 				}
 			}
 		}
@@ -687,7 +688,8 @@ export class CommandService {
 					return clearInput;
 				} 
 				catch(error: unknown){
-					return this.sendUserError(error, 'Load Users Command', ctx);
+					this.deps.dispatchService.sendUserError(ctx.socket, error, 'Load Users Command');
+					return keepInput;
 				}
 			}
 		}
@@ -711,7 +713,8 @@ export class CommandService {
 					return clearInput;
 				} 
 				catch(error: unknown){
-					return this.sendUserError(error, 'Bot Status Command', ctx);
+					this.deps.dispatchService.sendUserError(ctx.socket, error, 'Bot Status Command');
+					return keepInput;
 				}
 			}
 		}
@@ -827,7 +830,8 @@ export class CommandService {
 							return clearInput;
 						}
 						catch(error: unknown){
-							return this.sendUserError(error, 'GDPR Export Command', ctx);
+							this.deps.dispatchService.sendUserError(ctx.socket, error, 'GDPR Export Command')
+							return keepInput;
 						}
 					}
 
@@ -854,9 +858,10 @@ export class CommandService {
 							}
 
 							//iterate through all sockets to find matches
+							const socketUsers = this.deps.stateService.getSocketUsersMap();
 							const allSockets = ctx.io.sockets.sockets;
 							allSockets.forEach((socket) => {
-								const mappedUser = this.deps.stateService.getSocketUsers().get(socket.id);
+								const mappedUser = socketUsers.get(socket.id);
 								if(mappedUser && mappedUser.guid === targetGuid){
 									this.deps.dispatchService.sendClearLocalData(socket, targetGuid);
 									this.deps.stateService.deleteSocketUser(ctx.io, socket.id);
@@ -868,7 +873,8 @@ export class CommandService {
 
 						} 
 						catch(error: unknown){
-							return this.sendUserError(error, 'GDPR Delete Command', ctx);
+							this.deps.dispatchService.sendUserError(ctx.socket, error, 'GDPR Delete Command');
+							return keepInput;
 						}
 					}
 					default:{

@@ -1,11 +1,11 @@
-import { Server } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import type { RedisClientType } from 'redis';
 
 import { mType, eType } from '../../shared/schema';
 import type { MessageType, UserSum, Identity, ChatMessage, GameEvent, GameEventType } from '../../shared/schema';
 
 import { getDisplayNick } from '../utils/format';
-import { handleError } from '../utils/errors';
+import { AppError, handleError } from '../utils/errors';
 
 type Target = { emit: Server['emit'] };
 type TextPayload = typeof mType.chat | typeof mType.ann | typeof mType.error | typeof mType.info | typeof mType.welcome | typeof mType.markov;
@@ -96,7 +96,17 @@ export class DispatchService{
 	public sendClearLocalData(to: Target, guid: string){
 		this.sendPayload(to, mType.clrlocal, guid);
 	}
-	
+
+	public sendUserError(to: Socket, error: unknown, prefix: string){
+		const response = handleError(error, prefix);
+		if(response){
+			this.sendSystemChat(to, mType.error, `system: ${response}`);
+		} 
+		else{
+			this.sendSystemChat(to, mType.error, `system: unknown error. try again`);
+		}
+	}
+
 	public deleteMessage(io: Server, msgArray: number[]){
 		const deleted: number[] = [];
 

@@ -269,7 +269,7 @@ async function main(){
 				dispatchService.sendSystemChat(socket, mType.info, `welcome back, ${getDisplayNick(returningUser.nick)}`);
 			}
 			let scount = 0;
-			for (const [, u] of stateService.getSocketUsers()){
+			for (const [, u] of stateService.getSocketUsersMap()){
 				if(u.guid === returningUser.guid){
 					scount++;
 				}
@@ -300,7 +300,7 @@ async function main(){
 
 		//Message Handling
 		socket.on('toServerChat', async (msg, callback) => {
-			const user = stateService.getSocketUsers().get(socket.id);
+			const user = stateService.getSocketUser(socket.id);
 
 			// Check if it's a command
 			if(msg.startsWith('/')){
@@ -310,13 +310,7 @@ async function main(){
 					return;
 				}
 				catch(error: unknown){
-					const response = handleError(error, 'Main Function Command Check');
-					if(response){
-						dispatchService.sendSystemChat(socket, mType.error, `system: ${response}`);
-					}
-					else{
-						dispatchService.sendSystemChat(socket, mType.error, `system: unexpected error`);
-					}
+					dispatchService.sendUserError(socket, error, 'Main Function Command Check');
 					callback(keepInput);
 					return;
 				}
@@ -341,13 +335,13 @@ async function main(){
 
 		//Disconnect flow
 		socket.on('disconnect', () => {
-			const disuser = stateService.getSocketUsers().get(socket.id);
+			const socketUsers = stateService.getSocketUsersMap();
+			const disuser = socketUsers.get(socket.id) ?? null;
 
 			if(disuser){
 				stateService.deleteSocketUser(io, socket.id);
-
 				let scount = 0;
-				for (const [, u] of stateService.getSocketUsers()){
+				for(const [, u] of socketUsers){
 					if(u.guid === disuser.guid){
 						scount++;
 					}

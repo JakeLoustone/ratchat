@@ -13,13 +13,19 @@ import { MarkovService } from './markov';
 import { MessageService } from './message';
 
 import { getDisplayNick, getDisplayColor } from '../utils/format';
-import { isValidGUID } from '../utils/input';
+import { isValidGUID } from '../utils/validate';
 import { AppError } from '../utils/errors';
 
 import { GameCommandService } from './games/game-command';
 
 const clearInput: boolean = true;
 const keepInput: boolean = false;
+
+export type CommandEntry = {
+	requiresMod: boolean;
+	requiresMarkov: boolean;
+	handler: (ctx: Command) => boolean | Promise<boolean>;
+}
 
 export interface CommandServiceDependencies {
 	dispatchService: DispatchService;
@@ -31,12 +37,6 @@ export interface CommandServiceDependencies {
 	markovService: MarkovService | null;
 	messageService: MessageService;
 	gameCommandService: GameCommandService;
-}
-
-export interface CommandEntry{
-    requiresMod: boolean;
-    requiresMarkov: boolean;
-	handler: (ctx: Command) => boolean | Promise<boolean>;
 }
 
 export class CommandService {

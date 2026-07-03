@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io';
 
-import { tType, mType, allGames } from '../../../shared/schema';
+import { mType, allGames } from '../../../shared/schema';
 import type { Command, Identity, GameType } from '../../../shared/schema';
 
 import { DispatchService } from '../dispatch';
@@ -8,9 +8,6 @@ import { StateService } from '../state';
 import { GameIdentityService } from './game-identity';
 import { IdentityService } from '../identity';
 
-import { AppError, handleError } from '../../utils/errors';
-import { getDisplayNick, getDisplayColor } from '../../utils/format';
-import { isValidGUID } from '../../utils/input';
 
 const clearInput: boolean = true;
 const keepInput: boolean = false;
@@ -22,7 +19,7 @@ export interface GameCommandServiceDependencies {
 	identityService: IdentityService;
 }
 
-export interface GameCommandEntry{
+export type GameCommandEntry = {
 	enabledFor: GameType[];
 	handler: (ctx: Command) => boolean | Promise<boolean>;
 }

@@ -3,7 +3,8 @@ import { readFileSync } from "fs";
 import type { Identity, TimeType, TextType } from "../../shared/schema.ts";
 
 import { StateService } from "./state";
-import { sanitizeText, isValidHexColor } from "../utils/input.js";
+import { sanitizeText } from "../utils/sanitize.js";
+import { isValidHexColor } from "../utils/validate.js";
 import { handleError, AppError } from "../utils/errors.js";
 
 export type SafeString = string & {__brand: 'SafeString'};

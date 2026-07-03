@@ -9,7 +9,7 @@ export function mergeDefaults(input: unknown, defaults: DefaultIdentity, schema:
 export function mergeDefaults(input: unknown, defaults: DefaultGameIdentity, schema: typeof GameIdentitySchema): GameIdentity
 export function mergeDefaults(input: unknown, defaults: Config | DefaultIdentity | DefaultGameIdentity, schema: ConfigSchema | typeof IdentitySchema | typeof GameIdentitySchema): Config | Identity | GameIdentity {
 	const shape = (schema as z.ZodObject<z.ZodRawShape>).shape;
-	const name = getSchemaName(schema);
+	const name = getDefaultSchemaName(schema);
 	const merged: Record<string, unknown> = {};
 
 	for(const key of Object.keys(shape)){
@@ -24,10 +24,14 @@ export function mergeDefaults(input: unknown, defaults: Config | DefaultIdentity
 		merged[key] = parsed.success ? parsed.data : def;
 	}
 	
-	return validateMerge(merged, schema);
+	return parseMergedDefaults(merged, schema);
 }
 
-function validateMerge(input: Record<string, unknown>, schema: ConfigSchema | typeof IdentitySchema | typeof GameIdentitySchema): Config | Identity | GameIdentity{
+export function parseEntryArray<T>(parsed: unknown[], schema: z.ZodType<T>): T[]{
+	return parsed.filter((entry): entry is T => schema.safeParse(entry).success);
+}
+
+function parseMergedDefaults(input: Record<string, unknown>, schema: ConfigSchema | typeof IdentitySchema | typeof GameIdentitySchema): Config | Identity | GameIdentity{
 	if(schema === IdentitySchema){
 		return IdentitySchema.parse(input);
 	}
@@ -48,7 +52,7 @@ function validateMerge(input: Record<string, unknown>, schema: ConfigSchema | ty
 	}
 }
 
-function getSchemaName(schema: ConfigSchema | typeof IdentitySchema | typeof GameIdentitySchema): string {
+function getDefaultSchemaName(schema: ConfigSchema | typeof IdentitySchema | typeof GameIdentitySchema): string {
 	if(schema === IdentitySchema){
 		return 'Identity';
 	}
@@ -68,3 +72,5 @@ function getSchemaName(schema: ConfigSchema | typeof IdentitySchema | typeof Gam
 		return 'Unknown';
 	}
 }
+
+

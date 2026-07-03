@@ -10,13 +10,13 @@ import type { ServerConfig, Identity, UserSum, MarkovConfig, GameConfig } from "
 import { DispatchService } from "./dispatch";
 import type { SafeString } from "./moderation";
 
-import { mergeDefaults } from "../utils/defaults";
+import { mergeDefaults } from "../utils/parse";
 import { hashIP } from "../utils/hash";
 import { getDisplayNick } from "../utils/format";
-import { isValid7TVID } from "../utils/input";
+import { isValid7TVID } from "../utils/validate";
 import { handleError, AppError } from "../utils/errors";
 
-interface EmoteEntry {
+type EmoteEntry = {
 	name: string;
   	data:{
 		host:{ 
@@ -62,10 +62,16 @@ export class StateService {
 	constructor(dependencies: StateServiceDependencies){
 		this.deps = dependencies;
 		this.socketUsers = new Map;
-	
-		this.loadServerConfig();
-		this.loadMarkovConfig();
-		this.loadGameConfig();
+
+		try{
+			this.loadServerConfig();
+			this.loadMarkovConfig();
+			this.loadGameConfig();
+		}
+		catch(error: unknown){
+			handleError(error, 'State Config Load');
+		}
+
 		this.startAfkTimer();
 		this.deps.dispatchService.startExpireMessageTimer(this.serverConfig.msgArrayTimeout);
 	}
@@ -367,22 +373,7 @@ export class StateService {
 	}
 
 	private loadServerConfig(){
-		if(!existsSync(this.deps.serverConfigPath)){
-			writeFileSync(this.deps.serverConfigPath, JSON.stringify(defaultServerConfig, null, 4));
-			Object.assign(this.serverConfig, defaultServerConfig);
-			console.log("created default config.json file");
-			return;
-		}
-
-		let loadedCfg: unknown = {};
-
-		try{
-			loadedCfg = JSON.parse(readFileSync(this.deps.serverConfigPath, 'utf-8'));
-		}
- 		catch(error: unknown){
-			handleError(error, 'Server Config Load');
-		}
-
+		const loadedCfg = this.readConfigFile(this.deps.serverConfigPath, defaultServerConfig, 'Server')
 		try{
 			this.serverConfig = mergeDefaults(loadedCfg, defaultServerConfig, ServerConfigSchema);
 			if(this.serverConfig.gdprcontact === 'admin@email.here'){
@@ -398,21 +389,8 @@ export class StateService {
 	}
 
 	private loadMarkovConfig(){
-		if(!existsSync(this.deps.markovConfigPath)){
-			writeFileSync(this.deps.markovConfigPath, JSON.stringify(defaultMarkovConfig, null, 4));
-			Object.assign(this.markovConfig, defaultMarkovConfig);
-			console.log("created default markov.json file");
-			return;
-		}
+		const loadedCfg = this.readConfigFile(this.deps.markovConfigPath, defaultMarkovConfig, 'Markov');
 
-		let loadedCfg: unknown = {};
-
-		try{
-			loadedCfg = JSON.parse(readFileSync(this.deps.markovConfigPath, 'utf-8'));
-		}
- 		catch(error: unknown){
-			handleError(error, 'Markov Config Load');
-		}
 		try{
 			this.markovConfig = mergeDefaults(loadedCfg, defaultMarkovConfig, MarkovConfigSchema);
 		}
@@ -440,21 +418,7 @@ export class StateService {
 	}
 
 	private loadGameConfig(){
-		if(!existsSync(this.deps.gameConfigPath)){
-			writeFileSync(this.deps.gameConfigPath, JSON.stringify(defaultGameConfig, null, 4));
-			Object.assign(this.gameConfig, defaultGameConfig);
-			console.log("created default minigames.json file");
-			return;
-		}
-
-		let loadedCfg: unknown = {};
-
-		try{
-			loadedCfg = JSON.parse(readFileSync(this.deps.gameConfigPath, 'utf-8'));
-		}
- 		catch(error: unknown){
-			handleError(error, 'Game Config Load');
-		}
+		const loadedCfg = this.readConfigFile(this.deps.gameConfigPath, defaultGameConfig, 'Game')
 		try{
 			this.gameConfig = mergeDefaults(loadedCfg, defaultGameConfig, GameConfigSchema);
 		}
@@ -463,6 +427,27 @@ export class StateService {
 		}
 		Object.freeze(this.gameConfig);
 		console.log('LOADED GAME CONFIG: ', this.gameConfig);
+	}
+
+	private readConfigFile(path: string, defaultConfig: object, label: string): unknown{
+		if(!existsSync(path)){
+			try{
+				writeFileSync(path, JSON.stringify(defaultConfig, null, 4));
+				console.log(`created default ${label} config json file`);
+			}
+			catch(error: unknown){
+				handleError(error, `Create ${label} Default Config File`);
+			}
+			return defaultConfig;
+		}
+
+		try{
+			return JSON.parse(readFileSync(path, 'utf-8'));
+		}
+		catch(error: unknown){
+			handleError(error, `${label} Config Load`);
+			return {};
+		}
 	}
 
 	private startAfkTimer(){

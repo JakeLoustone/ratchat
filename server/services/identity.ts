@@ -12,7 +12,7 @@ import { StateService } from './state';
 import { GameIdentityService } from './games/game-identity';
 import type { SafeString } from './moderation';
 
-import { mergeDefaults } from '../utils/defaults';
+import { mergeDefaults } from '../utils/parse';
 import { getDisplayNick, getDisplayColor } from '../utils/format';
 import { handleError, AppError } from '../utils/errors';
 

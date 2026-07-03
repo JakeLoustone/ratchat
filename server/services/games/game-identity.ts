@@ -7,7 +7,7 @@ import type { DefaultGameIdentity, GameIdentity } from '../../../shared/schema';
 
 import { StateService } from '../state';
 
-import { mergeDefaults } from '../../utils/defaults';
+import { mergeDefaults } from '../../utils/parse';
 import { AppError, handleError } from '../../utils/errors';
 
 const MAX_INT = 4294967295;

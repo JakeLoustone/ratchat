@@ -1,7 +1,7 @@
 import{ Server, Socket } from 'socket.io';
 import{ z } from 'zod';
 
-import { isValid7TVID, isValidHexColor } from "../server/utils/input";
+import { isValid7TVID, isValidHexColor } from "../server/utils/validate";
 
 export const IdentitySchema = z.object({
 	guid: z.string(),
@@ -73,7 +73,7 @@ export const eType = {
 } as const;
 export type GameEventType = typeof eType[keyof typeof eType];
 
-export interface ChatMessage{
+export type ChatMessage = {
 	id: number;
 	author: Identity['nick'];
 	content: string;
@@ -82,13 +82,13 @@ export interface ChatMessage{
 	spoiler: boolean;
 }
 
-export interface GameEvent{
+export type GameEvent = {
 	content: string;
 	timestamp: number;
 	event: GameEventType;
 }
 
-export interface Command{
+export type Command = {
 	socket: Socket;
 	io: Server;
 	args: string[];

@@ -1,11 +1,9 @@
 import { Server } from "socket.io";
 
 import { mType } from "../../shared/schema";
-import type { Identity } from "../../shared/schema.ts";
 
 import { StateService } from "./state";
 import { DispatchService } from "./dispatch";
-import { IdentityService } from "./identity";
 
 import { hashIP } from '../utils/hash.js';
 import { handleError, AppError } from "../utils/errors";
@@ -15,7 +13,6 @@ import { existsFile, createJsonFile, readJsonFile, writeJsonFile } from '../util
 export interface SecurityServiceDependencies{
 	stateService: StateService;
 	dispatchService: DispatchService;
-	identityService: IdentityService;
 	
 	bansPath: string;
 	io: Server;
@@ -60,28 +57,24 @@ export class SecurityService{
 		}
 	}
 
-	public banUser(target: Identity){
+	public enforceBan(targetGuid: string){
 		const socketUsers = this.deps.stateService.getSocketUsersMap();
 		let socketIDs = [] as string[];
-
 		socketUsers.forEach((user, id) => {
-			if(user.guid === target.guid){
+			if(user.guid === targetGuid){
 				socketIDs.push(id);
 			}
 		});
-
 		if(socketIDs.length === 0){
-			throw new AppError ("couldn't find any connections from that user", 'user');
+			throw new AppError("couldn't find any connections from that user for IP banning", 'user');
 		}
-
 		socketIDs.forEach((sid) => {
 			const socket = this.deps.io.sockets.sockets.get(sid);
 			if(socket){
 				try{
 					const banIP = hashIP(socket?.handshake.address);
 					this.bans.set(banIP, new Date());
-
-					this.deps.dispatchService.sendClearLocalData(socket, target.guid);
+					this.deps.dispatchService.sendClearLocalData(socket, targetGuid);
 					this.deps.dispatchService.sendSystemChat(socket, mType.error, 'You have been banned.');
 					this.deps.stateService.deleteSocketUser(this.deps.io, sid);
 					socket.disconnect(true);
@@ -92,8 +85,6 @@ export class SecurityService{
 			}
 			return;
 		});
-
-		this.deps.identityService.deleteUser(target.guid);
 		this.banQueue.chain();
 	}
 

@@ -272,7 +272,7 @@ export class CommandService {
 						this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `creating user...`);
 						const batch = await this.deps.stateService.queueSignup(ctx.socket, safe);
 						if(batch){
-							const user = this.deps.identityService.setNick(null, safe);
+							const user = this.deps.identityService.createNewUser(safe);
 							this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
 							this.deps.dispatchService.sendIdentity(ctx.socket, user);
 							this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, 'system: your new identity has been loaded. consider using /export to save for later use');
@@ -533,29 +533,35 @@ export class CommandService {
 		this.commands['ban'] = {
 			requiresMod: true,
 			requiresMarkov: false,
-			handler: (ctx) => {				
+			handler: (ctx) => {		
+				
 				try{
 					if(!ctx.args[0]){
 						throw new AppError("missing target", 'user');
 					}
-					const target = this.deps.identityService.getUserByNick(ctx.args[0]);
+
+					const targetNick = ctx.args[0];
+
+					if(!this.deps.identityService.existsUserByNick(targetNick)){
+						throw new AppError(`couldn't find user with nickname ${targetNick}`, 'user');
+					}
+
 					const msgArray: number[] = [];
 					for (const [id, msg] of this.deps.dispatchService.getChatHistory()){
 						const msgNick = getDisplayNick(msg.author);
-						if(msgNick.toLowerCase() === target.nick.toLowerCase()){
+						if(msgNick.toLowerCase() === targetNick.toLowerCase()){
 							msgArray.push(id);
 						}
 					}
-
-					//delete messages if any
 					if(msgArray.length > 0){
 						this.deps.dispatchService.deleteMessage(ctx.io, msgArray);
+						this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `deleted ${msgArray.length} user messages`)
 					}
-					
-					this.deps.securityService.banUser(target);
-					this.deps.dispatchService.sendSystemChat(ctx.io, mType.info, `${ctx.args[0]} has been banned.`);
+
+					this.deps.identityService.deleteUserByNick(targetNick, true);
+
+					this.deps.dispatchService.sendSystemChat(ctx.io, mType.info, `${targetNick} has been banned.`);
 					return clearInput;
-					
 				}
 				catch(error: unknown){
 					this.deps.dispatchService.sendUserError(ctx.socket, error, 'Ban Command');
@@ -573,7 +579,11 @@ export class CommandService {
 						throw new AppError("missing target", 'user');
 					}
 					const targetNick = ctx.args[0];
-					const targetUser = this.deps.identityService.getUserByNick(targetNick);
+
+					if(!this.deps.identityService.existsUserByNick(targetNick)){
+						throw new AppError(`couldn't find user with nickname ${targetNick}`, 'user');
+					}
+
 					const config = this.deps.stateService.getServerConfig();
 					
 					//set duration in seconds
@@ -584,12 +594,12 @@ export class CommandService {
 
 					//apply the timeout to the future
 					let unMute = now + (duration * 1000);
-					
+
 					if(unMute > now + maxAllowed){
 						unMute = now + maxAllowed;
 					}
 
-					this.deps.identityService.setLastMessage(targetUser.guid, unMute);
+					this.deps.identityService.setLastMessageByNick(targetNick, unMute);
 
 					//messages to delete
 					const msgArray: number[] = [];

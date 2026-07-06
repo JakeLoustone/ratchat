@@ -50,6 +50,6 @@ export type PublicDuelingLeaderboard = PublicLeaderboardEntry<DuelingEntry>[];
 export type PublicFishingLeaderboard = PublicLeaderboardEntry<FishingEntry>[];
 export type PublicHorseLeaderboard = HorseEntry[];
 
-export type PrivateLeaderboard = BlackjackEntry[] | DuelingEntry[] | FishingEntry[] | HorseEntry[];
+export type PrivateLeaderboard = LeaderboardEntry[] | BlackjackEntry[] | DuelingEntry[] | FishingEntry[] | HorseEntry[];
 export type PublicLeaderboard = PublicOverallLeaderboard | PublicBlackjackLeaderboard | PublicDuelingLeaderboard | PublicFishingLeaderboard | PublicHorseLeaderboard;
 export type Leaderboard = PrivateLeaderboard | PublicLeaderboard;

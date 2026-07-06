@@ -6,6 +6,7 @@ import type { DefaultIdentity, Identity } from '../../shared/schema';
 import { ModerationService } from './moderation';
 import { StateService } from './state';
 import { GameIdentityService } from './games/game-identity';
+import { SecurityService } from './security';
 import type { SafeString } from './moderation';
 
 import { mergeDefaults } from '../utils/parse';
@@ -14,10 +15,12 @@ import { handleError, AppError } from '../utils/errors';
 import { createSaveQueue } from '../utils/queue';
 import { existsFile, createJsonFile, readJsonFile, writeJsonFile } from '../utils/serialize';
 
+
 export interface IdentityServiceDependencies{
 	moderationService: ModerationService;
 	stateService: StateService;
 	gameIdentityService: GameIdentityService;
+	securityService: SecurityService;
 
 	usersPath: string;
 }
@@ -47,37 +50,12 @@ export class IdentityService {
 		});
 	}
 
-	public setNick(guid: string | null, nick: SafeString): Identity{
-		//Returning user flow
-		if(guid && this.users.has(guid)){
-			const user = this.users.get(guid)!;
-			const oldNick = getDisplayNick(user.nick);
-
-			if(nick === oldNick){
-				throw new AppError("that's already your name silly", 'user');
-			}
-
-			//allow capitilzation changes
-			if(nick.toLowerCase() !== oldNick.toLowerCase() && this.registeredNicks.has(nick.toLowerCase())){
-				throw new AppError('nickname is already in use', 'user');
-			}
-
-			this.registeredNicks.delete(oldNick.toLowerCase());
-			this.registeredNicks.set(nick.toLowerCase(), guid);
-
-			const color = getDisplayColor(user.nick);
-			user.nick = color + nick;
-			user.lastChanged = new Date();
-			this.userQueue.chain();
-			return user;
-		}
-		//New user flow
-		else{
-			if(this.registeredNicks.has(nick.toLowerCase())){
-				throw new AppError('nickname is already in use', 'user');
+	public createNewUser(nick: SafeString): Identity{
+		if(this.registeredNicks.has(nick.toLowerCase())){
+			throw new AppError('nickname is already in use', 'user');
 		}
 
-		const newGuid = guid || uuidv4();
+		const newGuid = uuidv4();
 		const newIdentity: Identity = {
 			guid: newGuid,
 			nick: ('#000000') + nick,
@@ -94,7 +72,33 @@ export class IdentityService {
 		}
 		this.userQueue.chain();
 		return newIdentity;
+	}
+
+	public setNick(guid: string, nick: SafeString): Identity{
+		if(!this.users.has(guid)){
+			throw new AppError('set nick: no matching user found to GUID', 'internal', 'warn');
 		}
+
+		const user = this.users.get(guid)!;
+		const oldNick = getDisplayNick(user.nick);
+
+		if(nick === oldNick){
+			throw new AppError("that's already your name silly", 'user');
+		}
+
+		//allow capitilzation changes
+		if(nick.toLowerCase() !== oldNick.toLowerCase() && this.registeredNicks.has(nick.toLowerCase())){
+			throw new AppError('nickname is already in use', 'user');
+		}
+
+		this.registeredNicks.delete(oldNick.toLowerCase());
+		this.registeredNicks.set(nick.toLowerCase(), guid);
+
+		const color = getDisplayColor(user.nick);
+		user.nick = color + nick;
+		user.lastChanged = new Date();
+		this.userQueue.chain();
+		return user;
 	}
 
 	public setColor(guid: string, color: SafeString): Identity{
@@ -183,17 +187,26 @@ export class IdentityService {
 		return true;
 	}
 
-	public getUserByNick(cleanNick: string): Identity {
+	public setLastMessageByNick(cleanNick: string, msgdate: number, clearAfk = true){
 		const guid = this.registeredNicks.get(cleanNick.trim().toLowerCase());
 		if(!guid){
 			throw new AppError(`couldn't find user with nickname ${cleanNick}`, 'user');
 		}
-		const user = this.users.get(guid);
-		if(!user){
+		this.setLastMessage(guid, msgdate, clearAfk);
+	}
+
+	public deleteUserByNick(cleanNick: string, banned: boolean): void {
+		const guid = this.registeredNicks.get(cleanNick.trim().toLowerCase());
+		if(!guid){
 			throw new AppError(`couldn't find user with nickname ${cleanNick}`, 'user');
 		}
-		return user;
-	}	
+
+		this.deleteUser(guid);
+
+		if(banned){
+			this.deps.securityService.enforceBan(guid);
+		}
+	}
 
 	public deleteUser(guid: string){
 		const user = this.users.get(guid);

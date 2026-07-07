@@ -5,6 +5,7 @@ import { isValid7TVID, isValidHexColor } from "../server/utils/validate";
 
 export const IdentitySchema = z.object({
 	guid: z.string(),
+	playerid: z.string(),
 	nick: z.string(),
 	status: z.string(),
 	lastMessage: z.coerce.date(),
@@ -13,16 +14,16 @@ export const IdentitySchema = z.object({
 	isAfk: z.boolean(),
 });
 export type Identity = z.infer<typeof IdentitySchema>;
-export type DefaultIdentity = Omit<Identity, "guid" | "nick">;
+export type DefaultIdentity = Omit<Identity, "guid" | "playerid" | "nick">;
 export type UserSum = Pick<Identity, "nick" | "status" | "isMod" | "isAfk">;
 
 export const GameIdentitySchema = z.object({
-	guid: z.string(),
-	gamePoints: z.number(),
+	playerid: z.string(),
+	gamePoints: z.number().int().min(0),
 	lastGame: z.coerce.date()
 });
 export type GameIdentity = z.infer<typeof GameIdentitySchema>;
-export type DefaultGameIdentity = Omit<GameIdentity, "guid">;
+export type DefaultGameIdentity = Omit<GameIdentity, "playerid">;
 
 export const mType = {
 	chat: "toClientChat",
@@ -72,6 +73,15 @@ export const eType = {
 	leaderboard: "leaderboard"
 } as const;
 export type GameEventType = typeof eType[keyof typeof eType];
+
+export const aType = {
+	id: "Identity",
+	gid: "GameIdentity",
+	sconfig: "ServerConfig",
+	mconfig: "MarkovConfig",
+	gconfig: "GameConfig"
+} as const;
+export type SchemaType = typeof aType[keyof typeof aType];
 
 
 export const ChatMessageSchema = z.object({

@@ -100,21 +100,21 @@ async function main(){
 		gameUsersPath: gameUsersPath
 	});
 
+	const securityService = new SecurityService({
+		stateService: stateService,
+		dispatchService: dispatchService,
+
+		bansPath: bansPath,
+		io: io
+	});
+
 	const identityService = new IdentityService({
 		moderationService: moderationService,
 		stateService: stateService,
 		gameIdentityService: gameIdentityService,
+		securityService: securityService,
 		
 		usersPath: usersPath
-	});
-
-	const securityService = new SecurityService({
-		stateService: stateService,
-		dispatchService: dispatchService,
-		identityService: identityService,
-
-		bansPath: bansPath,
-		io: io
 	});
 
 	let markovService: MarkovService | null = null; 

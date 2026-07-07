@@ -1,76 +1,73 @@
 import type { z } from "zod";
 
 import { IdentitySchema, ServerConfigSchema, MarkovConfigSchema, GameConfigSchema } from "../../shared/schema";
-import { Config, ConfigSchema, DefaultGameIdentity, DefaultIdentity, GameIdentity, GameIdentitySchema, Identity } from "../../shared/schema";
-import { AppError } from "./errors";
+import { Config, ConfigSchema, aType, DefaultGameIdentity, DefaultIdentity, GameIdentity, GameIdentitySchema, Identity } from "../../shared/schema";
+import type { ServerConfig, MarkovConfig, GameConfig, SchemaType } from "../../shared/schema";
 
-export function mergeDefaults<T extends Config>(input: unknown, defaults: T, schema: ConfigSchema): T
-export function mergeDefaults(input: unknown, defaults: DefaultIdentity, schema: typeof IdentitySchema): Identity
-export function mergeDefaults(input: unknown, defaults: DefaultGameIdentity, schema: typeof GameIdentitySchema): GameIdentity
-export function mergeDefaults(input: unknown, defaults: Config | DefaultIdentity | DefaultGameIdentity, schema: ConfigSchema | typeof IdentitySchema | typeof GameIdentitySchema): Config | Identity | GameIdentity {
-	const shape = (schema as z.ZodObject<z.ZodRawShape>).shape;
-	const name = getDefaultSchemaName(schema);
-	const merged: Record<string, unknown> = {};
-
-	for(const key of Object.keys(shape)){
-		const fieldSchema = shape[key] as z.ZodTypeAny;
-		const val = (input as Record<string, unknown>)?.[key];
-		const def = (defaults as Record<string, unknown>)[key];
-
-		const parsed = fieldSchema.safeParse(val);
-		if(!parsed.success && val !== undefined){
-			console.warn(`Merge Defaults on ${name} invalid value for ${key}: '${JSON.stringify(val)}' — using default`);
-		}
-		merged[key] = parsed.success ? parsed.data : def;
-	}
-	
-	return parseMergedDefaults(merged, schema);
-}
+export type ParseFailureRecord = {
+	raw: unknown;
+	schemaName: SchemaType;
+	field: string;
+	invalidValue: unknown;
+	substitutedValue: unknown;
+};
+export type KeyedParseFailureRecord = ParseFailureRecord & {
+	recordKey: string;
+};
 
 export function parseEntryArray<T>(parsed: unknown[], schema: z.ZodType<T>): T[]{
 	return parsed.filter((entry): entry is T => schema.safeParse(entry).success);
 }
 
-function parseMergedDefaults(input: Record<string, unknown>, schema: ConfigSchema | typeof IdentitySchema | typeof GameIdentitySchema): Config | Identity | GameIdentity{
-	if(schema === IdentitySchema){
-		return IdentitySchema.parse(input);
-	}
-	else if(schema === GameIdentitySchema){
-		return GameIdentitySchema.parse(input);
-	}
-	else if(schema === ServerConfigSchema){
-		return ServerConfigSchema.parse(input);
-	} 
-	else if(schema === MarkovConfigSchema){
-		return MarkovConfigSchema.parse(input);
-	} 
-	else if(schema === GameConfigSchema){
-		return GameConfigSchema.parse(input);
+export function mergeIdentityDefaults(input: unknown, defaults: DefaultIdentity, schemaName: typeof aType.id, schema: typeof IdentitySchema): [Identity | null, ParseFailureRecord[]];
+export function mergeIdentityDefaults(input: unknown, defaults: DefaultGameIdentity, schemaName: typeof aType.gid, schema: typeof GameIdentitySchema): [GameIdentity | null, ParseFailureRecord[]];
+export function mergeIdentityDefaults(input: unknown, defaults: DefaultIdentity | DefaultGameIdentity, schemaName: SchemaType, schema: typeof IdentitySchema | typeof GameIdentitySchema): [Identity | GameIdentity | null, ParseFailureRecord[]] {
+	const [merged, failures] = mergeDefaults(input, defaults, schemaName, schema);
+	const result = schema.safeParse(merged);
+
+	if(result.success){
+		const output = result.data;
+		return [output, failures];
 	}
 	else{
-		throw new AppError("Unknown merge schema", 'bug');
+		return [null, failures];
 	}
 }
 
-function getDefaultSchemaName(schema: ConfigSchema | typeof IdentitySchema | typeof GameIdentitySchema): string {
-	if(schema === IdentitySchema){
-		return 'Identity';
-	}
-	else if(schema === GameIdentitySchema){
-		return 'GameIdentity';
-	}
-	else if(schema === ServerConfigSchema){
-		return 'ServerConfig';
-	}
-	else if(schema === MarkovConfigSchema){
-		return 'MarkovConfig';
-	}
-	else if(schema === GameConfigSchema){
-		return 'GameConfig';
-	}
-	else{
-		return 'Unknown';
-	}
+export function mergeConfigDefaults(input: unknown, defaults: ServerConfig, schemaName: typeof aType.sconfig, schema: typeof ServerConfigSchema): [ServerConfig, ParseFailureRecord[]];
+export function mergeConfigDefaults(input: unknown, defaults: MarkovConfig, schemaName: typeof aType.mconfig, schema: typeof MarkovConfigSchema): [MarkovConfig, ParseFailureRecord[]];
+export function mergeConfigDefaults(input: unknown, defaults: GameConfig, schemaName: typeof aType.gconfig, schema: typeof GameConfigSchema): [GameConfig, ParseFailureRecord[]];
+export function mergeConfigDefaults(input: unknown, defaults: Config, schemaName: SchemaType, schema: ConfigSchema): [Config, ParseFailureRecord[]] {
+	const [merged, failures] = mergeDefaults(input, defaults, schemaName, schema);
+	const output = schema.parse(merged);
+	return [output, failures];
 }
 
+function mergeDefaults(input: unknown, defaults: Record<string, unknown>, schemaName: SchemaType, schema: z.ZodObject<z.ZodRawShape>): [unknown, ParseFailureRecord[]] {
+	const shape = schema.shape;
+	const merged: Record<string, unknown> = {};
+	const failures: ParseFailureRecord[] = [];
 
+	for(const key of Object.keys(shape)){
+		const fieldSchema = shape[key] as z.ZodTypeAny;
+		const val = (input as Record<string, unknown>)?.[key];
+		const def = defaults[key];
+		const parsed = fieldSchema.safeParse(val);
+
+		if(parsed.success){
+			merged[key] = parsed.data;
+		}
+		else{
+			failures.push({
+				raw: input,
+				schemaName,
+				field: key,
+				invalidValue: val,
+				substitutedValue: def
+			});
+			merged[key] = def;
+		}
+	}
+
+	return [merged, failures];
+}

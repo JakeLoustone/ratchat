@@ -2,14 +2,15 @@ import { EventEmitter } from "events";
 
 import type { Socket, Server } from "socket.io";
 
-import { defaultServerConfig, defaultMarkovConfig, mType, defaultGameConfig, ServerConfigSchema, MarkovConfigSchema, GameConfigSchema } from '../../shared/schema';
+import { defaultServerConfig, defaultMarkovConfig, mType, aType, defaultGameConfig, ServerConfigSchema, MarkovConfigSchema, GameConfigSchema } from '../../shared/schema';
 import type { ServerConfig, Identity, UserSum, MarkovConfig, GameConfig } from "../../shared/schema";
 
 import { CacheService } from "./cache";
 import { DispatchService } from "./dispatch";
 import type { SafeString } from "./moderation";
 
-import { mergeDefaults } from "../utils/parse";
+import { mergeConfigDefaults } from "../utils/parse";
+import { existsRepairFile, getRepairPath } from "../utils/repair";
 import { hashIP } from "../utils/hash";
 import { getDisplayNick } from "../utils/format";
 import { isValid7TVID } from "../utils/validate";
@@ -64,6 +65,16 @@ export class StateService {
 	constructor(dependencies: StateServiceDependencies){
 		this.deps = dependencies;
 		this.socketUsers = new Map;
+
+		const pendingRepairs: string[] = [];
+		for(const path of [this.deps.serverConfigPath, this.deps.markovConfigPath, this.deps.gameConfigPath]){
+			if(existsRepairFile(path)){
+				pendingRepairs.push(path);
+			}
+		}
+		if(pendingRepairs.length > 0){
+			throw new AppError(`unresolved repair file(s) found for: ${pendingRepairs.join(', ')} — review and delete before restarting`, 'internal', 'error');
+		}
 
 		try{
 			this.loadServerConfig();
@@ -415,9 +426,18 @@ export class StateService {
 	}
 
 	private loadServerConfig(){
-		const loadedCfg = this.readConfigFile(this.deps.serverConfigPath, defaultServerConfig, 'Server')
+		const loadedCfg = this.readConfigFile(this.deps.serverConfigPath, defaultServerConfig, 'Server');
+		const repairPath = getRepairPath(this.deps.serverConfigPath);
+
 		try{
-			this.serverConfig = mergeDefaults(loadedCfg, defaultServerConfig, ServerConfigSchema);
+			const [merged, failures] = mergeConfigDefaults(loadedCfg, defaultServerConfig, aType.sconfig, ServerConfigSchema);
+			this.serverConfig = merged;
+
+			if(failures.length > 0){
+				console.error(`Server config had ${failures.length} field(s) fall back to default, writing repair file`);
+				createJsonFile(repairPath, failures);
+			}
+
 			if(this.serverConfig.gdprcontact === 'admin@email.here'){
 				console.warn('No GDPR contact info set. If hosting publicly please set gdprcontact in config.json');
 			}
@@ -432,9 +452,17 @@ export class StateService {
 
 	private loadMarkovConfig(){
 		const loadedCfg = this.readConfigFile(this.deps.markovConfigPath, defaultMarkovConfig, 'Markov');
+		const repairPath = getRepairPath(this.deps.markovConfigPath);
 
 		try{
-			this.markovConfig = mergeDefaults(loadedCfg, defaultMarkovConfig, MarkovConfigSchema);
+			const [merged, failures] = mergeConfigDefaults(loadedCfg, defaultMarkovConfig, aType.mconfig, MarkovConfigSchema);
+			this.markovConfig = merged;
+
+			if(failures.length > 0){
+				console.error(`Markov config had ${failures.length} field(s) fall back to default, writing repair file`);
+				createJsonFile(repairPath, failures);
+			}
+
 		}
 		catch(error: unknown){
 			handleError(error, 'Markov Config Merge');
@@ -446,6 +474,7 @@ export class StateService {
 		if(this.markovConfig.enabled){
 			this.markovUser = {
 				guid: 'markov',
+				playerid: 'markov',
 				nick: this.markovConfig.color + this.markovConfig.nick,
 				status: this.markovConfig.status,
 				lastMessage: new Date(0),
@@ -461,8 +490,16 @@ export class StateService {
 
 	private loadGameConfig(){
 		const loadedCfg = this.readConfigFile(this.deps.gameConfigPath, defaultGameConfig, 'Game')
+		const repairPath = getRepairPath(this.deps.gameConfigPath);
+
 		try{
-			this.gameConfig = mergeDefaults(loadedCfg, defaultGameConfig, GameConfigSchema);
+			const [merged, failures] = mergeConfigDefaults(loadedCfg, defaultGameConfig, aType.gconfig, GameConfigSchema);
+			this.gameConfig = merged;
+
+			if(failures.length > 0){
+				console.error(`Game config had ${failures.length} field(s) fall back to default, writing repair file`);
+				createJsonFile(repairPath, failures);
+			}
 		}
 		catch(error: unknown){
 			handleError(error, 'Game Config Merge');

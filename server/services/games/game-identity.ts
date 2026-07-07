@@ -1,16 +1,14 @@
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
-import { mkdir, writeFile } from "fs/promises";
-import { dirname } from 'path';
-
-import { GameIdentitySchema } from '../../../shared/schema';
+import { GameIdentitySchema, aType } from '../../../shared/schema';
 import type { DefaultGameIdentity, GameIdentity } from '../../../shared/schema';
 
 import { StateService } from '../state';
 
-import { mergeDefaults } from '../../utils/parse';
+import { mergeIdentityDefaults } from '../../utils/parse';
+import { existsRepairFile, getRepairPath } from '../../utils/repair';
 import { AppError, handleError } from '../../utils/errors';
 import { createSaveQueue } from '../../utils/queue';
 import { existsFile, createJsonFile, readJsonFile, writeJsonFile } from '../../utils/serialize';
+import type { KeyedParseFailureRecord } from '../../utils/parse';
 
 const MAX_INT = 4294967295;
 
@@ -27,6 +25,10 @@ export class GameIdentityService {
 	private deps: GameIdentityServiceDependencies;
 	constructor(dependencies: GameIdentityServiceDependencies){
 		this.deps = dependencies;
+
+		if(existsRepairFile(this.deps.gameUsersPath)){
+			throw new AppError(`unresolved repair file found for ${this.deps.gameUsersPath} — review and delete before restarting`, 'internal', 'error');
+		}
 		
 		try{
 			if(!existsFile(this.deps.gameUsersPath)){
@@ -40,15 +42,15 @@ export class GameIdentityService {
 		}
 	}
 
-	public setLastGame(guid: string, gamedate: number): GameIdentity {
+	public setLastGame(playerid: string, gamedate: number): GameIdentity {
 		if(!this.deps.stateService.getGameConfig().enabled){
 			throw new AppError('setLastGame call with minigames disabled', 'bug');
 		}
 
-		const user = this.gameUsers.get(guid);
+		const user = this.gameUsers.get(playerid);
 		const newDate = gamedate;
 		if(!user){
-			throw new AppError('set last game: no matching game user found to GUID', 'internal', 'warn');
+			throw new AppError('set last game: no matching game user found to playerid', 'internal', 'warn');
 		}
 		user.lastGame = new Date(newDate);
 
@@ -56,15 +58,15 @@ export class GameIdentityService {
 		return user;
 	}
 
-	public setGamePoints(guid:string, rawnumber: number): GameIdentity{
+	public setGamePoints(playerid:string, rawnumber: number): GameIdentity{
 		if(!this.deps.stateService.getGameConfig().enabled){
 			throw new AppError('setGamePoints call with minigames disabled', 'bug');
 		}
 		
-		const gameId = this.gameUsers.get(guid);
+		const gameId = this.gameUsers.get(playerid);
 		const amount = Math.round(rawnumber);
 		if(!gameId){
-			throw new AppError('set game points: no matching game user found to GUID', 'internal', 'warn');
+			throw new AppError('set game points: no matching game user found to playerid', 'internal', 'warn');
 		}
 		const newPoints = gameId.gamePoints + amount;
 		if(newPoints >= MAX_INT){
@@ -81,14 +83,14 @@ export class GameIdentityService {
 		return gameId;
 	}
 
-	public setGamePointsDefault(guid:string): GameIdentity{
+	public setGamePointsDefault(playerid:string): GameIdentity{
 		if(!this.deps.stateService.getGameConfig().enabled){
 			throw new AppError('setGamePointsDefault call with minigames disabled', 'bug');
 		}
 
-		const gameId = this.gameUsers.get(guid);
+		const gameId = this.gameUsers.get(playerid);
 		if(!gameId){
-			throw new AppError('set game points default: no matching game user found to GUID', 'internal', 'warn');
+			throw new AppError('set game points default: no matching game user found to playerid', 'internal', 'warn');
 		}
 		const newPoints = Math.round(this.deps.stateService.getGameConfig().pointStartAmt);
 		gameId.gamePoints = newPoints;
@@ -96,41 +98,51 @@ export class GameIdentityService {
 		return gameId;
 	}
 
-	public existsGameUser(guid: string): boolean{
-		const user = this.gameUsers.get(guid);
+	public existsGameUser(playerid: string): boolean{
+		const user = this.gameUsers.get(playerid);
 		if(user){
 			return true;
 		}
 		return false;
 	}
+	
+	public getGameUsersMap(): Map<string, GameIdentity> {
+		const copy = new Map<string, GameIdentity>();
 
-	public getGameUser(guid: string): GameIdentity {
-		const user = this.gameUsers.get(guid);
+		for(const [playerid, gameIdentity] of this.gameUsers){
+			copy.set(playerid, structuredClone(gameIdentity));
+		}
+
+		return copy;
+	}
+
+	public getGameUser(playerid: string): GameIdentity {
+		const user = this.gameUsers.get(playerid);
 		if(!user){
-			throw new AppError('get game user: no matching game user found to GUID', 'internal', 'warn');
+			throw new AppError('get game user: no matching game user found to playerid', 'internal', 'warn');
 		}
 		return user;
 	}
 
-	public createGameUser(inputGuid: string): GameIdentity{
-		if(this.gameUsers.has(inputGuid)){
-			throw new AppError('create game user: game user already exists for GUID', 'internal', 'warn');
+	public createGameUser(inputPlayer: string): GameIdentity{
+		if(this.gameUsers.has(inputPlayer)){
+			throw new AppError('create game user: game user already exists for playerid', 'internal', 'warn');
 		}
 		const newGameIdentity : GameIdentity = {
-			guid: inputGuid,
+			playerid: inputPlayer,
 			...this.buildDefaultGameIdentity()
 		};
-		this.gameUsers.set(inputGuid, newGameIdentity);
+		this.gameUsers.set(inputPlayer, newGameIdentity);
 		this.gameUserQueue.chain();
 		return newGameIdentity;
 	}
 
-	public deleteGameUser(guid: string){
-		const user = this.gameUsers.get(guid);
+	public deleteGameUser(playerid: string){
+		const user = this.gameUsers.get(playerid);
 		if(!user){
-			throw new AppError('delete game user: no matching game user found to GUID', 'internal', 'error');
+			throw new AppError('delete game user: no matching game user found to playerid', 'internal', 'error');
 		}
-		this.gameUsers.delete(guid);
+		this.gameUsers.delete(playerid);
 		this.gameUserQueue.chain();
 	}
 
@@ -166,22 +178,69 @@ export class GameIdentityService {
 			if(!existsFile(this.deps.gameUsersPath)){
 				throw new AppError('loadGameUsers called without existence check', 'bug');
 			}
-
 			const parseData = readJsonFile(this.deps.gameUsersPath) as [string, unknown][];
 			const defaultGameId = this.buildDefaultGameIdentity();
+			const repairPath = getRepairPath(this.deps.gameUsersPath);
+			const allFailures: KeyedParseFailureRecord[] = [];
 
-			this.gameUsers = new Map();
+			const loadedGameUsers = new Map<string, GameIdentity>();
 
-			for (const [guid, raw] of parseData){
-				const gameIdentity = mergeDefaults(raw, defaultGameId, GameIdentitySchema);
+			for (const [playerid, raw] of parseData){
+				try{
+					const [gameIdentity, failures] = mergeIdentityDefaults(raw, defaultGameId, aType.gid, GameIdentitySchema);
 
-				if(!gameIdentity.guid){
-					console.warn(`skipping invalid game user ${guid}: missing guid`);
+					if(failures.length > 0){
+						for(const failure of failures){
+							allFailures.push({
+								...failure,
+								recordKey: playerid
+							});
+						}
+					}
+
+					if(gameIdentity === null){
+						//unrecoverable field, returned as failure from merge
+						continue;
+					}
+
+					if(gameIdentity.playerid !== playerid){
+						allFailures.push({
+							raw: raw,
+							schemaName: aType.gid,
+							field: 'playerid',
+							invalidValue: gameIdentity.playerid,
+							substitutedValue: playerid,
+							recordKey: playerid
+						});
+						continue;
+					}
+
+					if(gameIdentity.gamePoints > MAX_INT){
+						allFailures.push({
+							raw: raw,
+							schemaName: aType.gid,
+							field: 'gamePoints',
+							invalidValue: gameIdentity.gamePoints,
+							substitutedValue: undefined,
+							recordKey: playerid
+						});
+						continue;
+					}
+
+					loadedGameUsers.set(playerid, gameIdentity);
+				}
+				catch(error: unknown){
+					handleError(error, `Load Game Users (Record ${playerid})`);
 					continue;
 				}
-
-				this.gameUsers.set(guid, gameIdentity);
 			}
+
+			if(allFailures.length > 0){
+				console.error(`Load Game Users found ${allFailures.length} field failure(s) across all records, writing repair file`);
+				createJsonFile(repairPath, allFailures);
+			}
+
+			this.gameUsers = loadedGameUsers;
 			this.gameUserQueue.chain();
 			return this.gameUsers.size;
 		} 

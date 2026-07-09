@@ -11,7 +11,7 @@ import type { SafeString } from './moderation';
 
 import { mergeIdentityDefaults } from '../utils/parse';
 import { existsRepairFile, getRepairPath } from '../utils/repair';
-import { getDisplayNick, getDisplayColor } from '../utils/format';
+import { getBaseNick, getNickColor } from '../utils/format';
 import { handleError, AppError } from '../utils/errors';
 import { createSaveQueue } from '../utils/queue';
 import { existsFile, createJsonFile, readJsonFile, writeJsonFile } from '../utils/serialize';
@@ -29,7 +29,8 @@ export interface IdentityServiceDependencies{
 
 export class IdentityService {
 	private users: Map<string, Identity> = new Map();
-	private registeredNicks: Map<string, string> = new Map();
+	private basenickIndex: Map<string, string> = new Map();
+	private playeridIndex: Map<string, string> = new Map();
 	private userQueue = createSaveQueue(() => this.saveUsers());
 
 	private deps: IdentityServiceDependencies;
@@ -56,8 +57,8 @@ export class IdentityService {
 		});
 	}
 
-	public createNewUser(nick: SafeString): Identity{
-		if(this.registeredNicks.has(nick.toLowerCase())){
+	public createNewUser(basenick: SafeString): Identity{
+		if(this.basenickIndex.has(basenick.toLowerCase())){
 			throw new AppError('nickname is already in use', 'user');
 		}
 
@@ -66,19 +67,21 @@ export class IdentityService {
 		const newIdentity: Identity = {
 			guid: newGuid,
 			playerid: newPlayerid,
-			nick: ('#000000') + nick,
+			fullnick: ('#000000') + basenick,
 			...this.buildDefaultIdentity()
 		};
 
-		this.users.set(newGuid, newIdentity);
-		this.registeredNicks.set(nick.toLowerCase(), newGuid);
+		this.users.set(newIdentity.guid, newIdentity);
+		this.basenickIndex.set(getBaseNick(newIdentity.fullnick).toLowerCase(), newIdentity.guid);
+		this.playeridIndex.set(newIdentity.playerid, newIdentity.guid);
 
 		try{
 			this.deps.gameIdentityService.createGameUser(newPlayerid);
 		}
 		catch(error: unknown){
 			this.users.delete(newGuid);
-			this.registeredNicks.delete(nick.toLowerCase());
+			this.basenickIndex.delete(basenick.toLowerCase());
+			this.playeridIndex.delete(newPlayerid);
 
 			if(error instanceof AppError){
 				throw error;
@@ -93,28 +96,28 @@ export class IdentityService {
 		return newIdentity;
 	}
 
-	public setNick(guid: string, nick: SafeString): Identity{
+	public setBaseNick(guid: string, basenick: SafeString): Identity{
 		if(!this.users.has(guid)){
-			throw new AppError('set nick: no matching user found to GUID', 'internal', 'warn');
+			throw new AppError('set base nick: no matching user found to GUID', 'internal', 'warn');
 		}
 
 		const user = this.users.get(guid)!;
-		const oldNick = getDisplayNick(user.nick);
+		const oldBaseNick = getBaseNick(user.fullnick);
 
-		if(nick === oldNick){
+		if(basenick === oldBaseNick){
 			throw new AppError("that's already your name silly", 'user');
 		}
 
 		//allow capitilzation changes
-		if(nick.toLowerCase() !== oldNick.toLowerCase() && this.registeredNicks.has(nick.toLowerCase())){
+		if(basenick.toLowerCase() !== oldBaseNick.toLowerCase() && this.basenickIndex.has(basenick.toLowerCase())){
 			throw new AppError('nickname is already in use', 'user');
 		}
 
-		this.registeredNicks.delete(oldNick.toLowerCase());
-		this.registeredNicks.set(nick.toLowerCase(), guid);
+		this.basenickIndex.delete(oldBaseNick.toLowerCase());
+		this.basenickIndex.set(basenick.toLowerCase(), guid);
 
-		const color = getDisplayColor(user.nick);
-		user.nick = color + nick;
+		const color = getNickColor(user.fullnick);
+		user.fullnick = color + basenick;
 		user.lastChanged = new Date();
 		this.userQueue.chain();
 		return user;
@@ -125,7 +128,7 @@ export class IdentityService {
 		if(!user){
 			throw new AppError('set color: no matching user found to GUID', 'internal', 'warn');
 		}
-		user.nick = color.toUpperCase() + getDisplayNick(user.nick);
+		user.fullnick = color.toUpperCase() + getBaseNick(user.fullnick);
 		user.lastChanged = new Date();
 		this.userQueue.chain();
 		return user;
@@ -199,7 +202,7 @@ export class IdentityService {
 		if(!user){
 			throw new AppError('delete user: no matching user found to GUID', 'internal', 'error');
 		}
-		const cleanNick = getDisplayNick(user.nick);
+		const baseNick = getBaseNick(user.fullnick);
 
 		try{
 			this.deps.gameIdentityService.deleteGameUser(user.playerid);
@@ -214,13 +217,14 @@ export class IdentityService {
 			throw new AppError('failed to delete user: unknown error', 'user');
 		}
 
-		this.registeredNicks.delete(cleanNick.toLowerCase());
+		this.basenickIndex.delete(baseNick.toLowerCase());
+		this.playeridIndex.delete(user.playerid);
 		this.users.delete(guid);
 		this.userQueue.chain();
 	}
 
-	public existsUserByNick(cleanNick: string): boolean{
-		const guid = this.registeredNicks.get(cleanNick.trim().toLowerCase());
+	public existsUserByBaseNick(basenick: string): boolean{
+		const guid = this.basenickIndex.get(basenick.trim().toLowerCase());
 		if(!guid){
 			return false;
 		}
@@ -231,18 +235,18 @@ export class IdentityService {
 		return true;
 	}
 
-	public setLastMessageByNick(cleanNick: string, msgdate: number, clearAfk = true){
-		const guid = this.registeredNicks.get(cleanNick.trim().toLowerCase());
+	public setLastMessageByBaseNick(basenick: string, msgdate: number, clearAfk = true){
+		const guid = this.basenickIndex.get(basenick.trim().toLowerCase());
 		if(!guid){
-			throw new AppError(`couldn't find user with nickname ${cleanNick}`, 'user');
+			throw new AppError(`couldn't find user with nickname ${basenick}`, 'user');
 		}
 		this.setLastMessage(guid, msgdate, clearAfk);
 	}
 
-	public deleteUserByNick(cleanNick: string, banned: boolean): void {
-		const guid = this.registeredNicks.get(cleanNick.trim().toLowerCase());
+	public deleteUserByBaseNick(basenick: string, banned: boolean): void {
+		const guid = this.basenickIndex.get(basenick.trim().toLowerCase());
 		if(!guid){
-			throw new AppError(`couldn't find user with nickname ${cleanNick}`, 'user');
+			throw new AppError(`couldn't find user with nickname ${basenick}`, 'user');
 		}
 
 		this.deleteUser(guid);
@@ -250,6 +254,20 @@ export class IdentityService {
 		if(banned){
 			this.deps.securityService.enforceBan(guid);
 		}
+	}
+
+	public getFullNickByPlayerId(playerid: string): string{
+		const guid = this.playeridIndex.get(playerid);
+		if(!guid){
+			throw new AppError('get full nick by player id: no matching user found to playerid', 'internal', 'warn');
+		}
+
+		const user = this.users.get(guid);
+		if(!user){
+			throw new AppError('get full nick by player id: playeridIndex entry found but no matching user for guid', 'internal', 'error');
+		}
+
+		return user.fullnick;
 	}
 
 	public reloadUsers(): number{
@@ -293,7 +311,8 @@ export class IdentityService {
 			const allFailures: KeyedParseFailureRecord[] = [];
 
 			const loadedUsers = new Map<string, Identity>();
-			const loadedNicks = new Map<string, string>();
+			const loadedBaseNicks = new Map<string, string>();
+			const loadedPlayerIds = new Map<string, string>();
 
 			for (const [guid, raw] of parseData){
 				try{
@@ -325,10 +344,11 @@ export class IdentityService {
 						continue;
 					}
 
-					loadedUsers.set(guid, identity);
+					loadedUsers.set(identity.guid, identity);
 
-					const existingNick = getDisplayNick(identity.nick);
-					loadedNicks.set(existingNick.toLowerCase(), guid);
+					const existingBaseNick = getBaseNick(identity.fullnick);
+					loadedBaseNicks.set(existingBaseNick.toLowerCase(), identity.guid);
+					loadedPlayerIds.set(identity.playerid, identity.guid);
 				}
 				catch(error: unknown){
 					handleError(error, `Load Users (Record ${guid})`);
@@ -347,7 +367,8 @@ export class IdentityService {
 			}
 
 			this.users = loadedUsers;
-			this.registeredNicks = loadedNicks;
+			this.basenickIndex = loadedBaseNicks;
+			this.playeridIndex = loadedPlayerIds;
 			this.userQueue.chain();
 			return this.users.size;
 		} 
@@ -418,24 +439,24 @@ export class IdentityService {
 			}
 		}
 
-		const nickToGuids = new Map<string, string[]>();
+		const baseNickToGuids = new Map<string, string[]>();
 		for(const [guid, identity] of users){
-			const cleanNick = getDisplayNick(identity.nick).toLowerCase();
-			const existing = nickToGuids.get(cleanNick);
+			const baseNick = getBaseNick(identity.fullnick).toLowerCase();
+			const existing = baseNickToGuids.get(baseNick);
 			if(existing){
 				existing.push(guid);
 			}
 			else{
-				nickToGuids.set(cleanNick, [guid]);
+				baseNickToGuids.set(baseNick, [guid]);
 			}
 		}
-		for(const [nick, guids] of nickToGuids){
+		for(const [basenick, guids] of baseNickToGuids){
 			if(guids.length > 1){
 				failures.push({
 					raw: undefined,
 					schemaName: aType.id,
-					field: 'identity.nick: duplicated across multiple identities',
-					invalidValue: nick,
+					field: 'identity base nick: duplicated across multiple identities',
+					invalidValue: basenick,
 					substitutedValue: undefined,
 					recordKey: guids.join(', ')
 				});

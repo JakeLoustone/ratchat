@@ -12,7 +12,7 @@ import type { SafeString } from "./moderation";
 import { mergeConfigDefaults } from "../utils/parse";
 import { existsRepairFile, getRepairPath } from "../utils/repair";
 import { hashIP } from "../utils/hash";
-import { getDisplayNick } from "../utils/format";
+import { getBaseNick } from "../utils/format";
 import { isValid7TVID } from "../utils/validate";
 import { handleError, AppError } from "../utils/errors";
 import { createSaveQueue } from "../utils/queue";
@@ -54,7 +54,7 @@ export class StateService {
 
 	private announcement: string = "";
 
-	private signupBuffer: Map<string, {socket: Socket; nick: SafeString}> = new Map();
+	private signupBuffer: Map<string, {socket: Socket; basenick: SafeString}> = new Map();
 	private signupTimer: NodeJS.Timeout | null = null;
 	private signupPromise: Map<Socket, (value: boolean)=> void> = new Map();
 
@@ -219,7 +219,7 @@ export class StateService {
 
 	public broadcastUsers(io: Server){		
 		const userList: UserSum[] = Array.from(this.socketUsers.values())
-			.map(({ nick, status, isMod, isAfk }) => ({ nick, status, isMod, isAfk }))
+			.map(({ fullnick, status, isMod, isAfk }) => ({ fullnick, status, isMod, isAfk }))
 			.sort((a,b) =>{
 				if(a.isAfk !== b.isAfk){
 					return a.isAfk ? 1 : -1;
@@ -227,7 +227,7 @@ export class StateService {
 				if(a.isMod !== b.isMod){
 					return a.isMod ? -1 : 1;
 				}
-					return getDisplayNick(a.nick).localeCompare(getDisplayNick(b.nick), 'en', {sensitivity: 'base'});;
+					return getBaseNick(a.fullnick).localeCompare(getBaseNick(b.fullnick), 'en', {sensitivity: 'base'});;
 			});
 		
 		const lurkers = io.sockets.sockets.size - this.socketUsers.size;
@@ -235,7 +235,7 @@ export class StateService {
 		if(this.markovUser){
 			if(this.markovSleep){
 				userList.push({
-				nick: this.markovUser.nick,
+				fullnick: this.markovUser.fullnick,
 				status: this.markovUser.status,
 				isMod: false,
 				isAfk: true,
@@ -243,7 +243,7 @@ export class StateService {
 			}
 			else{
 			userList.push({
-				nick: this.markovUser.nick,
+				fullnick: this.markovUser.fullnick,
 				status: this.markovUser.status,
 				isMod: false,
 				isAfk: this.markovUser.isAfk,
@@ -252,7 +252,7 @@ export class StateService {
 		}
 
 		userList.push({
-			nick: '#NONVALlurkers',
+			fullnick: '#NONVALlurkers',
 			status: `${lurkers}`,
 			isMod: false,
 			isAfk: true
@@ -367,11 +367,11 @@ export class StateService {
 		}
 	}
 
-	public queueSignup(socket: Socket, nick: SafeString): Promise<boolean> {
+	public queueSignup(socket: Socket, basenick: SafeString): Promise<boolean> {
 		return new Promise<boolean>((resolve, reject) => {
 			try {
 				const hashed = hashIP(socket.handshake.address);
-				this.signupBuffer.set(hashed, { socket, nick });
+				this.signupBuffer.set(hashed, { socket, basenick });
 				this.signupPromise.set(socket, resolve);
 				if(!this.signupTimer){
 					this.signupTimer = setTimeout(() => this.resolveSignups(), this.serverConfig.signupTime * 1000);
@@ -475,7 +475,7 @@ export class StateService {
 			this.markovUser = {
 				guid: 'markov',
 				playerid: 'markov',
-				nick: this.markovConfig.color + this.markovConfig.nick,
+				fullnick: this.markovConfig.color + this.markovConfig.basenick,
 				status: this.markovConfig.status,
 				lastMessage: new Date(0),
 				lastChanged: new Date(0),

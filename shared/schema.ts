@@ -6,7 +6,7 @@ import { isValid7TVID, isValidHexColor } from "../server/utils/validate";
 export const IdentitySchema = z.object({
 	guid: z.string(),
 	playerid: z.string(),
-	nick: z.string(),
+	fullnick: z.string(),
 	status: z.string(),
 	lastMessage: z.coerce.date(),
 	lastChanged: z.coerce.date(),
@@ -14,13 +14,24 @@ export const IdentitySchema = z.object({
 	isAfk: z.boolean(),
 });
 export type Identity = z.infer<typeof IdentitySchema>;
-export type DefaultIdentity = Omit<Identity, "guid" | "playerid" | "nick">;
-export type UserSum = Pick<Identity, "nick" | "status" | "isMod" | "isAfk">;
+export type DefaultIdentity = Omit<Identity, "guid" | "playerid" | "fullnick">;
+export type UserSum = Pick<Identity, "fullnick" | "status" | "isMod" | "isAfk">;
 
 export const GameIdentitySchema = z.object({
 	playerid: z.string(),
 	gamePoints: z.number().int().min(0),
-	lastGame: z.coerce.date()
+	lastGame: z.coerce.date(),
+	blackjackWinnings: z.number().int(),
+	blackjackBlackjacks: z.number().int().min(0),
+	duelingWins: z.number().int().min(0),
+	duelingHonor: z.number().int(),
+	fishingFishCaught: z.array(z.string()),
+	fishingCatches: z.number().int().min(0),
+	fishingWinnings: z.number().int().min(0),
+	fishingBestCatch: z.string().nullable(),
+	fishingBestCatchValue: z.number().int().min(0).nullable(),
+	horseWinnings: z.number().int(),
+	horseBetWins: z.number().int().min(0)
 });
 export type GameIdentity = z.infer<typeof GameIdentitySchema>;
 export type DefaultGameIdentity = Omit<GameIdentity, "playerid">;
@@ -60,7 +71,7 @@ export type TimeType = typeof tType[keyof typeof tType];
 export const xType = {
 	chat: "chat",
 	status: "status",
-	nick: "nick",
+	base: "base",
 	color: "color"
 } as const;
 export type TextType = typeof xType[keyof typeof xType];
@@ -86,7 +97,7 @@ export type SchemaType = typeof aType[keyof typeof aType];
 
 export const ChatMessageSchema = z.object({
 	id: z.number(),
-	author: IdentitySchema.shape.nick,
+	author: IdentitySchema.shape.fullnick,
 	content: z.string(),
 	timestamp: z.number(),
 	type: z.enum(mType),
@@ -117,12 +128,12 @@ export const ServerConfigSchema = z.object({
 	afkDef: z.number().int().min(1).max(86400),
 	signupTime: z.number().int().min(1).max(60),
 	maxMsgLen: z.number().int().min(1).max(1024),
-	maxNickLen: z.number().int().min(2).max(64),
+	maxBaseNickLen: z.number().int().min(2).max(64),
 	maxStatusLen: z.number().int().min(1).max(128),
 	msgArrayLen: z.number().int().min(0).max(1024),
 	msgArrayTimeout: z.number().int().min(60).max(2592000),
 	stvurl: z.string().refine(isValid7TVID, { message: "doesn't look like a 7tv emote set ID" }).optional(),
-	nickres: z.array(z.string().min(2).max(64).regex(/^\S+$/)).max(32),
+	baseNickRes: z.array(z.string().min(2).max(64).regex(/^\S+$/)).max(32),
 	gdprcontact: z.email().or(z.string().min(1).max(255)),
 	PORT: z.number().int().min(1).max(65535)
 });
@@ -136,12 +147,12 @@ export const defaultServerConfig: ServerConfig = {
 	afkDef: 1000,
 	signupTime: 5,
 	maxMsgLen: 255,
-	maxNickLen: 16,
+	maxBaseNickLen: 16,
 	maxStatusLen: 32,
 	msgArrayLen: 25,
 	msgArrayTimeout: 86400, 
 	stvurl: undefined,
-	nickres: [],
+	baseNickRes: [],
 	gdprcontact: 'admin@email.here',
 	PORT: 3666,
 };
@@ -149,7 +160,7 @@ export const defaultServerConfig: ServerConfig = {
 export const MarkovConfigSchema = z.object({
 	enabled: z.boolean(),
 	learning: z.boolean(),
-	nick: z.string().min(2).max(64).regex(/^\S+$/),
+	basenick: z.string().min(2).max(64).regex(/^\S+$/),
 	color: z.string().refine(isValidHexColor, { message: "must be a valid hex color, e.g. #A1B2C3" }),
 	status: z.string().min(1).max(128),
 	cooldown: z.number().int().min(5).max(86400),
@@ -159,7 +170,7 @@ export type MarkovConfig = z.infer<typeof MarkovConfigSchema>;
 export const defaultMarkovConfig: MarkovConfig = {
 	enabled: false,
 	learning: false,
-	nick: 'markov',
+	basenick: 'markov',
 	color: '#000000',
 	status: 'online',
 	cooldown: 30,

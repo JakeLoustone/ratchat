@@ -170,6 +170,17 @@ export class GameIdentityService {
 		return{
 			gamePoints: Math.round(this.deps.stateService.getGameConfig().pointStartAmt),
 			lastGame: new Date(0),
+			blackjackWinnings: 0,
+			blackjackBlackjacks: 0,
+			duelingWins: 0,
+			duelingHonor: 0,
+			fishingFishCaught: [],
+			fishingCatches: 0,
+			fishingWinnings: 0,
+			fishingBestCatch: null,
+			fishingBestCatchValue: null,
+			horseWinnings: 0,
+			horseBetWins: 0
 		};
 	}
 

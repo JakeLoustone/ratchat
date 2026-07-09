@@ -6,13 +6,14 @@ import { StateService } from "./state";
 import { sanitizeText } from "../utils/sanitize.js";
 import { isValidHexColor } from "../utils/validate.js";
 import { handleError, AppError } from "../utils/errors.js";
+import { getBaseNick } from "../utils/format.js";
 
 export type SafeString = string & {__brand: 'SafeString'};
 
 export interface ModerationServiceDependencies{
 	stateService: StateService;
 
-	nickFilterPath: string;
+	basenickFilterPath: string;
 	profFilterPath: string;
 	clientCommands: string[];
 	clientSubCommands: string[];
@@ -20,7 +21,7 @@ export interface ModerationServiceDependencies{
 
 export class ModerationService {
 	private profFilter: RegExp[] = [];
-	private nickFilter: RegExp[] = [];
+	private basenickFilter: RegExp[] = [];
 	private startup: boolean = true;
 
 	private deps: ModerationServiceDependencies;
@@ -73,15 +74,15 @@ export class ModerationService {
 				safe = this.toSafeString(clean);
 				return safe;
 
-			case'nick':
-				if(clean.length > this.deps.stateService.getServerConfig().maxNickLen || clean.length < 2){
-					throw new AppError(`nickname must be between 2 and ${this.deps.stateService.getServerConfig().maxNickLen} characters`, 'user');
+			case'base':
+				if(clean.length > this.deps.stateService.getServerConfig().maxBaseNickLen || clean.length < 2){
+					throw new AppError(`nickname must be between 2 and ${this.deps.stateService.getServerConfig().maxBaseNickLen} characters`, 'user');
 				}
 				if(/\s/.test(clean)){
 					throw new AppError('no spaces in usernames', 'user');
 				}
 				try{
-					this.moderateNick(clean);
+					this.moderateBaseNick(clean);
 					this.moderateTime(user, 'nick');
 				}
 				catch(error: unknown){
@@ -119,23 +120,23 @@ export class ModerationService {
 		}
 	}
 
-	public moderateNewUserNick(raw: string, type: TextType): SafeString{
+	public moderateNewUserBaseNick(raw: string, type: TextType): SafeString{
 		const clean = sanitizeText(raw).trim();
-		if(type === 'nick'){
-			if(clean.length > this.deps.stateService.getServerConfig().maxNickLen || clean.length < 2){
-				throw new AppError(`nickname must be between 2 and ${this.deps.stateService.getServerConfig().maxNickLen} characters`, 'user');
+		if(type === 'base'){
+			if(clean.length > this.deps.stateService.getServerConfig().maxBaseNickLen || clean.length < 2){
+				throw new AppError(`nickname must be between 2 and ${this.deps.stateService.getServerConfig().maxBaseNickLen} characters`, 'user');
 			}
 			if(/\s/.test(clean)){
 				throw new AppError('no spaces in usernames', 'user');
 			}
 			try{
-				this.moderateNick(clean);
+				this.moderateBaseNick(clean);
 			}
 				catch(error: unknown){
 					if(error instanceof AppError){
 						throw error;
 					}
-					handleError(error, 'Moderate New User Nick');
+					handleError(error, 'Moderate New User Base Nick');
 					
 					throw new AppError(`failed to validate your nickname: unknown error`, 'user');
 				}
@@ -143,7 +144,7 @@ export class ModerationService {
 			return safe;
 		}
 		else{
-			throw new AppError('moderateNewUserNick text type missing', 'bug');
+			throw new AppError('moderateNewUserBaseNick text type missing', 'bug');
 		}		
 	}
 		
@@ -177,12 +178,12 @@ export class ModerationService {
 
 	}
 
-	public appendNickFilter(commands: string[]){
+	public appendBaseNickFilter(commands: string[]){
 		if(!this.startup){
-			throw new AppError('No longer starting up, illegal appendNickFilter call', 'bug');
+			throw new AppError('No longer starting up, illegal appendBaseNickFilter call', 'bug');
 		}
 		const added = commands.map(cmd => new RegExp(`^${cmd}$`, 'i')); //exact commands only
-		this.nickFilter.push(...added);
+		this.basenickFilter.push(...added);
 		this.startup = false;
 	}
 	
@@ -191,11 +192,11 @@ export class ModerationService {
 		return str as SafeString;
 	}
 
-	private moderateNick(nick: string){
+	private moderateBaseNick(basenick: string){
 		
-		const matched = this.nickFilter.find(regex => regex.test(nick));
+		const matched = this.basenickFilter.find(regex => regex.test(basenick));
 		if(matched){
-			console.log(`nick filter "${nick}" because it matched pattern: ${matched}`);
+			console.log(`base nick filter "${basenick}" because it matched pattern: ${matched}`);
 			throw new AppError(`can't be named that`, 'user');
 		}
 
@@ -215,7 +216,7 @@ export class ModerationService {
 
 	private loadFilters(){
 		try{
-			const nickLoad = JSON.parse(readFileSync(this.deps.nickFilterPath, 'utf-8')).usernames || [];
+			const nickLoad = JSON.parse(readFileSync(this.deps.basenickFilterPath, 'utf-8')).usernames || [];
 			const profLoad = JSON.parse(readFileSync(this.deps.profFilterPath, 'utf-8'));
 			this.profFilter = Array.isArray(profLoad)
 				? profLoad
@@ -226,15 +227,16 @@ export class ModerationService {
 							return regex;
 						})
 				: [];
-			const configLoad = [...(this.deps.stateService.getServerConfig().nickres || [])];
+			const configLoad = [...(this.deps.stateService.getServerConfig().baseNickRes || [])];
 			if(this.deps.stateService.getMarkovConfig().enabled && this.deps.stateService.markovUser){
-				configLoad.push(`^${this.deps.stateService.markovUser.nick}$`);
+				const markovBaseNick = getBaseNick(this.deps.stateService.markovUser.fullnick)
+				configLoad.push(`^${markovBaseNick}$`);
 			}
 
-			const nickFilter = [...nickLoad, ...configLoad].filter(Boolean);
+			const basenickFilterLoad = [...nickLoad, ...configLoad].filter(Boolean);
 
-			this.nickFilter = [
-				...nickFilter.map(pattern => new RegExp(pattern, 'i')),
+			this.basenickFilter = [
+				...basenickFilterLoad.map(pattern => new RegExp(pattern, 'i')),
 				...this.profFilter,
 				...this.deps.clientCommands.map(cmd => new RegExp(`^${cmd}$`, 'i')), //exact commands only
 				...this.deps.clientSubCommands.map(cmd => new RegExp(`^${cmd}$`, 'i')) 
@@ -242,7 +244,7 @@ export class ModerationService {
 		} 
 		catch(error: unknown){
 			handleError(error, 'Nick Filter Load');
-			this.nickFilter = [];
+			this.basenickFilter = [];
 			this.profFilter = [];
 		}
 	};

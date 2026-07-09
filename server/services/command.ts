@@ -12,7 +12,7 @@ import { SecurityService } from './security';
 import { MarkovService } from './markov';
 import { MessageService } from './message';
 
-import { getDisplayNick, getDisplayColor } from '../utils/format';
+import { getBaseNick, getNickColor } from '../utils/format';
 import { isValidGUID } from '../utils/validate';
 import { AppError } from '../utils/errors';
 
@@ -43,17 +43,17 @@ export class CommandService {
 	private commands: Record<string, CommandEntry> = {};
 	private activeCommands: Map<string, boolean> = new Map();
 	private gameCommandNames: Set<string> = new Set();
-	private markovNick: string;
+	private markovBaseNick: string;
 	
 	private deps: CommandServiceDependencies;
 	constructor(dependencies: CommandServiceDependencies){
 		this.deps = dependencies;
 
 		if(this.deps.stateService.getMarkovConfig().enabled  && this.deps.stateService.markovUser){
-			this.markovNick = getDisplayNick(this.deps.stateService.markovUser.nick);
+			this.markovBaseNick = getBaseNick(this.deps.stateService.markovUser.fullnick);
 		}
 		else{
-			this.markovNick = 'markov'
+			this.markovBaseNick = 'markov'
 		}
 
 		this.registerCommands();
@@ -151,8 +151,8 @@ export class CommandService {
 		this.commands['announcement'] = this.commands['announce'];
 		this.commands['emote'] = this.commands['emotes'];
 		this.commands['unemote'] = this.commands['unemotes'];
-		if(!this.commands[this.markovNick]){
-			this.commands[this.markovNick] = this.commands['markov'];
+		if(!this.commands[this.markovBaseNick]){
+			this.commands[this.markovBaseNick] = this.commands['markov'];
 		}
 	}
 
@@ -197,9 +197,9 @@ export class CommandService {
 				);
 
 				if(this.deps.markovService){
-					if(this.commands[this.markovNick] === this.commands['markov']){
+					if(this.commands[this.markovBaseNick] === this.commands['markov']){
 						helpMessages.push(
-							`/markov or /${this.markovNick} <seed> : generate random markov chain, optionally starting with <seed>.`
+							`/markov or /${this.markovBaseNick} <seed> : generate random markov chain, optionally starting with <seed>.`
 						);
 					}
 					else{
@@ -249,16 +249,16 @@ export class CommandService {
 			requiresMod: false,
 			requiresMarkov: false,
 			handler: async (ctx) => {
-				const newNick = ctx.fullArgs;
+				const newBaseNick = ctx.fullArgs;
 
 				if(ctx.commandUser){
 					try{
-						const oldNick = getDisplayNick(ctx.commandUser.nick);
-						const safe = this.deps.moderationService.moderateText(newNick, ctx.commandUser, 'nick');
-						const user = this.deps.identityService.setNick(ctx.commandUser.guid, safe);
+						const oldBaseNick = getBaseNick(ctx.commandUser.fullnick);
+						const safe = this.deps.moderationService.moderateText(newBaseNick, ctx.commandUser, 'base');
+						const user = this.deps.identityService.setBaseNick(ctx.commandUser.guid, safe);
 						this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
 						this.deps.dispatchService.sendIdentity(ctx.socket, user);
-						this.deps.dispatchService.sendSystemChat(ctx.io, mType.ann, `${oldNick} changed their username to ${getDisplayNick(user.nick)}`);
+						this.deps.dispatchService.sendSystemChat(ctx.io, mType.ann, `${oldBaseNick} changed their username to ${getBaseNick(user.fullnick)}`);
 						return clearInput;
 					} 
 					catch(error: unknown){
@@ -268,7 +268,7 @@ export class CommandService {
 				}
 				else{
 					try{
-						const safe = this.deps.moderationService.moderateNewUserNick(newNick, 'nick');
+						const safe = this.deps.moderationService.moderateNewUserBaseNick(newBaseNick, 'base');
 						this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `creating user...`);
 						const batch = await this.deps.stateService.queueSignup(ctx.socket, safe);
 						if(batch){
@@ -276,7 +276,7 @@ export class CommandService {
 							this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
 							this.deps.dispatchService.sendIdentity(ctx.socket, user);
 							this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, 'system: your new identity has been loaded. consider using /export to save for later use');
-							this.deps.dispatchService.sendSystemChat(ctx.io, mType.ann, `${getDisplayNick(user.nick)} has joined teh ratchat`);
+							this.deps.dispatchService.sendSystemChat(ctx.io, mType.ann, `${getBaseNick(user.fullnick)} has joined teh ratchat`);
 							return clearInput;
 						}
 						else{
@@ -304,7 +304,7 @@ export class CommandService {
 
 					this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, user);
 					this.deps.dispatchService.sendIdentity(ctx.socket, user);
-					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `system: your color has been updated to ${getDisplayColor(user.nick)}`);
+					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `system: your color has been updated to ${getNickColor(user.fullnick)}`);
 
 					return clearInput;
 				}
@@ -341,14 +341,14 @@ export class CommandService {
 
 					this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, updatedUser);
 					this.deps.dispatchService.sendIdentity(ctx.socket, updatedUser);
-					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `system: identity changed to ${getDisplayNick(updatedUser.nick)}`);
+					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `system: identity changed to ${getBaseNick(updatedUser.fullnick)}`);
 					
 					//if existing user show them disconnecting
 					if(ctx.commandUser){
-						this.deps.dispatchService.sendSystemChat(ctx.io, mType.ann, `${getDisplayNick(ctx.commandUser.nick)} disconnected`);
+						this.deps.dispatchService.sendSystemChat(ctx.io, mType.ann, `${getBaseNick(ctx.commandUser.fullnick)} disconnected`);
 					}
 
-					this.deps.dispatchService.sendSystemChat(ctx.io, mType.ann, `${getDisplayNick(updatedUser.nick)} connected`);
+					this.deps.dispatchService.sendSystemChat(ctx.io, mType.ann, `${getBaseNick(updatedUser.fullnick)} connected`);
 					
 					return clearInput;
 				} 
@@ -373,7 +373,7 @@ export class CommandService {
 					
 
 					this.deps.stateService.updateSocketUser(ctx.io, ctx.socket.id, afkUser);
-					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, afkUser.isAfk ? "you've gone afk" : `welcome back, ${getDisplayNick(afkUser.nick)}`);
+					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, afkUser.isAfk ? "you've gone afk" : `welcome back, ${getBaseNick(afkUser.fullnick)}`);
 
 					if(ctx.fullArgs && ctx.fullArgs.trim().length > 0){
 						return this.executeCommand('status', ctx)
@@ -439,13 +439,13 @@ export class CommandService {
 					}
 
 					if(this.deps.stateService.markovSleep){
-						this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `shh, ${getDisplayNick(markovUser.nick)} is sleeping`);
+						this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `shh, ${getBaseNick(markovUser.fullnick)} is sleeping`);
 						return clearInput;
 					}
 
 					if(!ctx.commandUser.isMod){
 						if(markovUser.isAfk){
-							throw new AppError(`${this.markovNick} needs a cooldown`, 'user');
+							throw new AppError(`${this.markovBaseNick} needs a cooldown`, 'user');
 						}		
 					}
 
@@ -540,16 +540,16 @@ export class CommandService {
 						throw new AppError("missing target", 'user');
 					}
 
-					const targetNick = ctx.args[0];
+					const targetBaseNick = ctx.args[0];
 
-					if(!this.deps.identityService.existsUserByNick(targetNick)){
-						throw new AppError(`couldn't find user with nickname ${targetNick}`, 'user');
+					if(!this.deps.identityService.existsUserByBaseNick(targetBaseNick)){
+						throw new AppError(`couldn't find user with nickname ${targetBaseNick}`, 'user');
 					}
 
 					const msgArray: number[] = [];
 					for (const [id, msg] of this.deps.dispatchService.getChatHistory()){
-						const msgNick = getDisplayNick(msg.author);
-						if(msgNick.toLowerCase() === targetNick.toLowerCase()){
+						const msgBaseNick = getBaseNick(msg.author);
+						if(msgBaseNick.toLowerCase() === targetBaseNick.toLowerCase()){
 							msgArray.push(id);
 						}
 					}
@@ -558,9 +558,9 @@ export class CommandService {
 						this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `deleted ${msgArray.length} user messages`)
 					}
 
-					this.deps.identityService.deleteUserByNick(targetNick, true);
+					this.deps.identityService.deleteUserByBaseNick(targetBaseNick, true);
 
-					this.deps.dispatchService.sendSystemChat(ctx.io, mType.info, `${targetNick} has been banned.`);
+					this.deps.dispatchService.sendSystemChat(ctx.io, mType.info, `${targetBaseNick} has been banned.`);
 					return clearInput;
 				}
 				catch(error: unknown){
@@ -578,10 +578,10 @@ export class CommandService {
 					if(!ctx.args[0]){
 						throw new AppError("missing target", 'user');
 					}
-					const targetNick = ctx.args[0];
+					const targetBaseNick = ctx.args[0];
 
-					if(!this.deps.identityService.existsUserByNick(targetNick)){
-						throw new AppError(`couldn't find user with nickname ${targetNick}`, 'user');
+					if(!this.deps.identityService.existsUserByBaseNick(targetBaseNick)){
+						throw new AppError(`couldn't find user with nickname ${targetBaseNick}`, 'user');
 					}
 
 					const config = this.deps.stateService.getServerConfig();
@@ -599,13 +599,13 @@ export class CommandService {
 						unMute = now + maxAllowed;
 					}
 
-					this.deps.identityService.setLastMessageByNick(targetNick, unMute);
+					this.deps.identityService.setLastMessageByBaseNick(targetBaseNick, unMute);
 
 					//messages to delete
 					const msgArray: number[] = [];
 					for (const [id, msg] of this.deps.dispatchService.getChatHistory()){
-						const msgNick = getDisplayNick(msg.author);
-						if(msgNick.toLowerCase() === targetNick.toLowerCase()){
+						const msgBaseNick = getBaseNick(msg.author);
+						if(msgBaseNick.toLowerCase() === targetBaseNick.toLowerCase()){
 							msgArray.push(id);
 						}
 					}
@@ -615,7 +615,7 @@ export class CommandService {
 						this.deps.dispatchService.deleteMessage(ctx.io, msgArray);
 					}
 
-					this.deps.dispatchService.sendSystemChat(ctx.io, mType.info, `${targetNick} has been timed out.`);
+					this.deps.dispatchService.sendSystemChat(ctx.io, mType.info, `${targetBaseNick} has been timed out.`);
 					return clearInput;
 				} 
 				catch(error: unknown){
@@ -719,7 +719,7 @@ export class CommandService {
 					const safe = this.deps.moderationService.moderateText(ctx.fullArgs, ctx.commandUser, 'status');
 					markovUser.status = safe;
 					this.deps.stateService.broadcastUsers(ctx.io);
-					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `${this.markovNick} status is now: ${markovUser.status}`);
+					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `${this.markovBaseNick} status is now: ${markovUser.status}`);
 					return clearInput;
 				} 
 				catch(error: unknown){
@@ -742,11 +742,11 @@ export class CommandService {
 				const markovSleep = this.deps.stateService.toggleMarkovSleep(ctx.io);
 
 				if(markovSleep){
-					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `${this.markovNick} is sleepin now. honk shoo`);
+					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `${this.markovBaseNick} is sleepin now. honk shoo`);
 					return clearInput;
 				}
 				else{
-					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `${this.markovNick} is awake now. rise and grind`);
+					this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `${this.markovBaseNick} is awake now. rise and grind`);
 					return clearInput;
 				}
 			}
@@ -833,7 +833,7 @@ export class CommandService {
 						}
 						try{
 							const user = this.deps.identityService.getUser(ctx.commandUser.guid);
-							const gameUser = this.deps.gameIdentityService.getGameUser(ctx.commandUser.guid);
+							const gameUser = this.deps.gameIdentityService.getGameUser(ctx.commandUser.playerid);
 
 							this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `Server stored user info: ${JSON.stringify(user, null, 4)}`);
 							this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `Server stored game info: ${JSON.stringify(gameUser, null, 4)}`);
@@ -857,7 +857,7 @@ export class CommandService {
 
 						try{
 							const targetGuid = ctx.commandUser.guid;
-							const targetNick = ctx.commandUser.nick;
+							const targetFullNick = ctx.commandUser.fullnick;
 
 							if(!this.deps.identityService.existsUser(targetGuid)){
 								this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, 'No server side data found.');
@@ -878,7 +878,7 @@ export class CommandService {
 								}
 							});
 
-							this.deps.dispatchService.sendSystemChat(ctx.io, mType.ann, `${getDisplayNick(targetNick)} disconnected`);
+							this.deps.dispatchService.sendSystemChat(ctx.io, mType.ann, `${getBaseNick(targetFullNick)} disconnected`);
 							return clearInput;
 
 						} 

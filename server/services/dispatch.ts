@@ -5,7 +5,7 @@ import type { MessageType, UserSum, Identity, ChatMessage, GameEvent, GameEventT
 
 import { CacheService } from './cache';
 
-import { getDisplayNick } from '../utils/format';
+import { getBaseNick } from '../utils/format';
 import { createSaveQueue } from '../utils/queue';
 import { handleError } from '../utils/errors';
 import { parseEntryArray } from '../utils/parse';
@@ -67,7 +67,7 @@ export class DispatchService{
 	}
 
 	public sendMarkovChat(to: Target, text: string, markov: Identity, user: Identity, seed?: string){
-		const payload = `${getDisplayNick(user.nick)}|${seed}|${text}`;
+		const payload = `${getBaseNick(user.fullnick)}|${seed}|${text}`;
 		this.sendPayload(to, mType.markov, this.createMessage(false,markov, payload, mType.markov, false));
 	}
 
@@ -206,7 +206,7 @@ export class DispatchService{
 	private createMessage(sys: boolean = false, author: Identity | string = 'system', content: string, metype: TextPayload, spoiler: boolean = false): ChatMessage {
 		return {
 			id: sys? -1: this.generateMessageId(),
-			author: typeof author === 'string' ? author : author.nick,
+			author: typeof author === 'string' ? author : author.fullnick,
 			content: content,
 			timestamp: Date.now(),
 			type: metype,

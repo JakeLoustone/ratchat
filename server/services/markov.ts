@@ -11,7 +11,7 @@ import { ModerationService } from './moderation';
 import { IdentityService } from './identity';
 
 import { RandomCandidateMap, pickWeighted } from '../utils/random';
-import { getDisplayNick } from '../utils/format';
+import { getBaseNick } from '../utils/format';
 import { AppError, handleError } from '../utils/errors';
 
 type Neuron = {
@@ -69,7 +69,7 @@ export class MarkovService{
 				const seedLow = seed.toLowerCase();
 
 				if(!this.dictionary.has(seedLow)){
-					throw new AppError(`${getDisplayNick(markovUser.nick)} don't know nothin about '${seed}'`, 'user');
+					throw new AppError(`${getBaseNick(markovUser.fullnick)} don't know nothin about '${seed}'`, 'user');
 				}
 
 				let letter = seedLow[0].toUpperCase();
@@ -77,7 +77,7 @@ export class MarkovService{
 				const candidates = await this.loadNeuron(letter, seedLow);
 
 				if(candidates.length === 0){
-					throw new AppError(`${getDisplayNick(markovUser.nick)} don't know nothin about '${seed}'`, 'user');
+					throw new AppError(`${getBaseNick(markovUser.fullnick)} don't know nothin about '${seed}'`, 'user');
 				}
 
 				const weightMap: RandomCandidateMap = new Map(
@@ -146,7 +146,7 @@ export class MarkovService{
 			catch(error: unknown){
 				if(error instanceof AppError){
 					if(error.message === "watch your profamity"){
-						this.deps.dispatchService.sendSystemChat(io, mType.ann, `${getDisplayNick(markovUser.nick)} tried to say something naughty`);
+						this.deps.dispatchService.sendSystemChat(io, mType.ann, `${getBaseNick(markovUser.fullnick)} tried to say something naughty`);
 						continue;
 					}
 					else{
@@ -174,7 +174,7 @@ export class MarkovService{
 
 		const words =  str
 			.split(/\s+/)
-			.filter(w => !this.deps.identityService.existsUserByNick(w))
+			.filter(w => !this.deps.identityService.existsUserByBaseNick(w))
 			.map(w => w.trim())
 			.filter(Boolean);
 		

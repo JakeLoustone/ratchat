@@ -18,7 +18,7 @@ import { MarkovService } from './services/markov';
 import { MessageService } from './services/message';
 import { CommandService } from './services/command';
 
-import { getDisplayNick } from './utils/format';
+import { getBaseNick } from './utils/format';
 import { handleError } from './utils/errors';
 
 import { GameCommandService } from './services/games/game-command';
@@ -42,7 +42,7 @@ async function main(){
 	const serverConfigPath = join(__dirname, 'config.json');
 	const markovConfigPath = join(__dirname, 'markov.json');
 	const gameConfigPath = join(__dirname, 'minigames.json');
-	const nickFilterPath = join(__dirname, 'nickfilter.json');
+	const basenickFilterPath = join(__dirname, 'basenickfilter.json');
 	const profFilterPath = join(__dirname, 'profanityfilter.json');
 	const bansPath = join(__dirname, 'data', 'bans.json');
 	const brainPath = join(__dirname, 'data', 'brain.db');
@@ -88,7 +88,7 @@ async function main(){
 	const moderationService = new ModerationService({
 		stateService: stateService, 
 
-		nickFilterPath: nickFilterPath,
+		basenickFilterPath: basenickFilterPath,
 		profFilterPath: profFilterPath,
 		clientCommands: ['export', 'clear', 'clr', 'background', 'bg', 'bgreset', 'dark', 'mute'],
 		clientSubCommands: ['info', 'ip', 'list', 'all', 'allevents', 'eventlist', ...Object.values(eType)]
@@ -158,7 +158,7 @@ async function main(){
 		messageService: messageService,
 		gameCommandService: gameCommandService,
 	});
-	moderationService.appendNickFilter([...commandService.getCommands(), ...gameCommandService.getGameCommands()]);
+	moderationService.appendBaseNickFilter([...commandService.getCommands(), ...gameCommandService.getGameCommands()]);
 
 	//Emote fetchs
 	try{
@@ -214,7 +214,7 @@ async function main(){
 			stateService.updateSocketUser(io, socket.id, returningUser);
 			dispatchService.sendIdentity(socket, returningUser);
 			if(!inGrace){
-				dispatchService.sendSystemChat(socket, mType.info, `welcome back, ${getDisplayNick(returningUser.nick)}`);
+				dispatchService.sendSystemChat(socket, mType.info, `welcome back, ${getBaseNick(returningUser.fullnick)}`);
 			}
 			let scount = 0;
 			for (const [, u] of stateService.getSocketUsersMap()){
@@ -226,7 +226,7 @@ async function main(){
 				try{
 					moderationService.moderateTime(returningUser, tType.joinleave);
 					if(!inGrace){
-						dispatchService.sendSystemChat(io.except(socket.id), mType.ann,`${getDisplayNick(returningUser.nick)} connected`);
+						dispatchService.sendSystemChat(io.except(socket.id), mType.ann,`${getBaseNick(returningUser.fullnick)} connected`);
 					}
 					identityService.setLastMessage(returningUser.guid, Date.now(), false);
 				}
@@ -298,7 +298,7 @@ async function main(){
 					try{
 						moderationService.moderateTime(disuser, tType.joinleave);
 						if(!inGrace){
-							dispatchService.sendSystemChat(io, mType.ann, `${getDisplayNick(disuser.nick)} disconnected`);
+							dispatchService.sendSystemChat(io, mType.ann, `${getBaseNick(disuser.fullnick)} disconnected`);
 						}
 						identityService.setLastMessage(disuser.guid, Date.now());
 					}

@@ -694,15 +694,15 @@
 			//build consolidated listing
 			const consolidate = new Map();
 			uList.forEach(user =>{
-				if(user.nick.startsWith('#NONVAL')){
+				if(user.fullnick.startsWith('#NONVAL')){
 					lurkerData = user;
 					return;
 				}
-				if(consolidate.has(user.nick)){
-					consolidate.get(user.nick).count++;
+				if(consolidate.has(user.fullnick)){
+					consolidate.get(user.fullnick).count++;
 				}
 				else{
-					consolidate.set(user.nick, {...user, count: 1});
+					consolidate.set(user.fullnick, {...user, count: 1});
 				}
 			});
 
@@ -710,8 +710,8 @@
 				const li = document.createElement('li');
 				li.style.marginBottom = "0.125rem";
 				
-				const userColor = user.nick.substring(0, 7);
-				const userName = user.nick.substring(7);
+				const userColor = user.fullnick.substring(0, 7);
+				const userBaseNick = user.fullnick.substring(7);
 
 				const orb = user.isAfk ? 'orb-afk' : 'orb-online';
 				const orbLabel = user.isAfk ? 'AFK' : 'Online';
@@ -734,12 +734,12 @@
 				}
 				const modBadge = user.isMod ? `<span class="mod-badge" style="font-size:1rem" title="Mod"><b>&#9929;</b></span>`: '';
 
-				const fontSize = userName.length > 11 ? .8 : 1;
+				const fontSize = userBaseNick.length > 11 ? .8 : 1;
 				const dirty = (`
 					<span class="user-list-span" style="font-size: ${fontSize}rem">
 						<span class="status-orb ${orb}" title="${orbLabel}"></span>
 						${modBadge}
-						<span style="color: ${userColor}; font-weight: bold;">${userName}</span>
+						<span style="color: ${userColor}; font-weight: bold;">${userBaseNick}</span>
 						<span class="user-count">${displayCount}</span>
 					</span>
 					${status}
@@ -748,7 +748,7 @@
 					li.innerHTML = DOMPurify.sanitize(dirty);
 				}
 				else{
-					li.textContent = `${userName}${user.status ? ` (${user.status})` : ''}`;
+					li.textContent = `${userBaseNick}${user.status ? ` (${user.status})` : ''}`;
 					li.style.color = userColor	
 				}
 				
@@ -1121,7 +1121,7 @@
 							return;
 						}
 						else if(fullArgs === 'all'){
-							mutedUsers.forEach(nick => unmuteMessageHistory(nick));
+							mutedUsers.forEach(basenick => unmuteMessageHistory(basenick));
 							mutedUsers = [];
 							mutedEvents = [];
 							localStorage.setItem('ratMutedUsers', JSON.stringify(mutedUsers));
@@ -1258,11 +1258,11 @@
 
 			if(msg.id >= 0 && msg.author){
 				const userColor = msg.author.substring(0, 7);
-				const userName = msg.author.substring(7);
+				const userBaseNick = msg.author.substring(7);
 				const nameSpan = document.createElement('span');
 				nameSpan.className = 'user-name';
 				nameSpan.style.setProperty('--user-color', userColor);
-				nameSpan.textContent = userName + ': ';
+				nameSpan.textContent = userBaseNick + ': ';
 				li.appendChild(nameSpan);
 
 				if(msg.type === 'toClientMarkov'){
@@ -1369,7 +1369,7 @@
 			}
 		}
 
-		function muteMessageHistory(nick){
+		function muteMessageHistory(basenick){
 			const candidates = Array.from(messages.children);
 			const matches = candidates.filter(li => {
 				//defensive check to prevent muting a muted message
@@ -1385,7 +1385,7 @@
 					return false;
 				}
 
-				return nameSpan.textContent.trim().toLowerCase() === (nick + ':').toLowerCase();
+				return nameSpan.textContent.trim().toLowerCase() === (basenick + ':').toLowerCase();
 			});
 
 			matches.forEach(li => {
@@ -1418,7 +1418,7 @@
 			});
 		}
 
-		function unmuteMessageHistory(nick){
+		function unmuteMessageHistory(basenick){
 			const candidates = Array.from(messages.children);
 			const matches = candidates.filter(wrapper =>{
 				const nameSpan = wrapper.querySelector('.user-name');
@@ -1429,7 +1429,7 @@
 					return false;
 				}
 
-				return nameSpan.textContent.trim().toLowerCase() === (nick + ':').toLowerCase();
+				return nameSpan.textContent.trim().toLowerCase() === (basenick + ':').toLowerCase();
 			});
 
 			matches.forEach(wrapper => {

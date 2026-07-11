@@ -1,21 +1,19 @@
-{
-   "usernames": [
-      "account",
-      "admin",
-      "document",
-      "download",
-      "help",
-      "http",
-      "noreply",
-      "owner",
-      "password",
-      "root",
-      "secure",
-      "security",
-      "system",
-      "ssl",
-      "username",
-      "webserver",
-      "website"
-   ]
-}
+[
+   "account",
+   "admin",
+   "document",
+   "download",
+   "help",
+   "http",
+   "noreply",
+   "owner",
+   "password",
+   "root",
+   "secure",
+   "security",
+   "system",
+   "ssl",
+   "username",
+   "webserver",
+   "website"
+]

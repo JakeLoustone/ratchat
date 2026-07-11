@@ -1,30 +1,29 @@
+import {default as express} from 'express';
 import { createServer } from 'http';
 import { join } from 'node:path';
-
 import { Server } from 'socket.io';
-import {default as express} from 'express';
 
+import { clearInput, keepInput } from './defs/def-input';
 import { eType, mType } from './defs/def-message';
 import { tType } from './defs/def-moderation';
-import { clearInput, keepInput } from './defs/def-input';
 import type { Identity } from './defs/def-identity';
 
 import { CacheService } from './services/cache';
+import { ConfigService } from './services/config';
 import { DispatchService } from './services/dispatch';
-import { StateService } from './services/state';
 import { ModerationService } from './services/moderation';
+import { SecurityService } from './services/security';
 import { GameIdentityService } from './services/games/game-identity';
 import { IdentityService } from './services/identity';
-import { SecurityService } from './services/security';
+import { GameStateService } from './services/games/game-state';
+import { StateService } from './services/state';
 import { MarkovService } from './services/markov';
 import { MessageService } from './services/message';
+import { GameCommandService } from './services/games/game-command';
 import { CommandService } from './services/command';
 
 import { getBaseNick } from './utils/format';
 import { handleError } from './utils/errors';
-
-import { GameCommandService } from './services/games/game-command';
-
 
 main().catch(error => {
 	console.error('Fatal error:', error);
@@ -52,12 +51,13 @@ async function main(){
 	const gameUsersPath = join(__dirname, 'data', 'game-users.json');
 	const bansPath = join(__dirname, 'data', 'bans.json');
 	const brainPath = join(__dirname, 'data', 'brain.db');
+	const fishingRecordsPath = join(__dirname, 'data', 'fish-records.json');
+	const horseRecordsPath = join(__dirname, 'data', 'horse-records.json');
 
 	const gracePeriod = 3000;
 	let inGrace = true;
 
 	const cacheService = new CacheService();
-	
 	if(process.env.REDIS_URL){
 		await cacheService.startRedisClient();
 	}
@@ -65,32 +65,19 @@ async function main(){
 		console.warn('WARNING: REDIS_URL environment variable is not set. Restart persistence is not available.');
 	}
 
-	const dispatchService = new DispatchService({
-		cacheService: cacheService
-	});
-
-	const stateService = new StateService({
-		cacheService: cacheService,
-		dispatchService: dispatchService,
-
+	const configService = new ConfigService({
 		serverConfigPath: serverConfigPath,
 		markovConfigPath: markovConfigPath,
-		gameConfigPath: gameConfigPath,
-		io: io
+		gameConfigPath: gameConfigPath
+	});
+	
+	const dispatchService = new DispatchService({
+		cacheService: cacheService,
+		configService: configService
 	});
 
-	//Redis history load
-	if(cacheService.existsRedisClient()){
-		await dispatchService.restoreChatHistory(stateService.getServerConfig().msgArrayLen, stateService.getServerConfig().msgArrayTimeout);
-		await dispatchService.restoreMessageCounter();
-		await stateService.restoreAnnouncement();
-		if(stateService.getMarkovConfig().enabled){
-			await stateService.restoreMarkovSleep();
-		}
-	}
-
 	const moderationService = new ModerationService({
-		stateService: stateService, 
+		configService: configService, 
 
 		basenickFilterPath: basenickFilterPath,
 		profFilterPath: profFilterPath,
@@ -98,36 +85,60 @@ async function main(){
 		clientSubCommands: ['info', 'ip', 'list', 'all', 'allevents', 'eventlist', ...Object.values(eType)]
 	});
 
+	const securityService = new SecurityService({
+		bansPath: bansPath,
+	});
+
 	const gameIdentityService = new GameIdentityService({
-		stateService: stateService,
+		configService: configService,
 
 		gameUsersPath: gameUsersPath
 	});
 
-	const securityService = new SecurityService({
-		stateService: stateService,
-		dispatchService: dispatchService,
-
-		bansPath: bansPath,
-		io: io
-	});
-
 	const identityService = new IdentityService({
 		moderationService: moderationService,
-		stateService: stateService,
 		gameIdentityService: gameIdentityService,
-		securityService: securityService,
-		
+
 		usersPath: usersPath
 	});
 
-	let markovService: MarkovService | null = null; 
-	if(stateService.getMarkovConfig().enabled){
+	const gameStateService = new GameStateService({
+		cacheService: cacheService,
+		dispatchService: dispatchService,
+		gameIdentityService: gameIdentityService,
+		identityService: identityService,
+
+		fishingRecordsPath: fishingRecordsPath,
+		horseRecordsPath: horseRecordsPath
+	});
+
+	const stateService = new StateService({
+		cacheService: cacheService,
+		configService: configService,
+		dispatchService: dispatchService,
+		identityService: identityService,
+
+		io: io
+	});
+			
+	//Redis history load
+	if(cacheService.existsRedisClient()){
+		await dispatchService.restoreChatHistory();
+		await dispatchService.restoreMessageCounter();
+		await stateService.restoreAnnouncement();
+		if(configService.getMarkovConfig().enabled){
+			await stateService.restoreMarkovSleep();
+		}
+	}
+
+	let markovService: MarkovService | null = null;
+	if(configService.getMarkovConfig().enabled){
 		markovService = new MarkovService({
+			configService: configService,
 			dispatchService: dispatchService,
-			stateService: stateService,
 			moderationService: moderationService,
 			identityService: identityService,
+			stateService: stateService,
 
 			brainPath: brainPath,
 			io: io
@@ -135,33 +146,36 @@ async function main(){
 	}
 
 	const messageService = new MessageService({
+		configService: configService,
 		dispatchService: dispatchService,
-		stateService: stateService,
 		moderationService: moderationService,
 		identityService: identityService,
+		stateService: stateService,
 		markovService: markovService,
 
 		io: io
 	});
 
 	const gameCommandService = new GameCommandService({
+		configService: configService,
 		dispatchService: dispatchService,
-		stateService: stateService,
 		gameIdentityService: gameIdentityService,
 		identityService: identityService
 	});
 
 	const commandService = new CommandService({
+		configService: configService,
 		dispatchService: dispatchService,
-		stateService: stateService,
 		moderationService: moderationService,
+		securityService: securityService,
 		gameIdentityService: gameIdentityService,
 		identityService: identityService,
-		securityService: securityService,
+		stateService: stateService,
 		markovService: markovService,
 		messageService: messageService,
-		gameCommandService: gameCommandService,
+		gameCommandService: gameCommandService
 	});
+
 	moderationService.appendBaseNickFilter([...commandService.getCommands(), ...gameCommandService.getGameCommands()]);
 
 	//Emote fetchs
@@ -177,7 +191,7 @@ async function main(){
 	io.on('connection', (socket) => {
 		
 		try{
-			if(securityService.checkBan(socket.handshake.address)){
+			if(securityService.existsBan(socket.handshake.address)){
 				dispatchService.sendSystemChat(socket, mType.error, 'You are banned.');
 				socket.disconnect(true);
 				console.log('a banned user attempted to join');
@@ -188,7 +202,7 @@ async function main(){
 		}
 
 		//On connection welcome, announcement messages, emote payload, message history
-		const welcomeMsg = stateService.getServerConfig().welcomeMsg;
+		const welcomeMsg = configService.getServerConfig().welcomeMsg;
 		const announcement = stateService.getAnnouncement();
 		const emotes = stateService.getEmotes();
 		
@@ -330,8 +344,8 @@ async function main(){
 	});
 
 	//Server standup
-	httpserver.listen(stateService.getServerConfig().PORT, () => {
-		console.log(`server running at http://localhost:${stateService.getServerConfig().PORT}`);
+	httpserver.listen(configService.getServerConfig().PORT, () => {
+		console.log(`server running at http://localhost:${configService.getServerConfig().PORT}`);
 		const now = new Date();
 		console.log ('server startup timestamp: ', now.toLocaleString());
 	});

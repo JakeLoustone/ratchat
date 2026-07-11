@@ -1,11 +1,15 @@
 import{ z } from 'zod';
 
+import { aType } from './def-parse';
+
 import { isValid7TVID, isValidHexColor } from "../utils/validate";
 
-export type ConfigSchema = typeof ServerConfigSchema | typeof MarkovConfigSchema | typeof GameConfigSchema;
 export type Config = ServerConfig | MarkovConfig | GameConfig;
+export type ConfigSchema = typeof ServerConfigSchema | typeof MarkovConfigSchema | typeof GameConfigSchema;
+export type ConfigParams = ServerConfigParams | MarkovConfigParams | GameConfigParams;
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
+export type ServerConfigParams = {label: typeof aType.sconfig, fallback: ServerConfig, schema: typeof ServerConfigSchema};
 export const ServerConfigSchema = z.object({
 	welcomeMsg: z.string().min(0).max(512),
 	slowMode: z.number().int().min(0).max(86400),
@@ -44,6 +48,7 @@ export const defaultServerConfig: ServerConfig = {
 };
 
 export type MarkovConfig = z.infer<typeof MarkovConfigSchema>;
+export type MarkovConfigParams = {label: typeof aType.mconfig, fallback: MarkovConfig, schema: typeof MarkovConfigSchema};
 export const MarkovConfigSchema = z.object({
 	enabled: z.boolean(),
 	learning: z.boolean(),
@@ -65,6 +70,7 @@ export const defaultMarkovConfig: MarkovConfig = {
 
 export type GameType = keyof typeof GameTypeConfigSchema;
 export type GameConfig = z.infer<typeof GameConfigSchema>;
+export type GameConfigParams = {label: typeof aType.gconfig, fallback: GameConfig, schema: typeof GameConfigSchema};
 const GameTypeConfigSchema = {
 	horseRacing: z.boolean(),
 	duelingChallenge: z.boolean(),

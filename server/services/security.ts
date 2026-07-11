@@ -1,9 +1,4 @@
-import { Server } from 'socket.io';
-
-import { mType } from '../defs/def-message';
-
-import { DispatchService } from './dispatch';
-import { StateService } from './state';
+import { Socket } from 'socket.io';
 
 import { handleError, AppError } from '../utils/errors';
 import { hashIP } from '../utils/hash';
@@ -11,11 +6,7 @@ import { createSaveQueue } from '../utils/queue';
 import { existsFile, createJsonFile, readJsonFile, writeJsonFile } from '../utils/serialize';
 
 export interface SecurityServiceDependencies{
-	stateService: StateService;
-	dispatchService: DispatchService;
-	
 	bansPath: string;
-	io: Server;
 }
 
 export class SecurityService{
@@ -25,19 +16,14 @@ export class SecurityService{
 	private deps: SecurityServiceDependencies;
 	constructor(dependencies: SecurityServiceDependencies){
 		this.deps = dependencies;
+		this.init();
+	}
 
-		try{
-			if(!existsFile(this.deps.bansPath)){
-				createJsonFile(this.deps.bansPath, []);
-			}
-			this.loadBans();
-		}
-		catch(error: unknown){
-			handleError(error, 'Load Bans (Startup)');
-		}
+	private init(){
+		this.initializeBans();
 	}
 	
-	public checkBan(unhashed: string): boolean {
+	public existsBan(unhashed: string): boolean {
 		try{
 			const hash = hashIP(unhashed);
 			if(this.bans.has(hash)){
@@ -57,49 +43,10 @@ export class SecurityService{
 		}
 	}
 
-	public enforceBan(targetGuid: string){
-		const socketUsers = this.deps.stateService.getSocketUsersMap();
-		let socketIDs = [] as string[];
-		socketUsers.forEach((user, id) => {
-			if(user.guid === targetGuid){
-				socketIDs.push(id);
-			}
-		});
-		if(socketIDs.length === 0){
-			throw new AppError("couldn't find any connections from that user for IP banning", 'user');
-		}
-		socketIDs.forEach((sid) => {
-			const socket = this.deps.io.sockets.sockets.get(sid);
-			if(socket){
-				try{
-					const banIP = hashIP(socket?.handshake.address);
-					this.bans.set(banIP, new Date());
-					this.deps.dispatchService.sendClearLocalData(socket, targetGuid);
-					this.deps.dispatchService.sendSystemChat(socket, mType.error, 'You have been banned.');
-					this.deps.stateService.deleteSocketUser(this.deps.io, sid);
-					socket.disconnect(true);
-				}
-				catch(error: unknown){
-					handleError(error, 'Ban Loop');
-				}
-			}
-			return;
-		});
+	public setBan(socket: Socket){
+		const banIP = hashIP(socket.handshake.address);
+		this.bans.set(banIP, new Date());
 		this.banQueue.chain();
-	}
-
-	private loadBans(){
-		try{
-			if(!existsFile(this.deps.bansPath)){
-				throw new AppError('loadBans called while file missing', 'bug');
-			}
-			const parseData = readJsonFile(this.deps.bansPath) as [string, Date][];
-			this.bans = new Map(parseData);
-			console.log(`loaded ${this.bans.size} bans`);
-		} 
-		catch(error: unknown){
-			handleError(error, 'Ban Load');
-		}
 	}
 
 	private async saveBans(){
@@ -109,5 +56,46 @@ export class SecurityService{
 		catch(error: unknown){
 			handleError(error, 'Ban Save');
 		}
+	}
+
+	private initializeBans(){
+		const loadedbans = this.fetchBans();
+		const validbans = this.resolveBans(loadedbans);
+		this.bans = validbans;
+	}
+
+	private fetchBans(): unknown{
+		const bans: [string, Date][] = [];
+		try{
+			if(!existsFile(this.deps.bansPath)){
+				createJsonFile(this.deps.bansPath, bans);
+				return bans;
+			}
+
+			return readJsonFile(this.deps.bansPath);
+		}
+		catch(error: unknown){
+			handleError(error);
+			return bans;
+		}
+	}
+
+	private resolveBans(input: unknown): Map<string, Date>{
+		if(!Array.isArray(input)){
+			console.error('Ban data was not an array, starting fresh');
+			return new Map();
+		}
+
+		const validEntries: [string, Date][] = [];
+		for(const entry of input){
+			if(Array.isArray(entry) && entry.length === 2 && typeof entry[0] === 'string'){
+				const date = new Date(entry[1]);
+				if(!isNaN(date.getTime())){
+					validEntries.push([entry[0], date]);
+				}
+			}
+		}
+		console.log(`loaded ${validEntries.length} bans`);
+		return new Map(validEntries);
 	}
 }

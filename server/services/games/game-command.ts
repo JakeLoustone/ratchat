@@ -7,10 +7,10 @@ import type { GameType } from '../../defs/def-config';
 import type { Identity } from '../../defs/def-identity';
 import type { Command } from '../../defs/def-message';
 
+import { ConfigService } from '../config';
 import { DispatchService } from '../dispatch';
 import { GameIdentityService } from './game-identity';
 import { IdentityService } from '../identity';
-import { StateService } from '../state';
 
 type GameCommandEntry = {
 	enabledFor: GameType[];
@@ -19,7 +19,7 @@ type GameCommandEntry = {
 
 export interface GameCommandServiceDependencies {
 	dispatchService: DispatchService;
-	stateService: StateService;
+	configService: ConfigService;
 	gameIdentityService: GameIdentityService;
 	identityService: IdentityService;
 }
@@ -31,6 +31,10 @@ export class GameCommandService {
 	private deps: GameCommandServiceDependencies;
 	constructor(dependencies: GameCommandServiceDependencies){
 		this.deps = dependencies;
+		this.init();
+	}
+
+	private init(){
 		this.registerGameCommands();
 	}
 
@@ -38,7 +42,7 @@ export class GameCommandService {
 		const args = msg.slice(1).trim().split(/ +/);
 		const commandName = args.shift()?.toLowerCase() || '';
 
-		if(!this.deps.stateService.getGameConfig().enabled){
+		if(!this.deps.configService.getGameConfig().enabled){
 			return this.sendNotCommand(socket);
 		}
 		
@@ -85,7 +89,7 @@ export class GameCommandService {
 			return this.sendNotCommand(ctx.socket);
 		}
 
-		if(!entry.enabledFor.some(game => this.deps.stateService.getGameConfig()[game])){
+		if(!entry.enabledFor.some(game => this.deps.configService.getGameConfig()[game])){
 			return this.sendNotCommand(ctx.socket);
 		}
 
@@ -96,7 +100,7 @@ export class GameCommandService {
 		this.gameCommands['gamehelp'] = {
 			enabledFor: allGames,
 				handler: (ctx) => {
-				const config = this.deps.stateService.getGameConfig();
+				const config = this.deps.configService.getGameConfig();
 				const helpMessages = [
 					'/gamehelp  : View this list.',
 				];
@@ -105,12 +109,11 @@ export class GameCommandService {
 				this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, formatTable);
 				return clearInput;
 			}
-	
+		};
 		// ------------------------------------------------------------------
 		// ALIASES
 		// ------------------------------------------------------------------
 
 		//this.commands['h'] = this.commands['commands'] = this.commands['help'];
-		}
 	}
 }

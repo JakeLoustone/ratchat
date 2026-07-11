@@ -6,6 +6,7 @@ import { tType } from '../defs/def-moderation';
 import type { Identity } from '../defs/def-identity';
 import type { Command } from '../defs/def-message';
 
+import { ConfigService } from './config';
 import { DispatchService } from './dispatch';
 import { ModerationService } from './moderation';
 import { SecurityService } from './security';
@@ -17,7 +18,7 @@ import { MessageService } from './message';
 import { GameCommandService } from './games/game-command';
 
 import { getBaseNick, getNickColor } from '../utils/format';
-import { AppError } from '../utils/errors';
+import { AppError, handleError } from '../utils/errors';
 import { isValidGUID } from '../utils/validate';
 
 type CommandEntry = {
@@ -27,6 +28,7 @@ type CommandEntry = {
 }
 
 export interface CommandServiceDependencies {
+	configService: ConfigService;
 	dispatchService: DispatchService;
 	stateService: StateService;
 	gameIdentityService: GameIdentityService;
@@ -42,24 +44,18 @@ export class CommandService {
 	private commands: Record<string, CommandEntry> = {};
 	private activeCommands: Map<string, boolean> = new Map();
 	private gameCommandNames: Set<string> = new Set();
-	private markovBaseNick: string;
+	private markovBaseNick: string = 'markov';
 	
 	private deps: CommandServiceDependencies;
 	constructor(dependencies: CommandServiceDependencies){
 		this.deps = dependencies;
+		this.init();
+	}
 
-		if(this.deps.stateService.getMarkovConfig().enabled  && this.deps.stateService.markovUser){
-			this.markovBaseNick = getBaseNick(this.deps.stateService.markovUser.fullnick);
-		}
-		else{
-			this.markovBaseNick = 'markov'
-		}
-
-		this.registerCommands();
-
-		for(const name of this.deps.gameCommandService.getGameCommands()){
-			this.gameCommandNames.add(name);
-		}
+	private init(){
+		this.initializeMarkovCommand();
+		this.initializeCommands();
+		this.initializeGameCommands();
 	}
 
 	public async handleCommand(msg: string, socket: Socket, io: Server, caller: Identity | null): Promise<boolean>{
@@ -67,7 +63,7 @@ export class CommandService {
 		const commandName = args.shift()?.toLowerCase() || '';
 
 		if(this.gameCommandNames.has(commandName)){
-			if(!this.deps.stateService.getGameConfig().enabled){
+			if(!this.deps.configService.getGameConfig().enabled){
 				return this.sendNotCommand(socket);
 			}
 
@@ -138,7 +134,16 @@ export class CommandService {
 		return await entry.handler(ctx);
 	}
 
-	private registerCommands(){
+	private initializeMarkovCommand(){
+		if(this.deps.configService.getMarkovConfig().enabled  && this.deps.stateService.markovUser){
+			this.markovBaseNick = getBaseNick(this.deps.stateService.markovUser.fullnick);
+		}
+		else{
+			this.markovBaseNick = 'markov';
+		}
+	}
+
+	private initializeCommands(){
 		this.registerStandardCommands();
 		this.registerModeratorCommands();
 		this.registerGdprCommands();
@@ -172,7 +177,7 @@ export class CommandService {
 					);
 				}
 
-				if(this.deps.stateService.getGameConfig().enabled){
+				if(this.deps.configService.getGameConfig().enabled){
 					helpMessages.push(
 						'/gamehelp : See all available minigame commands!'
 					);
@@ -481,7 +486,7 @@ export class CommandService {
 			requiresMod: true,
 			requiresMarkov: false,
 			handler: (ctx) => {
-				const config = this.deps.stateService.getServerConfig();
+				const config = this.deps.configService.getServerConfig();
 				
 				const helpMessages = [
 						'--- Moderator Commands ---',
@@ -557,7 +562,25 @@ export class CommandService {
 						this.deps.dispatchService.sendSystemChat(ctx.socket, mType.info, `deleted ${msgArray.length} user messages`)
 					}
 
-					this.deps.identityService.deleteUserByBaseNick(targetBaseNick, true);
+					for (const [socketID, identity] of this.deps.stateService.getSocketUsersMap()){
+						if(getBaseNick(identity.fullnick).toLowerCase() === targetBaseNick.toLowerCase()){
+							try{
+								const targetsocket = ctx.io.sockets.sockets.get(socketID);
+								if(targetsocket){
+									this.deps.securityService.setBan(targetsocket);
+									this.deps.dispatchService.sendClearLocalData(targetsocket, identity.guid);
+									this.deps.dispatchService.sendSystemChat(targetsocket, mType.info, 'You have been banned.');
+									targetsocket.disconnect();
+								}
+							}
+							catch(error: unknown){
+								handleError(error, 'Command Ban Loop');
+								continue;
+							}
+						}
+					}
+					
+					this.deps.identityService.deleteUserByBaseNick(targetBaseNick);
 
 					this.deps.dispatchService.sendSystemChat(ctx.io, mType.info, `${targetBaseNick} has been banned.`);
 					return clearInput;
@@ -583,7 +606,7 @@ export class CommandService {
 						throw new AppError(`couldn't find user with nickname ${targetBaseNick}`, 'user');
 					}
 
-					const config = this.deps.stateService.getServerConfig();
+					const config = this.deps.configService.getServerConfig();
 					
 					//set duration in seconds
 					const durationInput = parseInt(ctx.args[1], 10);
@@ -760,7 +783,7 @@ export class CommandService {
 				const subComm = ctx.args[0];
 				switch (subComm){
 					case 'info':{
-						const config = this.deps.stateService.getServerConfig();
+						const config = this.deps.configService.getServerConfig();
 						const infoMsgs = [
 							'---------------------------------------------------------------------------------------------',
 							'We store the following data server side:',
@@ -784,7 +807,7 @@ export class CommandService {
 							'ratMutedUsers	|	a local list of usernames whose messages are hidden by default in the client',
 							'ratMutedEvents	|	a local list of minigame events whose announcements are ignored',
 						];
-						if(this.deps.stateService.getMarkovConfig().learning){
+						if(this.deps.configService.getMarkovConfig().learning){
 							infoMsgs.push(
 								'---------------------------------------------------------------------------------------------',
 								'This server uses an optional Markov chain feature that learns from user chat messages.',
@@ -886,12 +909,19 @@ export class CommandService {
 							return keepInput;
 						}
 					}
+					
 					default:{
 						this.deps.dispatchService.sendSystemChat(ctx.socket, mType.error, "system: please use with 'info', 'ip', 'export' or 'delete' after /gdpr");
 						return keepInput;
 					}
 				}
 			}
+		}
+	}
+
+	private initializeGameCommands(){
+		for(const name of this.deps.gameCommandService.getGameCommands()){
+			this.gameCommandNames.add(name);
 		}
 	}
 }

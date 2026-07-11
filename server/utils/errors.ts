@@ -20,33 +20,51 @@ export function handleError(error: unknown, context?: string): string | null {
 	const prefix = context ? `[${context}]:` : '';
 	if(error instanceof AppError){
 		switch(error.mode){
-			case 'user':
-			//for user display messages, all other cases cannot be displayed to the user	
+			case 'user':{
+				//for user display messages, all other cases cannot be displayed to the user	
 				return error.message;
-			case 'internal':
+			}
+
+			case 'internal':{
 				switch(error.logLevel){
-					case 'none':
+					case 'none':{
 						return null;
-					case 'log':
+					}
+
+					case 'log':{
 						console.log(prefix, error.stack ?? error.message);
 						return null;
-					case 'warn':
+					}
+
+					case 'warn':{
 						console.warn(prefix, error.stack ?? error.message);
 						return null;
-					case 'error':
+					}
+
+					case 'error':{
 						console.error(prefix, error.stack ?? error.message);
 						return null;
-					default:
+					}
+
+					default:{
 						console.error(prefix, error.stack ?? error.message);
 						return null;
+					}
 				}
-			case 'silent':
+			}	
+
+			case 'silent':{
 				return null;
-			case 'bug':
+			}
+
+			case 'bug':{
 				console.error(prefix, 'Unexpected bug:', error.stack ?? error.message);
 				return null;
-			default:
+			}
+
+			default:{
 				return null;
+			}
 		}
 	}
 	else if(error instanceof Error){

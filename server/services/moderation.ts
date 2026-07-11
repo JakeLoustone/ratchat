@@ -1,19 +1,17 @@
-import { readFileSync } from 'fs';
-
 import type { Identity } from '../defs/def-identity';
 import type { TimeType, TextType } from '../defs/def-moderation';
 
-import { StateService } from './state';
+import { ConfigService } from './config';
 
 import { handleError, AppError } from '../utils/errors';
-import { getBaseNick } from '../utils/format';
 import { sanitizeText } from '../utils/sanitize';
+import { existsFile, readJsonFile } from '../utils/serialize';
 import { isValidHexColor } from '../utils/validate';
 
 export type SafeString = string & {__brand: 'SafeString'};
 
 export interface ModerationServiceDependencies{
-	stateService: StateService;
+	configService: ConfigService;
 
 	basenickFilterPath: string;
 	profFilterPath: string;
@@ -29,15 +27,29 @@ export class ModerationService {
 	private deps: ModerationServiceDependencies;
 	constructor(dependencies: ModerationServiceDependencies){
 		this.deps = dependencies;
-		this.loadFilters(); 
+		this.init();
 	}
 
+	private init(){
+		this.initializeProfanityFilter();
+		this.initializeBaseNickFilter();
+	}
+
+	public appendBaseNickFilter(commands: string[]){
+		if(!this.startup){
+			throw new AppError('No longer starting up, illegal appendBaseNickFilter call', 'bug');
+		}
+		const added = this.buildPattern(commands, '^', '$');
+		this.basenickFilter.push(...added);
+		this.startup = false;
+	}
+		
 	public moderateText(raw: string, user: Identity, type: TextType): SafeString{
 		const clean = sanitizeText(raw).trim();
 		let safe = this.toSafeString('');
 		switch(type){
-			case 'chat':
-				if(clean.length > this.deps.stateService.getServerConfig().maxMsgLen){
+			case 'chat':{
+				if(clean.length > this.deps.configService.getServerConfig().maxMsgLen){
 					throw new AppError('sorry your message is too long lmao', 'user');
 				}
 				if(clean.length < 1){
@@ -57,8 +69,10 @@ export class ModerationService {
 				}
 				safe = this.toSafeString(clean);
 				return safe;
-			case 'status':
-				if(clean.length > this.deps.stateService.getServerConfig().maxStatusLen){
+			}
+
+			case 'status':{
+				if(clean.length > this.deps.configService.getServerConfig().maxStatusLen){
 					throw new AppError('tl;dr - set something shorter', 'user');
 				}
 				try{
@@ -75,10 +89,12 @@ export class ModerationService {
 				}
 				safe = this.toSafeString(clean);
 				return safe;
+			}
 
-			case'base':
-				if(clean.length > this.deps.stateService.getServerConfig().maxBaseNickLen || clean.length < 2){
-					throw new AppError(`nickname must be between 2 and ${this.deps.stateService.getServerConfig().maxBaseNickLen} characters`, 'user');
+			case'base':{
+				const basenickmax = this.deps.configService.getServerConfig().maxBaseNickLen;
+				if(clean.length > basenickmax || clean.length < 2){
+					throw new AppError(`nickname must be between 2 and ${basenickmax} characters`, 'user');
 				}
 				if(/\s/.test(clean)){
 					throw new AppError('no spaces in usernames', 'user');
@@ -97,8 +113,9 @@ export class ModerationService {
 				}
 				safe = this.toSafeString(clean);
 				return safe;
-			
-			case 'color':
+			}
+
+			case 'color':{
 				if(!isValidHexColor(clean)){
 					throw new AppError('invalid hex code. please use format #RRGGBB', 'user');
 				}
@@ -116,17 +133,20 @@ export class ModerationService {
 				}
 				safe = this.toSafeString(clean);
 				return safe;
-			
-			default:
+			}
+
+			default:{
 				throw new AppError('moderateText text type missing', 'bug');
+			}
 		}
 	}
 
 	public moderateNewUserBaseNick(raw: string, type: TextType): SafeString{
 		const clean = sanitizeText(raw).trim();
 		if(type === 'base'){
-			if(clean.length > this.deps.stateService.getServerConfig().maxBaseNickLen || clean.length < 2){
-				throw new AppError(`nickname must be between 2 and ${this.deps.stateService.getServerConfig().maxBaseNickLen} characters`, 'user');
+			const basenickmax = this.deps.configService.getServerConfig().maxBaseNickLen;
+			if(clean.length > basenickmax || clean.length < 2){
+				throw new AppError(`nickname must be between 2 and ${basenickmax} characters`, 'user');
 			}
 			if(/\s/.test(clean)){
 				throw new AppError('no spaces in usernames', 'user');
@@ -159,8 +179,8 @@ export class ModerationService {
 			throw new AppError ('ur in timeout rn', 'user');
 		}
 		
-		const serverConfig = this.deps.stateService.getServerConfig();
-		const gameConfig = this.deps.stateService.getGameConfig();
+		const serverConfig = this.deps.configService.getServerConfig();
+		const gameConfig = this.deps.configService.getGameConfig();
 		const limits: Record<TimeType, number> = {
 			chat: serverConfig.slowMode * 1000,
 			nick: serverConfig.nickSlow * 1000,
@@ -179,23 +199,7 @@ export class ModerationService {
 		return;
 
 	}
-
-	public appendBaseNickFilter(commands: string[]){
-		if(!this.startup){
-			throw new AppError('No longer starting up, illegal appendBaseNickFilter call', 'bug');
-		}
-		const added = commands.map(cmd => new RegExp(`^${cmd}$`, 'i')); //exact commands only
-		this.basenickFilter.push(...added);
-		this.startup = false;
-	}
-	
-	
-	private toSafeString(str: string): SafeString{
-		return str as SafeString;
-	}
-
-	private moderateBaseNick(basenick: string){
-		
+	private moderateBaseNick(basenick: string){	
 		const matched = this.basenickFilter.find(regex => regex.test(basenick));
 		if(matched){
 			console.log(`base nick filter "${basenick}" because it matched pattern: ${matched}`);
@@ -206,7 +210,6 @@ export class ModerationService {
 	}
 
 	private moderateProfanity(str: string){
-		
 		const matched = this.profFilter.find(regex => regex.test(str));
 		if(matched){
 			console.log(`prof filter "${str}" because it matched pattern: ${matched}`);
@@ -216,38 +219,101 @@ export class ModerationService {
 		return;
 	}
 
-	private loadFilters(){
+	private toSafeString(str: string): SafeString{
+		return str as SafeString;
+	}
+
+	private buildPattern(entries: string[], prepend: string, append: string): RegExp[]{
+		const patterns: RegExp[] = [];
+		for(const entry of entries){
+			const pattern = prepend + entry + append;
+			patterns.push(new RegExp(pattern, 'i'));
+		}
+		return patterns;
+	}
+
+	private initializeProfanityFilter(){
 		try{
-			const nickLoad = JSON.parse(readFileSync(this.deps.basenickFilterPath, 'utf-8')).usernames || [];
-			const profLoad = JSON.parse(readFileSync(this.deps.profFilterPath, 'utf-8'));
-			this.profFilter = Array.isArray(profLoad)
-				? profLoad
-						.filter(item => item.tags?.includes('racial') && item.severity > 2)
-						.map(item => {
-							const pattern = '\\b' +	item.match.split('*').map((seg: string) => seg.replace(/([a-zA-Z0-9.])(?=[a-zA-Z0-9.])/g, '$1[\\s\\-_.]*')).join('[^a-zA-Z0-9]*') + '\\b';
-							const regex = new RegExp(pattern, 'i');
-							return regex;
-						})
-				: [];
-			const configLoad = [...(this.deps.stateService.getServerConfig().baseNickRes || [])];
-			if(this.deps.stateService.getMarkovConfig().enabled && this.deps.stateService.markovUser){
-				const markovBaseNick = getBaseNick(this.deps.stateService.markovUser.fullnick)
-				configLoad.push(`^${markovBaseNick}$`);
+			const raw = this.fetchFilter(this.deps.profFilterPath);
+			const profPatterns = this.resolveFilter(raw, 'profanity');
+			this.profFilter = profPatterns;
+		}
+		catch(error: unknown){
+			handleError(error, 'Profanity Filter Load');
+			this.profFilter = [];
+		}
+	}
+
+	private initializeBaseNickFilter(){
+		try{
+			const raw = this.fetchFilter(this.deps.basenickFilterPath);
+			const basenickPatterns = this.resolveFilter(raw, 'basenick');
+
+			const clientCommandPatterns = this.buildPattern(this.deps.clientCommands, '^', '$');
+			const clientSubCommandPatterns = this.buildPattern(this.deps.clientSubCommands, '^', '$');
+			const configPatterns = this.buildPattern(this.deps.configService.getServerConfig().baseNickRes, '^', '$');
+			
+			let markovPatterns: RegExp[] = [];
+			if(this.deps.configService.getMarkovConfig().enabled){
+				const markovBaseNick = this.deps.configService.getMarkovConfig().basenick;
+				markovPatterns = this.buildPattern([markovBaseNick], '^', '$');
 			}
 
-			const basenickFilterLoad = [...nickLoad, ...configLoad].filter(Boolean);
-
 			this.basenickFilter = [
-				...basenickFilterLoad.map(pattern => new RegExp(pattern, 'i')),
 				...this.profFilter,
-				...this.deps.clientCommands.map(cmd => new RegExp(`^${cmd}$`, 'i')), //exact commands only
-				...this.deps.clientSubCommands.map(cmd => new RegExp(`^${cmd}$`, 'i')) 
+				...basenickPatterns,
+				...clientCommandPatterns,
+				...clientSubCommandPatterns,
+				...configPatterns,
+				...markovPatterns
 			];
-		} 
+		}
 		catch(error: unknown){
 			handleError(error, 'Nick Filter Load');
 			this.basenickFilter = [];
-			this.profFilter = [];
 		}
-	};
+	}
+
+	private fetchFilter(path: string): unknown{
+		const filter: unknown[] = [];
+		try{
+			if(!existsFile(path)){
+				throw new AppError(`filter file not found at ${path}`, 'internal', 'error');
+			}
+			return readJsonFile(path);
+		}
+		catch(error: unknown){
+			handleError(error);
+			return filter;
+		}
+	}
+
+	private resolveFilter(input: unknown, type: 'profanity' | 'basenick'): RegExp[]{
+		if(!Array.isArray(input)){
+			console.warn(`${type} filter data was not an array, starting fresh`);
+			return [];
+		}
+
+		let compiledFilter: RegExp[];
+
+		switch(type){
+			case 'profanity':{
+				const escaped = input
+					.filter(item => item.tags?.includes('racial') && item.severity > 2)
+					.map(item => item.match.split('*').map((seg: string) => seg.replace(/([a-zA-Z0-9.])(?=[a-zA-Z0-9.])/g, '$1[\\s\\-_.]*')).join('[^a-zA-Z0-9]*'));
+				compiledFilter = this.buildPattern(escaped, '\\b', '\\b');
+				break;
+			}
+			case 'basenick':{
+				const validEntries = input.filter(entry => typeof entry === 'string');
+				compiledFilter = this.buildPattern(validEntries, '^', '$');
+				break;
+			}
+			default:{
+				throw new AppError('resolveFilter called without appropriate label', 'bug');
+			}
+		}
+
+		return compiledFilter;
+	}
 }

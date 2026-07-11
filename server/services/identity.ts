@@ -6,8 +6,6 @@ import type { DefaultIdentity, Identity } from '../defs/def-identity';
 import type { KeyedParseFailureRecord } from '../defs/def-parse';
 
 import { ModerationService } from './moderation';
-import { SecurityService } from './security';
-import { StateService } from './state';
 import { GameIdentityService } from './games/game-identity';
 import type { SafeString } from './moderation';
 
@@ -15,14 +13,12 @@ import { handleError, AppError } from '../utils/errors';
 import { getBaseNick, getNickColor } from '../utils/format';
 import { mergeIdentityDefaults } from '../utils/parse';
 import { createSaveQueue } from '../utils/queue';
-import { existsRepairFile, getRepairPath } from '../utils/repair';
+import { assertRepairClear, getRepairPath } from '../utils/repair';
 import { existsFile, createJsonFile, readJsonFile, writeJsonFile } from '../utils/serialize';
 
 export interface IdentityServiceDependencies{
 	moderationService: ModerationService;
-	stateService: StateService;
 	gameIdentityService: GameIdentityService;
-	securityService: SecurityService;
 
 	usersPath: string;
 }
@@ -36,25 +32,12 @@ export class IdentityService {
 	private deps: IdentityServiceDependencies;
 	constructor(dependencies: IdentityServiceDependencies){
 		this.deps = dependencies;
+		this.init();
+	}
 
-		if(existsRepairFile(this.deps.usersPath)){
-			throw new AppError(`unresolved repair file found for ${this.deps.usersPath} — review and delete before restarting`, 'internal', 'error');
-		}
-		
-		try{
-			if(!existsFile(this.deps.usersPath)){
-				createJsonFile(this.deps.usersPath, []);
-			}
-			const count = this.loadUsers();
-			console.log(`loaded ${count} users from disk`);
-		}
-		catch(error: unknown){
-			handleError(error, 'Load Users (Startup)');
-		}
-			
-		this.deps.stateService.events.on("afk-check", guid => {
-			this.toggleAfk(guid); 
-		});
+	private init(){
+		assertRepairClear(this.deps.usersPath);
+		this.initializeUsers();
 	}
 
 	public createNewUser(basenick: SafeString): Identity{
@@ -97,11 +80,11 @@ export class IdentityService {
 	}
 
 	public setBaseNick(guid: string, basenick: SafeString): Identity{
-		if(!this.users.has(guid)){
+		const user = this.users.get(guid);
+		if(!user){
 			throw new AppError('set base nick: no matching user found to GUID', 'internal', 'warn');
 		}
 
-		const user = this.users.get(guid)!;
 		const oldBaseNick = getBaseNick(user.fullnick);
 
 		if(basenick === oldBaseNick){
@@ -144,6 +127,18 @@ export class IdentityService {
 			this.userQueue.chain();
 		}
 		else{
+			user.isAfk = true;
+			this.userQueue.chain();
+		}
+		return user;
+	}
+
+	public setAfk(guid: string): Identity{
+		const user = this.users.get(guid);
+		if(!user){
+			throw new AppError('set afk: no matching user found to GUID', 'internal', 'warn');
+		}
+		if(!user.isAfk){
 			user.isAfk = true;
 			this.userQueue.chain();
 		}
@@ -243,17 +238,12 @@ export class IdentityService {
 		this.setLastMessage(guid, msgdate, clearAfk);
 	}
 
-	public deleteUserByBaseNick(basenick: string, banned: boolean): void {
+	public deleteUserByBaseNick(basenick: string){
 		const guid = this.basenickIndex.get(basenick.trim().toLowerCase());
 		if(!guid){
 			throw new AppError(`couldn't find user with nickname ${basenick}`, 'user');
 		}
-
 		this.deleteUser(guid);
-
-		if(banned){
-			this.deps.securityService.enforceBan(guid);
-		}
 	}
 
 	public getFullNickByPlayerId(playerid: string): string{
@@ -271,21 +261,19 @@ export class IdentityService {
 	}
 
 	public reloadUsers(): number{
-		if(!existsFile(this.deps.usersPath)){
-			throw new AppError(`users file not found at ${this.deps.usersPath}`, 'user');
-		}
-
 		try{
-			const reload = this.loadUsers();
-			return reload;
+			const raw = this.fetchUsersStrict();
+			const resolvedUsers = this.resolveUsersStrict(raw);
+			this.assignUsers(resolvedUsers);
+			return resolvedUsers.size;
 		}
 		catch(error: unknown){
 			if(error instanceof AppError){
 				throw error;
 			}
-			
+
 			handleError(error, 'Reload Users');
-			
+
 			throw new AppError(`failed to reload users: unknown error`, 'user');
 		}
 	}
@@ -300,86 +288,156 @@ export class IdentityService {
 		}
 	}
 
-	private loadUsers(): number {
+	private fetchUsersStrict(): unknown{
+		if(!existsFile(this.deps.usersPath)){
+			throw new AppError(`users file not found at ${this.deps.usersPath}`, 'internal', 'warn');
+		}
+		return readJsonFile(this.deps.usersPath);
+	}
+
+	private resolveUsersStrict(input: unknown): Map<string, Identity>{
+		if(!Array.isArray(input)){
+			throw new AppError('user data was not an array, refusing to reload', 'internal', 'warn');
+		}
+
+		const resolvedUsers = new Map<string, Identity>();
+		const defaultId = this.buildDefaultIdentity();
+
+		for(const entry of input){
+			if(!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string'){
+				throw new AppError('malformed user record found, refusing to reload', 'internal', 'warn');
+			}
+
+			const [guid, raw] = entry;
+			const [identity, failures] = mergeIdentityDefaults(raw, aType.id, defaultId, IdentitySchema);
+
+			if(failures.length > 0 || identity === null || identity.guid !== guid){
+				throw new AppError(`user record failed validation, refusing to reload`, 'internal', 'warn');
+			}
+
+			resolvedUsers.set(identity.guid, identity);
+		}
+
+		return resolvedUsers;
+	}
+
+	private assignUsers(resolvedUsers: Map<string, Identity>){
+		const basenickIndex = new Map<string, string>();
+		const playeridIndex = new Map<string, string>();
+
+		for(const [guid, identity] of resolvedUsers){
+			const baseNick = getBaseNick(identity.fullnick);
+			basenickIndex.set(baseNick.toLowerCase(), guid);
+			playeridIndex.set(identity.playerid, guid);
+		}
+
+		this.users = resolvedUsers;
+		this.basenickIndex = basenickIndex;
+		this.playeridIndex = playeridIndex;
+		this.userQueue.chain();
+	}
+	
+	private async saveUsers(){
 		try{
-			if(!existsFile(this.deps.usersPath)){
-				throw new AppError('loadUsers called while file missing', 'bug');
-			}
-			const parseData = readJsonFile(this.deps.usersPath) as [string, unknown][];
-			const defaultId = this.buildDefaultIdentity();
-			const repairPath = getRepairPath(this.deps.usersPath);
-			const allFailures: KeyedParseFailureRecord[] = [];
+			await writeJsonFile(this.deps.usersPath, Array.from(this.users.entries()));
+		} 
+		catch(error: unknown){
+			handleError(error, 'Save Users');
+		}
+	}
 
-			const loadedUsers = new Map<string, Identity>();
-			const loadedBaseNicks = new Map<string, string>();
-			const loadedPlayerIds = new Map<string, string>();
-
-			for (const [guid, raw] of parseData){
-				try{
-					const [identity, failures] = mergeIdentityDefaults(raw, defaultId, aType.id, IdentitySchema);
-
-					if(failures.length > 0){
-						for(const failure of failures){
-							allFailures.push({
-								...failure,
-								recordKey: guid
-							});
-						}
-					}
-
-					if(identity === null){
-						//unrecoverable field, returned as failure from merge
-						continue;
-					}
-
-					if(identity.guid !== guid){
-						allFailures.push({
-							raw: raw,
-							schemaName: aType.id,
-							field: 'guid',
-							invalidValue: identity.guid,
-							substitutedValue: guid,
-							recordKey: guid
-						});
-						continue;
-					}
-
-					loadedUsers.set(identity.guid, identity);
-
-					const existingBaseNick = getBaseNick(identity.fullnick);
-					loadedBaseNicks.set(existingBaseNick.toLowerCase(), identity.guid);
-					loadedPlayerIds.set(identity.playerid, identity.guid);
-				}
-				catch(error: unknown){
-					handleError(error, `Load Users (Record ${guid})`);
-					continue;
-				}
-			}
-
-			const auditFailures = this.auditUsers(loadedUsers);
-			if(auditFailures.length > 0){
-				allFailures.push(...auditFailures);
-			}
+	private initializeUsers(){
+		try{
+			const raw = this.fetchUsers();
+			const [resolvedUsers, resolveFailures] = this.resolveUsers(raw);
+			const auditFailures = this.auditUsers(resolvedUsers);
+			const allFailures = [...resolveFailures, ...auditFailures];
 
 			if(allFailures.length > 0){
 				console.error(`Load Users found ${allFailures.length} field failure(s) across all records, writing repair file`);
-				createJsonFile(repairPath, allFailures);
+				createJsonFile(getRepairPath(this.deps.usersPath), allFailures);
 			}
 
-			this.users = loadedUsers;
-			this.basenickIndex = loadedBaseNicks;
-			this.playeridIndex = loadedPlayerIds;
-			this.userQueue.chain();
-			return this.users.size;
-		} 
-		catch(error: unknown){
-			if(error instanceof AppError){
-				throw error;
-			}
-			handleError(error, 'Load Users');
-			
-			throw new AppError(`failed to load users: unknown error`, 'user');
+			this.assignUsers(resolvedUsers);
+			console.log(`${resolvedUsers.size} users loaded from disk.`);
 		}
+		catch(error: unknown){
+			handleError(error, 'Load Users (Startup)');
+			this.users = new Map();
+			this.basenickIndex = new Map();
+			this.playeridIndex = new Map();
+		}
+	}
+
+	private fetchUsers(): unknown{
+		const users: [string, unknown][] = [];
+		try{
+			if(!existsFile(this.deps.usersPath)){
+				createJsonFile(this.deps.usersPath, users);
+				return users;
+			}
+			return readJsonFile(this.deps.usersPath);
+		}
+		catch(error: unknown){
+			handleError(error);
+			return users;
+		}
+	}
+
+	private resolveUsers(input: unknown): [Map<string, Identity>, KeyedParseFailureRecord[]]{
+		const resolvedUsers = new Map<string, Identity>();
+		const failures: KeyedParseFailureRecord[] = [];
+
+		if(!Array.isArray(input)){
+			console.warn('User data was not an array, starting fresh');
+			return [resolvedUsers, failures];
+		}
+
+		const defaultId = this.buildDefaultIdentity();
+		
+		for(const entry of input){
+			if(!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string'){
+				console.warn('Skipping malformed user record entry');
+				continue;
+			}
+
+			const [guid, raw] = entry;
+			try{
+				const [identity, mergeFailures] = mergeIdentityDefaults(raw, aType.id, defaultId, IdentitySchema);
+
+				if(mergeFailures.length > 0){
+					for(const failure of mergeFailures){
+						failures.push({
+							...failure,
+							recordKey: guid
+						});
+					}
+				}
+				if(identity === null){
+					//unrecoverable field, returned as failure from merge
+					continue;
+				}
+				if(identity.guid !== guid){
+					failures.push({
+						raw: raw,
+						label: aType.id,
+						field: 'guid',
+						invalidValue: identity.guid,
+						substitutedValue: guid,
+						recordKey: guid
+					});
+					continue;
+				}
+
+				resolvedUsers.set(identity.guid, identity);
+			}
+			catch(error: unknown){
+				handleError(error, `Load Users (Record ${guid})`);
+				continue;
+			}
+		}
+
+		return [resolvedUsers, failures];
 	}
 
 	private auditUsers(users: Map<string, Identity>): KeyedParseFailureRecord[] {
@@ -390,7 +448,7 @@ export class IdentityService {
 			if(!gameUsers.has(identity.playerid)){
 				failures.push({
 					raw: undefined,
-					schemaName: aType.id,
+					label: aType.id,
 					field: 'identity.playerid: missing matching game identity',
 					invalidValue: identity.playerid,
 					substitutedValue: undefined,
@@ -407,7 +465,7 @@ export class IdentityService {
 			if(!validPlayerids.has(playerid)){
 				failures.push({
 					raw: undefined,
-					schemaName: aType.gid,
+					label: aType.gid,
 					field: 'gameidentity.playerid: missing matching identity',
 					invalidValue: playerid,
 					substitutedValue: undefined,
@@ -430,7 +488,7 @@ export class IdentityService {
 			if(guids.length > 1){
 				failures.push({
 					raw: undefined,
-					schemaName: aType.id,
+					label: aType.id,
 					field: 'identity.playerid: duplicated across multiple identities',
 					invalidValue: playerid,
 					substitutedValue: undefined,
@@ -454,7 +512,7 @@ export class IdentityService {
 			if(guids.length > 1){
 				failures.push({
 					raw: undefined,
-					schemaName: aType.id,
+					label: aType.id,
 					field: 'identity base nick: duplicated across multiple identities',
 					invalidValue: basenick,
 					substitutedValue: undefined,
@@ -464,14 +522,5 @@ export class IdentityService {
 		}
 
 		return failures;
-	}
-	
-	private async saveUsers(){
-		try{
-			await writeJsonFile(this.deps.usersPath, Array.from(this.users.entries()));
-		} 
-		catch(error: unknown){
-			handleError(error, 'Save Users');
-		}
 	}
 }

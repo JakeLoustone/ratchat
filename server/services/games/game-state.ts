@@ -1,19 +1,19 @@
-
-
+import { aType } from '../../defs/def-parse';
 import { HorseRecordEntrySchema, FishRecordEntrySchema } from '../../defs/def-record'
 import type { GameIdentity } from '../../defs/def-identity'
 import type { LeaderboardEntry, BlackjackEntry, DuelingEntry, FishingEntry, HorseEntry } from '../../defs/def-leaderboard';
 import type { PublicLeaderboard, PublicOverallLeaderboard, PublicBlackjackLeaderboard, PublicDuelingLeaderboard, PublicFishingLeaderboard, PublicHorseLeaderboard } from '../../defs/def-leaderboard';
-import type { PrivateHorseRecordList, PrivateFishRecordList } from '../../defs/def-record';
+import type { KeyedParseFailureRecord, ParseFailureRecord } from '../../defs/def-parse';
+import type { PrivateHorseRecordList, PrivateFishRecordList, DefaultFishRecordEntry, DefaultHorseRecordEntry, FishRecordEntry, HorseRecordEntry } from '../../defs/def-record';
 
 import { CacheService } from "../cache";
 import { DispatchService } from "../dispatch";
 import { GameIdentityService } from "./game-identity";
 import { IdentityService } from "../identity";
-import { StateService } from "../state";
 
 import { handleError, AppError } from "../../utils/errors";
-import { parseArray } from '../../utils/parse';
+import { mergeRecordDefaults } from '../../utils/parse';
+import { assertRepairClear, getRepairPath } from '../../utils/repair';
 import { createJsonFile, existsFile, readJsonFile } from '../../utils/serialize';
 
 import { defaultFishCatalog } from '../catalogs/catalog-fish';
@@ -26,10 +26,9 @@ type FullLeaderboard = FullEntry[];
 
 //const REDIS_BLACKJACK_KEY = 'ratchat:blackjack';
 
-export interface StateServiceDependencies{
+export interface GameStateServiceDependencies{
 	cacheService: CacheService;
 	dispatchService: DispatchService;
-	stateService: StateService;
 	gameIdentityService: GameIdentityService;
 	identityService: IdentityService;
 
@@ -41,24 +40,17 @@ export class GameStateService {
 	private horseRecords: PrivateHorseRecordList = [];
 	private fishRecords: PrivateFishRecordList = [];
 
-	private deps: StateServiceDependencies;
-	constructor(dependencies: StateServiceDependencies){
+	private deps: GameStateServiceDependencies;
+	constructor(dependencies: GameStateServiceDependencies){
 		this.deps = dependencies;
+		this.init();
+	}
 
-		try{
-			if(!existsFile(this.deps.fishingRecordsPath)){
-				createJsonFile(this.deps.fishingRecordsPath, this.buildFishRecords());
-			}
-
-			if(!existsFile(this.deps.horseRecordsPath)){
-				createJsonFile(this.deps.horseRecordsPath, this.buildHorseRecords());
-			}
-
-			this.loadRecords();
-		}
-		catch(error: unknown){
-			handleError(error, 'Records Load (Startup)');
-		}
+	private init(){
+		assertRepairClear(this.deps.fishingRecordsPath);
+		assertRepairClear(this.deps.horseRecordsPath);
+		this.initializeFishRecords();
+		this.initializeHorseRecords();
 	}
 
 	public getLeaderboard(): PublicOverallLeaderboard;
@@ -76,16 +68,25 @@ export class GameStateService {
 		const fullEntries: FullEntry[] = withFishingStats;
 
 		switch(label){
-			case 'blackjack':
+			case 'blackjack':{
 				return this.buildPublicLeaderboard(fullEntries, 'blackjack');
-			case 'dueling':
+			}
+
+			case 'dueling':{
 				return this.buildPublicLeaderboard(fullEntries, 'dueling');
-			case 'fishing':
+			}
+
+			case 'fishing':{
 				return this.buildPublicLeaderboard(fullEntries, 'fishing');
-			case 'horse':
+			}
+
+			case 'horse':{
 				return this.buildPublicLeaderboard(fullEntries, 'horse');
-			default:
+			}
+
+			default:{
 				return this.buildPublicLeaderboard(fullEntries);
+			}
 		}
 	}
 
@@ -131,19 +132,23 @@ export class GameStateService {
 	private buildPublicLeaderboard(entries: FullLeaderboard, label: 'horse'): PublicHorseLeaderboard;
 	private buildPublicLeaderboard(entries: FullLeaderboard, label?: 'blackjack' | 'dueling' | 'fishing' | 'horse'): PublicLeaderboard {
 		switch(label){
-			case 'blackjack':
+			case 'blackjack':{
 				return entries.map((entry) => ({
 					fullnick: entry.fullnick,
 					blackjackWinnings: entry.blackjackWinnings,
 					blackjackBlackjacks: entry.blackjackBlackjacks,
 				}));
-			case 'dueling':
+			}
+
+			case 'dueling':{
 				return entries.map((entry) => ({
 					fullnick: entry.fullnick,
 					duelingWins: entry.duelingWins,
 					duelingHonor: entry.duelingHonor,
 				}));
-			case 'fishing':
+			}
+
+			case 'fishing':{
 				return entries.map((entry) => ({
 					fullnick: entry.fullnick,
 					fishingCatches: entry.fishingCatches,
@@ -152,54 +157,154 @@ export class GameStateService {
 					fishingBestCatchValue: entry.fishingBestCatchValue,
 					fishingRecords: entry.fishingRecords,
 				}));
-			case 'horse':
+			}
+
+			case 'horse':{
 				return entries.map((entry) => ({
 					fullnick: entry.fullnick,
 					horseWinnings: entry.horseWinnings,
 					horseBetWins: entry.horseBetWins,
 				}));
-			default:
+			}
+			default:{
 				return entries.map((entry) => ({
 					fullnick: entry.fullnick,
 					gamePoints: entry.gamePoints,
 				}));
+			}
 		}
 	}
+
+	private initializeFishRecords(){
+		try{
+			const raw = this.fetchRecords(this.deps.fishingRecordsPath, 'fish');
+			const [resolvedRecords, failures] = this.resolveRecords(raw, 'fish');
+
+			if(failures.length > 0){
+				console.error(`Load Fish Records found ${failures.length} field failure(s) across all records, writing repair file`);
+				createJsonFile(getRepairPath(this.deps.fishingRecordsPath), failures);
+			}
+
+			this.fishRecords = resolvedRecords;
+		}
+		catch(error: unknown){
+			handleError(error, 'Fish Records Load (Startup)');
+			const defaultRecords = this.buildFishRecords();
+			this.fishRecords = defaultRecords;
+		}
+	}
+
+	private initializeHorseRecords(){
+		try{
+			const raw = this.fetchRecords(this.deps.horseRecordsPath, 'horse');
+			const [resolvedRecords, failures] = this.resolveRecords(raw, 'horse');
+
+			if(failures.length > 0){
+				console.error(`Load Horse Records found ${failures.length} field failure(s) across all records, writing repair file`);
+				createJsonFile(getRepairPath(this.deps.horseRecordsPath), failures);
+			}
+
+			this.horseRecords = resolvedRecords;
+		}
+		catch(error: unknown){
+			handleError(error, 'Horse Records Load (Startup)');
+			const defaultRecords = this.buildHorseRecords();
+			this.horseRecords = defaultRecords;
+		}
+	}
+
+	private fetchRecords(path: string, label: 'fish'): unknown;
+	private fetchRecords(path: string, label: 'horse'): unknown;
+	private fetchRecords(path: string, label: 'fish' | 'horse'): unknown{
+		if(!existsFile(path)){
+			let defaultRecords: PrivateFishRecordList | PrivateHorseRecordList;
+
+			switch(label){
+				case 'fish':{
+					defaultRecords = this.buildFishRecords();
+					break;
+				}
+				case 'horse':{
+					defaultRecords = this.buildHorseRecords();
+					break;
+				}
+				default:{
+					throw new AppError('fetchRecords called without appropriate label', 'bug');
+				}
+			}
+
+			createJsonFile(path, defaultRecords);
+			return defaultRecords;
+		}
+
+		const raw = readJsonFile(path);
+		return raw;
+	}
+
 	private buildFishRecords(): PrivateFishRecordList {
 		return defaultFishCatalog.map((catalogEntry) => ({
 			...catalogEntry,
-			weight: null,
-			playerid: null,
-			fullnick: null,
+			...this.buildDefaultFishRecordEntry()
 		}));
 	}
 
 	private buildHorseRecords(): PrivateHorseRecordList {
 		return defaultHorseCatalog.map((catalogEntry) => ({
 			...catalogEntry,
-			wins: 0,
+			...this.buildDefaultHorseRecordEntry()
 		}));
 	}
-	private loadRecords(){
-		this.fishRecords = this.loadRecordList(this.deps.fishingRecordsPath, 'fish');
-		this.horseRecords = this.loadRecordList(this.deps.horseRecordsPath, 'horse');
+
+	private buildDefaultFishRecordEntry(): DefaultFishRecordEntry{
+		return{
+			weight: null,
+			playerid: null,
+			fullnick: null
+		};
 	}
 
-	private loadRecordList(path: string, schemalabel: 'fish'): PrivateFishRecordList;
-	private loadRecordList(path: string, schemalabel: 'horse'): PrivateHorseRecordList;
-	private loadRecordList(path: string, schemalabel: 'fish' | 'horse'): PrivateFishRecordList | PrivateHorseRecordList {
-		const raw: unknown = readJsonFile(path);
-		if(!Array.isArray(raw)){
-			throw new AppError(`${schemalabel} record file did not contain an array`, 'internal', 'warn');
+	private buildDefaultHorseRecordEntry(): DefaultHorseRecordEntry{
+		return{
+			wins: 0
+		};
+	}
+
+	private resolveRecords(input: unknown, label: 'fish'): [PrivateFishRecordList, KeyedParseFailureRecord[]];
+	private resolveRecords(input: unknown, label: 'horse'): [PrivateHorseRecordList, KeyedParseFailureRecord[]];
+	private resolveRecords(input: unknown, label: 'fish' | 'horse'): [PrivateFishRecordList, KeyedParseFailureRecord[]] | [PrivateHorseRecordList, KeyedParseFailureRecord[]]{
+		switch(label){
+			case 'fish':{
+				return this.genericResolveRecords(input, 'fish', (entry) => mergeRecordDefaults(entry, aType.gfish, this.buildDefaultFishRecordEntry(), FishRecordEntrySchema));
+			}
+			case 'horse':{
+				return this.genericResolveRecords(input, 'horse', (entry) => mergeRecordDefaults(entry, aType.ghorse, this.buildDefaultHorseRecordEntry(), HorseRecordEntrySchema));
+			}
+			default:{
+				throw new AppError('resolveRecords called without appropriate label', 'bug');
+			}
+		}
+	}
+
+	private genericResolveRecords<RecordEntry>(input: unknown, label: string, resolveEntry: (entry: unknown) => [RecordEntry | null, ParseFailureRecord[]]): [RecordEntry[], KeyedParseFailureRecord[]]{
+		if(!Array.isArray(input)){
+			throw new AppError(`${label} record file did not contain an array`, 'internal', 'warn');
 		}
 
-		switch(schemalabel){
-			case 'fish':
-				return parseArray(raw, FishRecordEntrySchema);
-			case 'horse':
-				return parseArray(raw, HorseRecordEntrySchema);
-			default:
-				throw new AppError('LoadRecordList called without label', 'bug');
+		const failures: KeyedParseFailureRecord[] = [];
+		const resolvedRecords: RecordEntry[] = [];
+
+		for(const [index, entry] of input.entries()){
+			const [record, mergeFailures] = resolveEntry(entry);
+
+			for(const failure of mergeFailures){
+				failures.push({ ...failure, recordKey: `index ${index}` });
+			}
+			if(record === null){
+				continue;
+			}
+			resolvedRecords.push(record);
 		}
+
+		return [resolvedRecords, failures];
 	}
 }

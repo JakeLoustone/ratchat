@@ -1,5 +1,6 @@
 import { dirname, basename, extname, join } from 'path';
 import { existsFile } from './serialize';
+import { AppError } from './errors';
 
 export function getRepairPath(originalPath: string): string {
 	const dir = dirname(originalPath);
@@ -8,6 +9,8 @@ export function getRepairPath(originalPath: string): string {
 	return join(dir, `repair-${base}${ext}`);
 }
 
-export function existsRepairFile(originalPath: string): boolean {
-	return existsFile(getRepairPath(originalPath));
+export function assertRepairClear(path: string){
+	if(existsFile(getRepairPath(path))){
+		throw new AppError(`Repair file present at ${path}, aborting`, 'internal', 'error');
+	}
 }

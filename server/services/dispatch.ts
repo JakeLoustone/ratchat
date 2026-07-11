@@ -5,6 +5,7 @@ import type { UserSum, Identity } from '../defs/def-identity';
 import type { MessageType, ChatMessage, GameEvent, GameEventType } from '../defs/def-message';
 
 import { CacheService } from './cache';
+import { ConfigService } from './config';
 
 import { handleError } from '../utils/errors';
 import { getBaseNick } from '../utils/format';
@@ -34,6 +35,7 @@ const MAX_INT = 4294967295;
 
 export interface DispatchServiceDependencies {
 	cacheService: CacheService
+	configService: ConfigService;
 }
 
 export class DispatchService{
@@ -45,6 +47,11 @@ export class DispatchService{
 	private deps: DispatchServiceDependencies;
 	constructor(dependencies: DispatchServiceDependencies){
 		  this.deps = dependencies;
+		  this.init();
+	}
+
+	private init(){
+		this.startExpireMessageTimer();
 	}
 
 	public sendChat(to: Target, author: Identity, content:string, msgArrayLen: number, spoiler: boolean){
@@ -130,8 +137,9 @@ export class DispatchService{
 		return this.chatHistory;
 	}
 
-	public async restoreChatHistory(msgArrayLen: number, msgArrayTimeout: number){
-		if(msgArrayLen === 0){
+	public async restoreChatHistory(){
+		const config = this.deps.configService.getServerConfig();
+		if(config.msgArrayLen === 0){
 			console.log('msgArrayLen is 0, skipping chat history restore');
 			return;
 		}
@@ -153,11 +161,11 @@ export class DispatchService{
 				return;
 			}
 			const now = Date.now();
-			const expireTime = (msgArrayTimeout - 60) * 1000;
+			const expireTime = (config.msgArrayTimeout - 60) * 1000;
 
 			const validMessages = parseArray(historyLoad, ChatMessageSchema);
 			const fresh = validMessages.filter(msg => msg.timestamp + expireTime > now);
-			const trimmed = fresh.slice(-msgArrayLen);
+			const trimmed = fresh.slice(-config.msgArrayLen);
 			const trimmedMap = trimmed.map((msg): [number, ChatMessage] => [msg.id, msg]);
 			this.chatHistory = new Map(trimmedMap);
 			console.log(`Restored ${this.chatHistory.size} chat history messages from Redis`);
@@ -191,10 +199,6 @@ export class DispatchService{
 		catch(error: unknown){
 			handleError(error, 'Redis Message ID Counter Load');
 		}
-	}
-
-	public startExpireMessageTimer(msgArrayTimeout: number){
-		this.expireMessageTimer(msgArrayTimeout);
 	}
 
 	private sendPayload<T extends MessageType>(to: Target, metype: T, msg: MessagePayloadMap[T]){
@@ -257,7 +261,8 @@ export class DispatchService{
 		}
 	}
 
-	private expireMessageTimer(msgArrayTimeout: number){
+	private startExpireMessageTimer(){
+		const msgArrayTimeout = this.deps.configService.getServerConfig().msgArrayTimeout;
 		setInterval(() => {
 			const now = Date.now();
 			const expireTime = (msgArrayTimeout - 60) * 1000;

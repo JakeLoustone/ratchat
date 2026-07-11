@@ -964,12 +964,14 @@
 						input.value = '';
 						return;
 					}
+
 					case 'clear':
 					case 'clr':{
 						messages.replaceChildren();
 						input.value = '';
 						return;
 					}
+
 					case 'background':
 					case 'bg':{
 						document.getElementById('bg-upload').click();
@@ -977,6 +979,7 @@
 						input.value = '';
 						return;
 					}
+
 					case 'bgreset':{
 						if(localStorage.getItem('ratBG')){
 							localStorage.removeItem('ratBG');
@@ -991,6 +994,7 @@
 							return;
 						}
 					}
+
 					case 'dark':{
 						if(document.documentElement.hasAttribute('data-theme')){
 							document.documentElement.removeAttribute('data-theme');
@@ -1004,6 +1008,7 @@
 						input.value = '';
 						return;
 					}
+
 					case 'mute':
 					case 'm':{
 						if (eventList.length === 0) {
@@ -1083,6 +1088,7 @@
 							}
 						}
 					}
+
 					case 'unmute':{
 						if (eventList.length === 0) {
 							displayClientMessage('fetching event list...', 'i-li');
@@ -1165,6 +1171,7 @@
 							}
 						}
 					}
+					
 					default:{
 						socket.emit('toServerChat', val, (clearInput) => {
 							if(clearInput){

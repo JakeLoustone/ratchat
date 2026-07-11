@@ -6,6 +6,7 @@ import { mType } from '../defs/def-message';
 import { tType } from '../defs/def-moderation';
 import type { RandomCandidateMap } from '../defs/def-random';
 
+import { ConfigService } from './config';
 import { DispatchService } from './dispatch';
 import { ModerationService } from './moderation';
 import { IdentityService } from './identity';
@@ -27,10 +28,11 @@ type StartNeuron = Omit<Neuron, 'table' | 'word3'>;
 type GramNeuron = Omit<Neuron, 'table'>;
 
 export interface MarkovServiceDependencies {
+	configService: ConfigService
 	dispatchService: DispatchService;
-	stateService: StateService;
 	moderationService: ModerationService;
 	identityService: IdentityService;
+	stateService: StateService;
 
 	brainPath: string;
 	io: Server;
@@ -44,12 +46,11 @@ export class MarkovService{
 	private deps: MarkovServiceDependencies;
 	constructor(dependencies: MarkovServiceDependencies){
 		this.deps = dependencies;
-		try{
-			this.loadBrain(this.deps.brainPath);
-		}
-		catch(error: unknown){
-			handleError(error, 'Load Markov Brain (Startup)');
-		}
+		this.init();		
+	}
+	
+	private init(){
+		this.initializeMarkovBrain();
 		this.startMarkovTimer(this.deps.io);
 	}
 
@@ -59,6 +60,7 @@ export class MarkovService{
 		}
 
 		const markovUser = this.deps.stateService.markovUser;
+		const maxLength = this.deps.configService.getServerConfig().maxMsgLen;
 		if(!markovUser){
 			throw new AppError('generateMarkovText call with markov disabled', 'bug');
 		}
@@ -130,7 +132,7 @@ export class MarkovService{
 
 				raw.push(next);
 
-				if(raw.join(" ").length > this.deps.stateService.getServerConfig().maxMsgLen){
+				if(raw.join(" ").length > maxLength){
 					raw.pop();
 					break;
 				}
@@ -165,7 +167,7 @@ export class MarkovService{
 	}
 
 	public async learnMarkovText(str: string){
-		if(!this.deps.stateService.getMarkovConfig().learning){
+		if(!this.deps.configService.getMarkovConfig().learning){
 			return;
 		}
 
@@ -220,22 +222,6 @@ export class MarkovService{
 		return;
 	}
 
-	private startMarkovTimer(io: Server){
-		setInterval(async () =>{
-			if(this.deps.stateService.markovSleep){
-				return;
-			}
-			try{
-				const gentext = await this.generateMarkovText(io);
-				if(this.deps.stateService.markovUser){
-					this.deps.dispatchService.sendMarkovChat(io, gentext, this.deps.stateService.markovUser, this.deps.stateService.markovUser, '');
-				}
-			}
-			catch(error: unknown){
-				handleError(error, 'Markov Timer');
-			}
-		}, this.deps.stateService.getMarkovConfig().timer*1000);
-	}
 	private queueSaveNeuron(entries: InsertNeuron[]){
 		this.markovQ = this.markovQ.then(() => this.saveNeuron(entries));
 	}
@@ -338,11 +324,25 @@ export class MarkovService{
 		throw new AppError ('neuron load failure', 'internal', 'warn');
 	}
 
-	private loadBrain(brainPath: string){
-		const brain = existsSync(brainPath);
-		this.db = new DatabaseSync(brainPath);
-		
-		if(!brain){
+	private initializeMarkovBrain(){
+		try{
+			this.db = new DatabaseSync(this.deps.brainPath);
+			const tables = this.fetchBrain(this.deps.brainPath);
+			const validTables = this.resolveBrain(tables);
+			const entries = this.assignDictionary(validTables);
+			console.log(`Loaded ${entries} start entries`);
+		}
+		catch(error: unknown){
+			handleError(error, 'Load Markov Brain (Startup)');
+		}
+	}
+
+	private fetchBrain(path: string): string[]{
+		if(!this.db){
+			throw new AppError('Connection failed before brain fetch', 'internal', 'error');
+		}
+
+		if(!existsSync(path)){
 			console.log('building markov brain....');
 			const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ_";
 			const startSchema = `CREATE TABLE IF NOT EXISTS %TABLE% (word1 TEXT, word2 TEXT, count INTEGER, PRIMARY KEY (word1, word2));`;
@@ -364,36 +364,65 @@ export class MarkovService{
 			this.db.exec("COMMIT");
 			this.db.exec("PRAGMA journal_mode = DELETE;");
 		}
-
-		const tables = 
+		const startTables = 
 			(this.db
 				.prepare(`SELECT name	FROM sqlite_master WHERE type='table' AND name LIKE 'start%';`)
 				.all() as {name: string}[]
 			)
 			.map(row => row.name);
+		return startTables;
+	}
 
-		let totalRows = 0;
+	private resolveBrain(tables: string[]): string[]{
+		let results: string[] = [];
 		for(const table of tables){
 			if(!/^[A-Za-z0-9_]+$/.test(table)){
 				console.log("sus table:", table);
 				continue;
 			}
+			else{
+				results.push(table);
+			}
+		}
+		return results;
+	}
 
+	private assignDictionary(tables: string[]): number{
+		if(!this.db){
+			throw new AppError('Connection failed before dictionary assignment', 'internal', 'error');
+		}
+		let dictentries = 0;
+		for(const table of tables){
 			try{
 				const rows = this.db.prepare(`SELECT word1 FROM ${table}`).all();
-
 				for(const row of rows){
 					if(row.word1 && typeof row.word1 === "string"){
 						this.dictionary.add(row.word1.toLowerCase());
 					}
 				}
-
-				totalRows += rows.length;
-			} 
+				dictentries += rows.length;
+			}
 			catch(error: unknown){
-				handleError(error, 'Load Brain Markov');
+				handleError(error, 'Assign Dictionary');
 			}
 		}
-		console.log(`loaded ${totalRows} markov start entries`);
+		return dictentries;
+	}
+
+	private startMarkovTimer(io: Server){
+		setInterval(async () =>{
+			if(this.deps.stateService.markovSleep){
+				return;
+			}
+			try{
+				const gentext = await this.generateMarkovText(io);
+				if(this.deps.stateService.markovUser){
+					this.deps.dispatchService.sendMarkovChat(io, gentext, this.deps.stateService.markovUser, this.deps.stateService.markovUser, '');
+				}
+			}
+			catch(error: unknown){
+				handleError(error, 'Markov Timer');
+			}
+		}, this.deps.configService.getMarkovConfig().timer*1000);
 	}
 }

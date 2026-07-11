@@ -4,6 +4,7 @@ import { clearInput, keepInput } from '../defs/def-input';
 import { mType } from '../defs/def-message';
 import type { Identity } from '../defs/def-identity';
 
+import { ConfigService } from './config';
 import { DispatchService } from './dispatch';
 import { ModerationService } from './moderation';
 import { IdentityService } from './identity';
@@ -13,6 +14,7 @@ import { MarkovService } from './markov';
 import { handleError } from '../utils/errors';
 
 export interface MessageServiceDependencies {
+	configService: ConfigService;
 	dispatchService: DispatchService;
 	stateService: StateService;
 	moderationService: ModerationService;
@@ -32,7 +34,7 @@ export class MessageService {
 		let safe = '';
 		try{
 			safe = this.deps.moderationService.moderateText(msg, user, 'chat');
-			this.deps.dispatchService.sendChat(this.deps.io, user, safe, this.deps.stateService.getServerConfig().msgArrayLen, spoiler);			
+			this.deps.dispatchService.sendChat(this.deps.io, user, safe, this.deps.configService.getServerConfig().msgArrayLen, spoiler);			
 		}
 		catch(error: unknown){
 			const response = handleError(error, 'handleChat text check');
@@ -54,11 +56,12 @@ export class MessageService {
 		catch(error: unknown){
 			handleError(error, 'handleChat Last Message');
 		}
-		if(this.deps.markovService && this.deps.stateService.getMarkovConfig().learning){
+		if(this.deps.markovService && this.deps.configService.getMarkovConfig().learning){
+			const markov = this.deps.markovService;
 			queueMicrotask(async () => {
 				try{
 					if(safe){
-						await this.deps.markovService!.learnMarkovText(safe);
+						await markov.learnMarkovText(safe);
 					}
 				}
 				catch(error: unknown){

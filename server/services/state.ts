@@ -1,23 +1,18 @@
-import { EventEmitter } from 'events';
 import type { Socket, Server } from 'socket.io';
 
-import { defaultServerConfig, defaultMarkovConfig, defaultGameConfig, ServerConfigSchema, MarkovConfigSchema, GameConfigSchema } from '../defs/def-config';
 import { mType } from '../defs/def-message';
-import { aType } from '../defs/def-parse';
-import type { ServerConfig, MarkovConfig, GameConfig } from '../defs/def-config';
 import type { Identity, UserSum } from '../defs/def-identity';
 
 import { CacheService } from './cache';
+import { ConfigService } from './config';
 import { DispatchService } from './dispatch';
+import { IdentityService } from './identity';
 import type { SafeString } from './moderation';
 
 import { handleError, AppError } from '../utils/errors';
 import { getBaseNick } from '../utils/format';
 import { hashIP } from '../utils/hash';
-import { mergeConfigDefaults } from '../utils/parse';
 import { createSaveQueue } from '../utils/queue';
-import { existsRepairFile, getRepairPath } from '../utils/repair';
-import { existsFile, createJsonFile, readJsonFile } from '../utils/serialize';
 import { isValid7TVID } from '../utils/validate';
 
 type EmoteEntry = {
@@ -34,25 +29,19 @@ const REDIS_MARKOVSLEEP_KEY = 'ratchat:markovsleep';
 
 export interface StateServiceDependencies{
 	cacheService: CacheService;
+	configService: ConfigService;
 	dispatchService: DispatchService;
-	
-	serverConfigPath: string;
-	markovConfigPath: string;
-	gameConfigPath: string;
+	identityService: IdentityService;
+
 	io: Server;
 }
 
 export class StateService {
-	public events = new EventEmitter();
 	public markovUser: Identity | null = null;
 	public markovSleep: boolean = false;
 	
 	private socketUsers = new Map<string, Identity>();
 	private emotes = new Map<string, string>();
-
-	private serverConfig: ServerConfig = {...defaultServerConfig};
-	private markovConfig: MarkovConfig = {...defaultMarkovConfig};
-	private gameConfig: GameConfig = {...defaultGameConfig};
 
 	private announcement: string = '';
 
@@ -66,41 +55,12 @@ export class StateService {
 	private deps: StateServiceDependencies;
 	constructor(dependencies: StateServiceDependencies){
 		this.deps = dependencies;
-		this.socketUsers = new Map;
+		this.init();
+	}
 
-		const pendingRepairs: string[] = [];
-		for(const path of [this.deps.serverConfigPath, this.deps.markovConfigPath, this.deps.gameConfigPath]){
-			if(existsRepairFile(path)){
-				pendingRepairs.push(path);
-			}
-		}
-		if(pendingRepairs.length > 0){
-			throw new AppError(`unresolved repair file(s) found for: ${pendingRepairs.join(', ')} — review and delete before restarting`, 'internal', 'error');
-		}
-
-		try{
-			this.loadServerConfig();
-			this.loadMarkovConfig();
-			this.loadGameConfig();
-		}
-		catch(error: unknown){
-			handleError(error, 'State Config Load');
-		}
-
+	private init(){
+		this.initializeMarkovUser();
 		this.startAfkTimer();
-		this.deps.dispatchService.startExpireMessageTimer(this.serverConfig.msgArrayTimeout);
-	}
-
-	public getServerConfig(): ServerConfig{
-		return this.serverConfig;
-	}
-
-	public getMarkovConfig(): MarkovConfig{
-		return this.markovConfig;
-	}
-
-	public getGameConfig(): GameConfig{
-		return this.gameConfig;
 	}
 
 	public getEmotes(): Map<string, string>{
@@ -109,7 +69,7 @@ export class StateService {
 
 	public async updateEmotes(io: Server, setID?: string): Promise<number>{
 
-		const targetID = setID ?? this.serverConfig.stvurl;
+		const targetID = setID ?? this.deps.configService.getServerConfig().stvurl;
 		if(!targetID){
 			throw new AppError('no emote url in config, please provide one', 'user');
 		}
@@ -186,7 +146,7 @@ export class StateService {
 		} 
 		catch(error: unknown){
 			if(error instanceof AppError){
-				throw error;
+				throw error; 
 			}
 			handleError(error, 'Remove Emotes');
 			
@@ -195,13 +155,23 @@ export class StateService {
 	}
 
 	public getSocketUsersMap(): Map<string, Identity>{
-		return this.socketUsers;
-	}
+		const copy = new Map<string, Identity>();
 
+		for(const [socketID, identity] of this.socketUsers){
+			copy.set(socketID, structuredClone(identity));
+		}
+
+		return copy;
+	}
+	
 	public getSocketUser(socketID: string): Identity | null {
-		return this.socketUsers.get(socketID) ?? null;
+		const user = this.socketUsers.get(socketID);
+		if(!user){
+			return null;
+		}
+		return structuredClone(user);
 	}
-
+	
 	public updateSocketUser(io: Server, socketID: string, identity: Identity){
 		this.socketUsers.set(socketID, identity);
 
@@ -275,7 +245,7 @@ export class StateService {
 				this.markovUser.isAfk = false;
 				this.broadcastUsers(io); 
 			}
-		}, this.markovConfig.cooldown * 1000);
+		}, this.deps.configService.getMarkovConfig().cooldown * 1000);
 	}
 
 	public toggleMarkovSleep(io: Server): boolean{
@@ -291,7 +261,7 @@ export class StateService {
 	}
 
 	public async restoreMarkovSleep(){
-		if(!this.markovConfig.enabled){
+		if(!this.deps.configService.getMarkovConfig().enabled){
 			console.log('markov bot disabled skipping markov toggle restore');
 			return;
 		}
@@ -351,7 +321,7 @@ export class StateService {
 					this.announcement = '';
 					console.warn('Redis announcement load was not a string, starting fresh');
 				}
-				else if(announcementLoad.length > this.serverConfig.maxMsgLen){
+				else if(announcementLoad.length > this.deps.configService.getServerConfig().maxMsgLen){
 					this.announcement = '';
 					console.warn('Redis announcement load exceeded maxMsgLen, starting fresh');
 				}
@@ -376,7 +346,7 @@ export class StateService {
 				this.signupBuffer.set(hashed, { socket, basenick });
 				this.signupPromise.set(socket, resolve);
 				if(!this.signupTimer){
-					this.signupTimer = setTimeout(() => this.resolveSignups(), this.serverConfig.signupTime * 1000);
+					this.signupTimer = setTimeout(() => this.resolveSignups(), this.deps.configService.getServerConfig().signupTime * 1000);
 				}
 			}
 			catch(error: unknown) {
@@ -427,58 +397,14 @@ export class StateService {
 		}
 	}
 
-	private loadServerConfig(){
-		const loadedCfg = this.readConfigFile(this.deps.serverConfigPath, defaultServerConfig, 'Server');
-		const repairPath = getRepairPath(this.deps.serverConfigPath);
-
-		try{
-			const [merged, failures] = mergeConfigDefaults(loadedCfg, defaultServerConfig, aType.sconfig, ServerConfigSchema);
-			this.serverConfig = merged;
-
-			if(failures.length > 0){
-				console.error(`Server config had ${failures.length} field(s) fall back to default, writing repair file`);
-				createJsonFile(repairPath, failures);
-			}
-
-			if(this.serverConfig.gdprcontact === 'admin@email.here'){
-				console.warn('No GDPR contact info set. If hosting publicly please set gdprcontact in config.json');
-			}
-		}
-		catch(error: unknown){
-			handleError(error, 'Server Config Merge');
-		}
-
-		Object.freeze(this.serverConfig);
-		console.log('LOADED SERVER CONFIG:', this.serverConfig);
-	}
-
-	private loadMarkovConfig(){
-		const loadedCfg = this.readConfigFile(this.deps.markovConfigPath, defaultMarkovConfig, 'Markov');
-		const repairPath = getRepairPath(this.deps.markovConfigPath);
-
-		try{
-			const [merged, failures] = mergeConfigDefaults(loadedCfg, defaultMarkovConfig, aType.mconfig, MarkovConfigSchema);
-			this.markovConfig = merged;
-
-			if(failures.length > 0){
-				console.error(`Markov config had ${failures.length} field(s) fall back to default, writing repair file`);
-				createJsonFile(repairPath, failures);
-			}
-
-		}
-		catch(error: unknown){
-			handleError(error, 'Markov Config Merge');
-		}
-
-		Object.freeze(this.markovConfig);
-		console.log('LOADED MARKOV CONFIG:', this.markovConfig);
-
-		if(this.markovConfig.enabled){
+	private initializeMarkovUser(){
+		const markovConfig = this.deps.configService.getMarkovConfig();
+		if(markovConfig.enabled){
 			this.markovUser = {
 				guid: 'markov',
 				playerid: 'markov',
-				fullnick: this.markovConfig.color + this.markovConfig.basenick,
-				status: this.markovConfig.status,
+				fullnick: markovConfig.color + markovConfig.basenick,
+				status: markovConfig.status,
 				lastMessage: new Date(0),
 				lastChanged: new Date(0),
 				isMod: false,
@@ -487,54 +413,13 @@ export class StateService {
 		}
 		else{
 			this.markovUser = null;
-		}		
-	}
-
-	private loadGameConfig(){
-		const loadedCfg = this.readConfigFile(this.deps.gameConfigPath, defaultGameConfig, 'Game')
-		const repairPath = getRepairPath(this.deps.gameConfigPath);
-
-		try{
-			const [merged, failures] = mergeConfigDefaults(loadedCfg, defaultGameConfig, aType.gconfig, GameConfigSchema);
-			this.gameConfig = merged;
-
-			if(failures.length > 0){
-				console.error(`Game config had ${failures.length} field(s) fall back to default, writing repair file`);
-				createJsonFile(repairPath, failures);
-			}
-		}
-		catch(error: unknown){
-			handleError(error, 'Game Config Merge');
-		}
-		Object.freeze(this.gameConfig);
-		console.log('LOADED GAME CONFIG: ', this.gameConfig);
-	}
-
-	private readConfigFile(path: string, defaultConfig: object, label: string): unknown{
-		if(!existsFile(path)){
-			try{
-				createJsonFile(path, defaultConfig);
-				console.log(`created default ${label} config json file`);
-			}
-			catch(error: unknown){
-				handleError(error, `Create ${label} Default Config File`);
-			}
-			return defaultConfig;
-		}
-
-		try{
-			return readJsonFile(path);
-		}
-		catch(error: unknown){
-			handleError(error, `${label} Config Load`);
-			return defaultConfig;
-		}
+		}	
 	}
 
 	private startAfkTimer(){
 		setInterval(() =>{
 			const now = Date.now();
-			const afkTime = this.serverConfig.afkDef * 1000;
+			const afkTime = this.deps.configService.getServerConfig().afkDef * 1000;
 			const updates: Array<{ id: string; user: Identity }> = [];
 
 			for(const [id, user] of this.socketUsers.entries()){
@@ -543,15 +428,14 @@ export class StateService {
 
 				if(now - lastMessage > afkTime && now - lastChanged > afkTime){
 					if(!user.isAfk){
-						this.events.emit('afk-check', user.guid);
-						updates.push({id, user});
+						const update = this.deps.identityService.setAfk(user.guid);
+						updates.push({id: id, user: update});
 					}
 				}
 			}
 
 			if(updates.length > 0){
 				updates.forEach(({ id, user }) => {
-					user.isAfk = true;
 					this.socketUsers.set(id, user);
 				});
 

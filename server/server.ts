@@ -86,6 +86,8 @@ async function main(): Promise<void> {
 	});
 
 	const securityService = new SecurityService({
+		configService: configService,
+
 		bansPath: bansPath,
 	});
 

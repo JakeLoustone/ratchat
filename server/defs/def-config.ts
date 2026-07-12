@@ -23,6 +23,7 @@ export const ServerConfigSchema = z.object({
 	maxStatusLen: z.number().int().min(1).max(128),
 	msgArrayLen: z.number().int().min(0).max(1024),
 	msgArrayTimeout: z.number().int().min(60).max(2592000),
+	banLength: z.number().int().min(1).max(365), //days
 	stvurl: z.string().refine(isValid7TVID, { message: "doesn't look like a 7tv emote set ID" }).optional(),
 	baseNickRes: z.array(z.string().min(2).max(64).regex(/^\S+$/)).max(32),
 	gdprcontact: z.email().or(z.string().min(1).max(255)),
@@ -41,6 +42,7 @@ export const defaultServerConfig: ServerConfig = {
 	maxStatusLen: 32,
 	msgArrayLen: 25,
 	msgArrayTimeout: 86400, 
+	banLength: 365,
 	stvurl: undefined,
 	baseNickRes: [],
 	gdprcontact: 'admin@email.here',

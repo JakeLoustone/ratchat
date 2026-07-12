@@ -1,16 +1,31 @@
 import { Socket } from 'socket.io';
 
+import { ConfigService } from './config';
+
 import { handleError, AppError } from '../utils/errors';
 import { hashIP } from '../utils/hash';
 import { createSaveQueue } from '../utils/queue';
 import { existsFile, createJsonFile, readJsonFile, writeJsonFile } from '../utils/serialize';
 
+type BanEntry = {
+	hash: string;
+	date: Date;
+}
+
+type BanTimerEntry = {
+	timer: NodeJS.Timeout;
+	armedForDate: Date;
+}
+
 export interface SecurityServiceDependencies{
+	configService: ConfigService;
+
 	bansPath: string;
 }
 
 export class SecurityService{
-	private bans: Map<string, Date> = new Map();
+	private bans: Map<BanEntry["hash"], BanEntry> = new Map();
+	private bansTimers: Map<BanEntry["hash"], BanTimerEntry> = new Map();
 	private banQueue = createSaveQueue(() => this.saveBans());
 	
 	private deps: SecurityServiceDependencies;
@@ -21,6 +36,7 @@ export class SecurityService{
 
 	private init(): void {
 		this.initializeBans();
+		this.startBanSweepTimer();
 	}
 	
 	public existsBan(unhashed: string): boolean {
@@ -45,8 +61,41 @@ export class SecurityService{
 
 	public setBan(socket: Socket): void {
 		const banIP = hashIP(socket.handshake.address);
-		this.bans.set(banIP, new Date());
+		const now = new Date();
+		const ban: BanEntry = {hash: banIP, date: now};
+		this.bans.set(ban.hash, ban);
+		this.scheduleBanExpiration(ban);
 		this.banQueue.chain();
+	}
+
+	private deleteBan(ban: BanEntry): void {
+		this.bans.delete(ban.hash);
+		this.bansTimers.delete(ban.hash);
+		this.banQueue.chain();
+	}
+
+	private scheduleBanExpiration(ban: BanEntry): void {
+		const existing = this.bansTimers.get(ban.hash);
+		if(existing && existing.armedForDate.getTime() === ban.date.getTime()){
+			return;
+		}
+
+		if(existing){
+			clearTimeout(existing.timer);
+			this.bansTimers.delete(ban.hash);
+		}
+
+
+		const banLengthMs = this.deps.configService.getServerConfig().banLength * 24 * 60 * 60 * 1000;
+		const armThresholdMs = 14 * 24 * 60 * 60 * 1000;
+		const expires = ban.date.getTime() + banLengthMs;
+		const remaining = expires - Date.now();
+
+		if(remaining <= armThresholdMs){
+			const timer = setTimeout(() => this.deleteBan(ban), remaining);
+			const bte : BanTimerEntry = {timer: timer, armedForDate: ban.date};
+			this.bansTimers.set(ban.hash, bte);
+		}
 	}
 
 	private async saveBans(): Promise<void> {
@@ -61,11 +110,11 @@ export class SecurityService{
 	private initializeBans(): void {
 		const loadedbans = this.fetchBans();
 		const validbans = this.resolveBans(loadedbans);
-		this.bans = validbans;
+		this.assignBans(validbans);
 	}
 
 	private fetchBans(): unknown{
-		const bans: [string, Date][] = [];
+		const bans: BanEntry[] = [];
 		try{
 			if(!existsFile(this.deps.bansPath)){
 				createJsonFile(this.deps.bansPath, bans);
@@ -80,22 +129,62 @@ export class SecurityService{
 		}
 	}
 
-	private resolveBans(input: unknown): Map<string, Date>{
+	private resolveBans(input: unknown): BanEntry[]{
 		if(!Array.isArray(input)){
 			console.error('Ban data was not an array, starting fresh');
-			return new Map();
+			return [];
+		}
+		const banLengthMS = this.deps.configService.getServerConfig().banLength * 24 * 60 * 60 * 1000;
+		const validEntries: BanEntry[] = [];
+		let invalidEntries = 0;
+		let expiredEntries = 0;
+		for(const entry of input){
+			if(!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string'){
+				invalidEntries++;
+				continue;
+			}
+
+			if(typeof entry[1] !== 'object' || entry[1] === null){
+				invalidEntries++;
+				continue;
+			}
+
+			const date = new Date((entry[1] as BanEntry).date);
+			if(isNaN(date.getTime())){
+				invalidEntries++;
+				continue;
+			}
+
+			const expire = date.getTime() + banLengthMS;
+			if(expire < Date.now()){
+				expiredEntries++;
+				continue;
+			}
+
+			validEntries.push({hash: entry[0], date: date});
+		}
+		console.log(`loaded ${validEntries.length} bans, ${invalidEntries} invalid entries dropped, ${expiredEntries} expired.`);
+		return validEntries;
+	}
+
+	private assignBans(entries: BanEntry[]): void {
+		const bans = new Map<BanEntry["hash"], BanEntry>();
+
+		for(const entry of entries){
+			bans.set(entry.hash, entry);
+			this.scheduleBanExpiration(entry);
 		}
 
-		const validEntries: [string, Date][] = [];
-		for(const entry of input){
-			if(Array.isArray(entry) && entry.length === 2 && typeof entry[0] === 'string'){
-				const date = new Date(entry[1]);
-				if(!isNaN(date.getTime())){
-					validEntries.push([entry[0], date]);
-				}
+		this.bans = bans;
+		this.banQueue.chain();
+	}
+
+	private startBanSweepTimer(): void {
+		const sweepIntervalMs = 7 * 24 * 60 * 60 * 1000;
+		setInterval(() => {
+			for(const ban of this.bans.values()){
+				this.scheduleBanExpiration(ban);
 			}
-		}
-		console.log(`loaded ${validEntries.length} bans`);
-		return new Map(validEntries);
+		}, sweepIntervalMs);
 	}
 }

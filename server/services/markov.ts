@@ -14,6 +14,7 @@ import { StateService } from './state';
 
 import { AppError, handleError } from '../utils/errors';
 import { getBaseNick } from '../utils/format';
+import { isUnknownArray } from '../utils/parse';
 import { pickWeighted } from '../utils/random';
 
 type Neuron = {
@@ -28,7 +29,7 @@ type StartNeuron = Omit<Neuron, 'table' | 'word3'>;
 type GramNeuron = Omit<Neuron, 'table'>;
 
 export interface MarkovServiceDependencies {
-	configService: ConfigService
+	configService: ConfigService;
 	dispatchService: DispatchService;
 	moderationService: ModerationService;
 	identityService: IdentityService;
@@ -39,6 +40,7 @@ export interface MarkovServiceDependencies {
 }
 
 export class MarkovService{
+	private startTables: string[] = [];
 	private dictionary: Set<string> = new Set();
 	private db: DatabaseSync | null = null;
 	private markovQ = Promise.resolve();
@@ -170,7 +172,7 @@ export class MarkovService{
 			throw new AppError('brain db not initialized', 'internal', 'warn');
 		}
 
-		const words =  str
+		const words = str
 			.split(/\s+/)
 			.filter(w => !this.deps.identityService.existsUserByBaseNick(w))
 			.map(w => w.trim())
@@ -257,41 +259,114 @@ export class MarkovService{
 			throw new AppError('brain db not initialized', 'internal', 'warn');
 		}
 
-		if(!seed){
-			const results: StartNeuron[] = [];
-			const tables = (this.db
-				.prepare('SELECT name FROM sqlite_master WHERE type=\'table\' AND name LIKE \'start_%\'')
-				.all() as {name: string}[])
-				.map(row => row.name);
+		let rows: unknown[];
 
-			for(const table of tables){
-				const rows = this.db.prepare(`SELECT word1, word2, count FROM ${table}`).all() as StartNeuron[];
-				results.push(...rows);
-			}
-			return results;
+		if(seed){
+			const db = this.db;
+			const letter = seed[0].toUpperCase().replace(/[^A-Z_]/g, '_');
+			const table = `start_${letter}`;
+			rows = (db
+				.prepare(`SELECT word1, word2, count FROM ${table} WHERE LOWER(word1) = LOWER(?)`)
+				.all(seed));
+		}
+		else{
+			const db = this.db;
+			const tables = this.startTables;
+			rows = tables.flatMap(table => db
+				.prepare(`SELECT word1, word2, count FROM ${table}`)
+				.all());
 		}
 
-		const letter = seed[0].toUpperCase().replace(/[^A-Z_]/g, '_');
-		const table = `start_${letter}`;
-		return this.db.prepare(`SELECT word1, word2, count FROM ${table} WHERE LOWER(word1) = LOWER(?)`).all(seed) as StartNeuron[];
+		const results: StartNeuron[] = [];
+		let drops = 0;
+
+		for(const row of rows){
+			if(!this.isValidStartNeuron(row)){
+				drops++;
+				continue;
+			}
+			results.push(row);
+		}
+
+		if(drops > 0){
+			console.warn(`${drops} dropped start neuron row(s) on loadStartNeuron, check brain db integrity`);
+		}
+
+		return results;
 	}
 
 	private async loadGramNeuron(prev: string, curr: string): Promise<GramNeuron[]> {
-		if(!this.db){
+		const db = this.db;
+		if(!db){
 			throw new AppError('brain db not initialized', 'internal', 'warn');
 		}
 
 		const letters = (prev[0] + curr[0]).toUpperCase().replace(/[^A-Z_]/g, '_');
 		const table = `gram_${letters}`;
-		return this.db.prepare(`SELECT word1, word2, word3, count FROM ${table} WHERE LOWER(word1) = LOWER(?) AND LOWER(word2) = LOWER(?)`).all(prev, curr) as GramNeuron[];
+		const rows: unknown[] = (db
+			.prepare(`SELECT word1, word2, word3, count FROM ${table} WHERE LOWER(word1) = LOWER(?) AND LOWER(word2) = LOWER(?)`)
+			.all(prev, curr));
+		
+		const results: GramNeuron[] = [];
+		let drops = 0;
+
+		for(const row of rows){
+			if(!this.isValidGramNeuron(row)){
+				drops++;
+				continue;
+			}
+			results.push(row);
+		}
+
+		if(drops > 0){
+			console.warn(`${drops} dropped gram neuron row(s) on loadGramNeuron, check brain db integrity`);
+		}
+
+		return results;
+	}
+
+	private isValidStartNeuron(input: unknown): input is StartNeuron {
+		if(typeof input !== 'object' || input === null){
+			return false;
+		}
+		if(!('word1' in input) || typeof input.word1 !== 'string'){
+			return false;
+		}
+		if(!('word2' in input) || typeof input.word2 !== 'string'){
+			return false;
+		}
+		if(!('count' in input) || typeof input.count !== 'number'){
+			return false;
+		}
+		return true;
+	}
+	
+	private isValidGramNeuron(input: unknown): input is GramNeuron {
+		if(typeof input !== 'object' || input === null){
+			return false;
+		}
+		if(!('word1' in input) || typeof input.word1 !== 'string'){
+			return false;
+		}
+		if(!('word2' in input) || typeof input.word2 !== 'string'){
+			return false;
+		}
+		if(!('word3' in input) || typeof input.word3 !== 'string'){
+			return false;
+		}
+		if(!('count' in input) || typeof input.count !== 'number'){
+			return false;
+		}
+		return true;
 	}
 
 	private initializeMarkovBrain(): void {
 		try{
 			this.db = new DatabaseSync(this.deps.brainPath);
-			const tables = this.fetchBrain(this.deps.brainPath);
-			const validTables = this.resolveBrain(tables);
-			const entries = this.assignDictionary(validTables);
+			const tableNames = this.fetchBrain(this.deps.brainPath);
+			const validTableNames = this.resolveBrain(tableNames);
+			this.startTables = validTableNames; 
+			const entries = this.assignDictionary();
 			console.log(`Loaded ${entries} start entries`);
 		}
 		catch(error: unknown){
@@ -299,7 +374,7 @@ export class MarkovService{
 		}
 	}
 
-	private fetchBrain(path: string): string[]{
+	private fetchBrain(path: string): unknown[]{
 		if(!this.db){
 			throw new AppError('Connection failed before brain fetch', 'internal', 'error');
 		}
@@ -326,48 +401,66 @@ export class MarkovService{
 			this.db.exec('COMMIT');
 			this.db.exec('PRAGMA journal_mode = DELETE;');
 		}
-		const startTables = 
-			(this.db
-				.prepare('SELECT name	FROM sqlite_master WHERE type=\'table\' AND name LIKE \'start%\';')
-				.all() as {name: string}[]
-			)
-			.map(row => row.name);
-		return startTables;
+		const startTablesNames = (this.db.prepare('SELECT name	FROM sqlite_master WHERE type=\'table\' AND name LIKE \'start\\_%\' ESCAPE \'\\\''));
+		startTablesNames.setReturnArrays(true);
+		return startTablesNames.all();
 	}
 
-	private resolveBrain(tables: string[]): string[]{
+	private resolveBrain(input: unknown[]): string[]{
 		const results: string[] = [];
-		for(const table of tables){
-			if(!/^[A-Za-z0-9_]+$/.test(table)){
-				console.log('sus table:', table);
+		let drops = 0;
+
+		for(const row of input){
+			if(!isUnknownArray(row) || typeof row[0] !== 'string'){
+				drops++;
 				continue;
 			}
-			else{
-				results.push(table);
+
+			if(!/^[A-Za-z0-9_]+$/.test(row[0])){
+				drops++;
+				continue;
 			}
+
+			results.push(row[0]);
 		}
+
+		if(drops > 0){
+			console.warn(`${drops} dropped table entries on resolveBrain, check brain db integrity`);
+		}
+
 		return results;
 	}
 
-	private assignDictionary(tables: string[]): number{
+	private assignDictionary(): number{
 		if(!this.db){
 			throw new AppError('Connection failed before dictionary assignment', 'internal', 'error');
 		}
+
 		let dictentries = 0;
+		let drops = 0;
+		const tables = this.startTables;
 		for(const table of tables){
 			try{
-				const rows = this.db.prepare(`SELECT word1 FROM ${table}`).all();
+				const rows: unknown[] = this.db.prepare(`SELECT word1 FROM ${table}`).all();
 				for(const row of rows){
-					if(row.word1 && typeof row.word1 === 'string'){
-						this.dictionary.add(row.word1.toLowerCase());
+					if(typeof row !== 'object' || row === null || !('word1' in row) || typeof row.word1 !== 'string'){
+						drops++;
+						continue;
 					}
+
+					this.dictionary.add(row.word1.toLowerCase());
+					dictentries++;
 				}
-				dictentries += rows.length;
 			}
 			catch(error: unknown){
 				handleError(error, 'Assign Dictionary');
 			}
 		}
+
+		if(drops > 0){
+			console.warn(`${drops} dropped dictionary row(s) on assignDictionary, check brain db integrity`);
+		}
+
 		return dictentries;
 	}
 

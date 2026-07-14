@@ -25,6 +25,7 @@ import { CommandService } from './services/command';
 
 import { getBaseNick } from './utils/format';
 import { handleError } from './utils/errors';
+import { isValidGUID } from './utils/validate';
 
 main().catch(error => {
 	console.error('Fatal error:', error);
@@ -224,12 +225,13 @@ async function main(): Promise<void> {
 			}
 		}
 
-		//Identity Service
-		const clientGUID = socket.handshake.auth.token;
-		let returningUser: Identity | null = null;
+		const clientAuth = socket.handshake.auth.token;
 
-		if(identityService.existsUser(clientGUID)){
-			returningUser = identityService.getUser(clientGUID);
+		let returningUser: Identity | null = null;
+		if(isValidGUID(clientAuth)){
+			if(identityService.existsUser(clientAuth)){
+				returningUser = identityService.getUser(clientAuth);
+			}
 		}
 
 		if(returningUser){

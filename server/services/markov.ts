@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { cType } from '../defs/def-events';
 import { tType } from '../defs/def-moderation';
 import type { RatServer } from '../defs/def-events';
-import type { RandomCandidateMap } from '../defs/def-random';
+import type { WeightedCandidates} from '../defs/def-random';
 
 import { ConfigService } from './config';
 import { DispatchService } from './dispatch';
@@ -86,7 +86,7 @@ export class MarkovService{
 					throw new AppError(`${getBaseNick(markovUser.fullnick)} don't know nothin about '${seed}'`, 'user');
 				}
 
-				const weightMap: RandomCandidateMap = new Map(
+				const weightMap: WeightedCandidates= new Map(
 					startCandidates.map((candidate, candidateIndex) => [String(candidateIndex), candidate.count])
 				);
 
@@ -101,7 +101,7 @@ export class MarkovService{
 					throw new AppError('no start entries in markov brain', 'internal', 'warn');
 				}
 
-				const weightMap: RandomCandidateMap = new Map(
+				const weightMap: WeightedCandidates= new Map(
 					startCandidates.map((candidate, candidateIndex) => [String(candidateIndex), candidate.count])
 				);
 
@@ -119,7 +119,7 @@ export class MarkovService{
 				if(gramCandidates.length === 0){
 					break;
 				}
-				const weightMap: RandomCandidateMap = new Map(
+				const weightMap: WeightedCandidates= new Map(
 					gramCandidates.map((candidate, candidateIndex) => [String(candidateIndex), candidate.count])
 				);
 

@@ -8,3 +8,4 @@ export type Command = {
 	fullArgs: string;
 	commandUser: Identity | null;
 }
+export type GameCommand = Omit<Command, 'commandUser'> & { commandUser: Identity };

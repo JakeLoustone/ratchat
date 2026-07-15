@@ -165,7 +165,8 @@ async function main(): Promise<void> {
 		dispatchService: dispatchService,
 		gameIdentityService: gameIdentityService,
 		identityService: identityService,
-		gameStateService: gameStateService
+		gameStateService: gameStateService,
+		stateService: stateService
 	});
 
 	const commandService = new CommandService({

@@ -90,6 +90,23 @@ export class GameIdentityService {
 		return gameId;
 	}
 
+	public setFishingBestCatch(playerid: GameIdentity['playerid'], bestCatch: string, value: number): GameIdentity{
+		if(!this.deps.configService.getGameConfig().enabled){
+			throw new AppError('setFishingBestCatch call with minigames disabled', 'bug');
+		}
+
+		const gameId = this.gameUsers.get(playerid);
+		if(!gameId){
+			throw new AppError('set fishing best catch: no matching game user found to playerid', 'internal', 'warn');
+		}
+
+		gameId.fishingBestCatch = bestCatch;
+		gameId.fishingBestCatchValue = value;
+
+		this.gameUserQueue.chain();
+		return gameId;
+	}
+
 	public existsGameUser(playerid: GameIdentity['playerid']): boolean{
 		const user = this.gameUsers.get(playerid);
 		if(user){

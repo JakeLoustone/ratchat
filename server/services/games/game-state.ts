@@ -1,5 +1,7 @@
+import { fType } from '../../defs/def-games';
 import { aType } from '../../defs/def-parse';
 import { HorseRecordEntrySchema, FishRecordEntrySchema } from '../../defs/def-record';
+import type { FishCatch, FishingEventCallback, FishResult } from '../../defs/def-games';
 import type { GameIdentity } from '../../defs/def-identity';
 import type { LeaderboardEntry, BlackjackEntry, DuelingEntry, FishingEntry, HorseEntry } from '../../defs/def-leaderboard';
 import type { PublicLeaderboard, PublicOverallLeaderboard, PublicBlackjackLeaderboard, PublicDuelingLeaderboard, PublicFishingLeaderboard, PublicHorseLeaderboard } from '../../defs/def-leaderboard';
@@ -14,8 +16,11 @@ import { IdentityService } from '../identity';
 import { handleError, AppError } from '../../utils/errors';
 import { mergeRecordDefaults, isUnknownArray } from '../../utils/parse';
 import { createSaveQueue } from '../../utils/queue';
+import { randomInt } from '../../utils/random';
 import { assertSafeStartup, getRepairPath } from '../../utils/repair';
 import { createJsonFile, existsFile, readJsonFile, writeJsonFile } from '../../utils/serialize';
+
+import { createCatch } from './game-utils/fishing';
 
 import { defaultFishCatalog } from '../catalogs/catalog-fish';
 import { defaultHorseCatalog } from '../catalogs/catalog-horse';
@@ -25,7 +30,26 @@ type StageTwo = StageOne & { fishingTypesCaught: number, fishingRecords: number 
 type FullEntry = LeaderboardEntry & BlackjackEntry & DuelingEntry & FishingEntry & HorseEntry;
 type FullLeaderboard = FullEntry[];
 
+type FishingSession = {
+	playerid: GameIdentity['playerid'];
+	fish: FishCatch | null;
+	biting: boolean;
+	biteTimer: NodeJS.Timeout;
+	expireTimer: NodeJS.Timeout | null;
+	eventCallback: FishingEventCallback;
+};
+
 //const REDIS_BLACKJACK_KEY = 'ratchat:blackjack';
+const MIN_FISH_WAIT = 5;
+const MAX_FISH_WAIT = 20;
+const MIN_FISH_WAIT_TARGET = 10;
+const MAX_FISH_WAIT_TARGET = 60;
+const MIN_FISH_WAIT_BAD_TARGET = 50;
+const MAX_FISH_WAIT_BAD_TARGET = 60;
+const MIN_FISH_CATCH_WINDOW = 5;
+const MAX_FISH_CATCH_WINDOW = 10;
+const BIG_FISH_THRESHOLD = 80;
+const SMALL_FISH_THRESHOLD = 5;
 
 export interface GameStateServiceDependencies{
 	cacheService: CacheService;
@@ -38,6 +62,8 @@ export interface GameStateServiceDependencies{
 }
 
 export class GameStateService {
+	private activeFishing: Map<GameIdentity['playerid'], FishingSession> = new Map();
+
 	private horseRecords: PrivateHorseRecordList = [];
 	private fishRecords: PrivateFishRecordList = [];
 
@@ -55,6 +81,131 @@ export class GameStateService {
 		assertSafeStartup(this.deps.horseRecordsPath);
 		this.initializeFishRecords();
 		this.initializeHorseRecords();
+	}
+
+	public existsFishingSession(playerid: GameIdentity['playerid']): boolean {
+		const session = this.activeFishing.get(playerid);
+		if(session){
+			return true;
+		}
+		return false;
+	}
+
+	public createFishingSession(playerid: GameIdentity['playerid'], target: string | null, callback: FishingEventCallback): void {
+		const fishCatch = createCatch(target, this.fishRecords);
+
+		let castDuration: number;
+		if(!fishCatch){
+			castDuration = randomInt(MIN_FISH_WAIT_BAD_TARGET, MAX_FISH_WAIT_BAD_TARGET);
+		}
+		else if(target){
+			castDuration = randomInt(MIN_FISH_WAIT_TARGET, MAX_FISH_WAIT_TARGET);
+		}
+		else{
+			castDuration = randomInt(MIN_FISH_WAIT, MAX_FISH_WAIT);
+		}
+
+		const biteTimer = setTimeout(() => {
+			this.advanceFishingSession(playerid);
+		}, castDuration * 1000);
+
+		const session: FishingSession = {
+			playerid: playerid,
+			fish: fishCatch,
+			biting: false,
+			biteTimer: biteTimer,
+			expireTimer: null,
+			eventCallback: callback
+		};
+
+		this.activeFishing.set(playerid, session);
+	}
+
+	public catchFishingSession(playerid: GameIdentity['playerid']): FishResult | null {
+		const session = this.activeFishing.get(playerid);
+
+		if(!session){
+			throw new AppError("you don't have a line in the water", 'user');
+		}
+
+		if(!session.biting || !session.fish){
+			return null;
+		}
+		const fishCatch = session.fish;
+
+		if(session.expireTimer){
+			clearTimeout(session.expireTimer);
+		}
+		this.activeFishing.delete(playerid);
+		const currentRecord = this.fishRecords.find(entry => entry.fishName === fishCatch.name);
+
+		if(!currentRecord){
+			throw new AppError('no matching fish record found for caught fish', 'bug');
+		}
+
+		let record = false;
+		if(!currentRecord.weight || fishCatch.weight > currentRecord.weight){
+			record = true;
+			currentRecord.weight = fishCatch.weight;
+			currentRecord.playerid = playerid;
+			currentRecord.fullnick = this.deps.identityService.getFullNickByPlayerId(playerid);
+			this.fishQueue.chain();
+		}
+
+		const gameUser = this.deps.gameIdentityService.getGameUser(playerid);
+
+		let pb = false;
+		if(gameUser.fishingBestCatchValue === null || fishCatch.value > gameUser.fishingBestCatchValue){
+			pb = true;
+			const bestCatchDisplay = `${fishCatch.name}, ${fishCatch.weight}oz`;
+			this.deps.gameIdentityService.setFishingBestCatch(playerid, bestCatchDisplay, fishCatch.value);
+		}
+		const big = fishCatch.value > BIG_FISH_THRESHOLD;
+		const small = fishCatch.value < SMALL_FISH_THRESHOLD;
+		const fishResult = {
+			name: fishCatch.name,
+			weight: fishCatch.weight,
+			value: fishCatch.value,
+			record: record,
+			pb: pb,
+			big: big,
+			small: small
+		};
+		return fishResult;
+	}
+
+	private advanceFishingSession(playerid: GameIdentity['playerid']): void {
+		const session = this.activeFishing.get(playerid);
+		if(!session){
+			return;
+		}
+		if(!session.fish){
+			this.activeFishing.delete(playerid);
+			session.eventCallback(playerid, fType.nothing);
+			return;
+		}
+
+		session.biting = true;
+		session.eventCallback(playerid, fType.bite);
+
+		const catchWindow = MAX_FISH_CATCH_WINDOW - ((session.fish.value / 100) * (MAX_FISH_CATCH_WINDOW - MIN_FISH_CATCH_WINDOW));
+
+		const expireTimer = setTimeout(() => {
+			this.expireFishingSession(playerid);
+		}, catchWindow * 1000);
+
+		session.expireTimer = expireTimer;
+	}
+
+	private expireFishingSession(playerid: GameIdentity['playerid']): void {
+		const session = this.activeFishing.get(playerid);
+
+		if(!session){
+			return;
+		}
+
+		this.activeFishing.delete(playerid);
+		session.eventCallback(playerid, fType.expired);
 	}
 
 	public getLeaderboard(): PublicOverallLeaderboard;

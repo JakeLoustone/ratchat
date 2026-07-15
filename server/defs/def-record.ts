@@ -16,10 +16,11 @@ const RecordIdentityEntrySchema = z.object({}).extend({
 export type FishCatalogEntry = z.infer<typeof FishCatalogEntrySchema>;
 export type FishRecordEntry = z.infer<typeof FishRecordEntrySchema>;
 export type PublicFishRecordEntry = Omit<FishRecordEntry, 'playerid'>;
-export type DefaultFishRecordEntry = Omit<FishRecordEntry, 'fishName' | 'baseline'>;
+export type DefaultFishRecordEntry = Omit<FishRecordEntry, 'fishName' | 'fishFlavor' | 'baseline'>;
 export const FishCatalogEntrySchema = z.object({
-	fishName: z.string().max(128),
-	baseline: z.number().min(0)
+	fishName: z.string().min(2).max(128),
+	baseline: z.number().min(0),
+	fishFlavor: z.string().min(2).max(128)
 });
 export const FishRecordEntrySchema = FishCatalogEntrySchema.extend({
 	weight: z.number().min(0).nullable(),

@@ -23,6 +23,7 @@ export function createCatch(target: string | null, records: PrivateFishRecordLis
 
 	const fishCatch = {
 		name: fish.fishName,
+		flavor: fish.fishFlavor,
 		weight: weight,
 		value: value
 	};

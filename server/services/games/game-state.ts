@@ -155,22 +155,29 @@ export class GameStateService {
 		const gameUser = this.deps.gameIdentityService.getGameUser(playerid);
 
 		let pb = false;
-		if(gameUser.fishingBestCatchValue === null || fishCatch.value > gameUser.fishingBestCatchValue){
+		if(gameUser.fishingBestCatchValue === null || Math.ceil(fishCatch.value) > gameUser.fishingBestCatchValue){
 			pb = true;
 			const bestCatchDisplay = `${fishCatch.name}, ${fishCatch.weight}oz`;
 			this.deps.gameIdentityService.setFishingBestCatch(playerid, bestCatchDisplay, fishCatch.value);
+		}
+		const newcatch = !gameUser.fishingFishCaught.includes(fishCatch.name);
+		if(newcatch){
+			this.deps.gameIdentityService.setFishingFishCaught(gameUser.playerid, fishCatch.name);
 		}
 		const big = fishCatch.value > BIG_FISH_THRESHOLD;
 		const small = fishCatch.value < SMALL_FISH_THRESHOLD;
 		const fishResult = {
 			name: fishCatch.name,
+			flavor: fishCatch.flavor,
 			weight: fishCatch.weight,
 			value: fishCatch.value,
 			record: record,
 			pb: pb,
+			newcatch: newcatch,
 			big: big,
 			small: small
 		};
+		this.deps.gameIdentityService.incrementFishingCatches(gameUser.playerid);
 		return fishResult;
 	}
 

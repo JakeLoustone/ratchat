@@ -92,7 +92,7 @@ export class GameCommandService {
 	private sendUserPoints(ctx: GameCommand, points: number, event: GameEventType): void {
 		this.deps.gameIdentityService.setGamePoints(ctx.commandUser.playerid, points);
 		const name = this.deps.configService.getGameConfig().pointName;
-		this.deps.dispatchService.sendGamePayload(ctx.socket, `you've earned ${points} ${name}!`, event);
+		this.deps.dispatchService.sendGamePayload(ctx.socket, `you've earned ${points} ${name}, don't spend it all in one place`, event);
 	}
 
 	private async executeGameCommand(name: string, ctx: GameCommand): Promise<InputStatus> {
@@ -112,14 +112,22 @@ export class GameCommandService {
 	private handleFishingEvent(playerid: GameIdentity['playerid'], event: FishingEventType, io: RatServer): void {
 		let message: string;
 
-		if(event === fType.bite){
-			message = 'fish on! /catch it before it gets away!';
-		}
-		else if(event === fType.expired){
-			message = 'damn, it got away...';
-		}
-		else{
-			message = 'looks like nothing bit...';
+		switch(event){
+			case fType.bite:{
+				message = 'fish on! /catch it before it gets away!';
+				break;
+			}
+			case fType.expired:{
+				message = 'damn, it got away...';
+				break;
+			}
+			case fType.nothing:{
+				message = 'looks like nothing bit...';
+				break;
+			}
+			default:{
+				message = 'looks like nothing bit...';
+			}
 		}
 
 		for(const [socketID, identity] of this.deps.stateService.getSocketUsersMap()){
@@ -174,8 +182,8 @@ export class GameCommandService {
 					return clearInput;
 				}
 				let target = null;
-				if(ctx.args[0]){
-					target = ctx.args[0];
+				if(ctx.fullArgs){
+					target = ctx.fullArgs;
 				}
 
 				try{
@@ -210,36 +218,33 @@ export class GameCommandService {
 				try{
 					const fishResult = this.deps.gameStateService.catchFishingSession(ctx.commandUser.playerid);
 					if(!fishResult){
-						this.deps.dispatchService.sendGamePayload(ctx.socket, "Your hook's empty...", eType.fishing);
+						this.deps.dispatchService.sendGamePayload(ctx.socket, "your hook's empty...", eType.fishing);
 						return clearInput;
 					}
-					else if(fishResult.record){
-						this.deps.dispatchService.sendGamePayload(ctx.socket, `You caught a ${fishResult.name} weighing ${fishResult.weight} ounces. Wow! That's a server record!`, eType.fishing);
+
+					let resultMessage = `you caught a ${fishResult.name.toUpperCase()} weighing ${fishResult.weight} ounces`;
+					if(fishResult.record){
+						resultMessage += ' new server fish record!';
+					}
+					if(fishResult.pb){
+						resultMessage += ' new personal best catch!';
+					}
+					if(fishResult.newcatch){
+						resultMessage += ' never seen one of those before.';
+					}
+					if(fishResult.big){
+						resultMessage += " that's a biggun'";
+					}
+					if(fishResult.small){
+						resultMessage += " that's a smallun'";
+					}
+
+					this.deps.dispatchService.sendGamePayload(ctx.socket, resultMessage, eType.fishing);
+					this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.info, fishResult.flavor);
+					if(fishResult.record){
 						const basenick = getBaseNick(ctx.commandUser.fullnick);
-						this.deps.dispatchService.sendGamePayload(ctx.io,`${basenick} caught a new server record ${fishResult.name} weighing ${fishResult.weight} ounces!`, eType.fishing);
-						const points = Math.ceil(fishResult.value);
-						this.sendUserPoints(ctx, points, eType.fishing);
-						return clearInput;
+						this.deps.dispatchService.sendGamePayload(ctx.io, `${basenick} caught a new server record ${fishResult.name.toLowerCase()} weighing ${fishResult.weight} ounces!`, eType.fishing);
 					}
-					else if(fishResult.pb){
-						this.deps.dispatchService.sendGamePayload(ctx.socket, `You caught a ${fishResult.name} weighing ${fishResult.weight} ounces. New personal best!`, eType.fishing);
-						const points = Math.ceil(fishResult.value);
-						this.sendUserPoints(ctx, points, eType.fishing);
-						return clearInput;
-					}
-					else if(fishResult.big){
-						this.deps.dispatchService.sendGamePayload(ctx.socket, `You caught a ${fishResult.name} weighing ${fishResult.weight} ounces. That's a biggun'`, eType.fishing);
-						const points = Math.ceil(fishResult.value);
-						this.sendUserPoints(ctx, points, eType.fishing);
-						return clearInput;
-					}
-					else if (fishResult.small){
-						this.deps.dispatchService.sendGamePayload(ctx.socket, `you caught a ${fishResult.name.toLowerCase()} weighing ${fishResult.weight} ounces. that's a smallun'`, eType.fishing);
-						const points = Math.ceil(fishResult.value);
-						this.sendUserPoints(ctx, points, eType.fishing);
-						return clearInput;
-					}
-					this.deps.dispatchService.sendGamePayload(ctx.socket, `You caught a ${fishResult.name} weighing ${fishResult.weight} ounces.`, eType.fishing);
 					const points = Math.ceil(fishResult.value);
 					this.sendUserPoints(ctx, points, eType.fishing);
 					return clearInput;

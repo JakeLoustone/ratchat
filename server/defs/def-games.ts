@@ -2,6 +2,7 @@ import type { GameIdentity } from './def-identity';
 
 export type FishCatch = {
 	name: string;
+	flavor: string;
 	weight: number;
 	value: number;
 };
@@ -9,6 +10,7 @@ export type FishCatch = {
 export type FishResult = FishCatch & {
 	record: boolean;
 	pb: boolean;
+	newcatch: boolean;
 	big: boolean;
 	small: boolean;
 };

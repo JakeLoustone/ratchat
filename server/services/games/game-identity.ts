@@ -101,8 +101,41 @@ export class GameIdentityService {
 		}
 
 		gameId.fishingBestCatch = bestCatch;
-		gameId.fishingBestCatchValue = value;
+		gameId.fishingBestCatchValue = Math.ceil(value);
 
+		this.gameUserQueue.chain();
+		return gameId;
+	}
+
+	public setFishingFishCaught(playerid: GameIdentity['playerid'], fishCaught: string): GameIdentity{
+		if(!this.deps.configService.getGameConfig().enabled){
+			throw new AppError('setFishingBestCatch call with minigames disabled', 'bug');
+		}
+
+		const gameId = this.gameUsers.get(playerid);
+		if(!gameId){
+			throw new AppError('set fishing fish caught: no matching game user found to playerid', 'internal', 'warn');
+		}
+		if(gameId.fishingFishCaught.includes(fishCaught)){
+			throw new AppError('set fishing fish caught: duplicate entry call', 'bug');
+		}
+
+		gameId.fishingFishCaught.push(fishCaught);
+		this.gameUserQueue.chain();
+		return gameId;
+	}
+
+	public incrementFishingCatches(playerid: GameIdentity['playerid']): GameIdentity {
+		if(!this.deps.configService.getGameConfig().enabled){
+			throw new AppError('setFishingBestCatch call with minigames disabled', 'bug');
+		}
+
+		const gameId = this.gameUsers.get(playerid);
+		if(!gameId){
+			throw new AppError('set fishing fish caught: no matching game user found to playerid', 'internal', 'warn');
+		}
+
+		gameId.fishingCatches++;
 		this.gameUserQueue.chain();
 		return gameId;
 	}

@@ -164,7 +164,7 @@ export class GameStateService {
 		}
 		const newcatch = !gameUser.fishingFishCaught.includes(fishCatch.name);
 		if(newcatch){
-			this.deps.gameIdentityService.setFishingFishCaught(gameUser.playerid, fishCatch.name);
+			this.deps.gameIdentityService.addFishingFishCaught(gameUser.playerid, fishCatch.name);
 		}
 		const big = fishCatch.value > BIG_FISH_THRESHOLD;
 		const small = fishCatch.value < SMALL_FISH_THRESHOLD;

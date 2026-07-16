@@ -90,9 +90,13 @@ export class GameCommandService {
 	}
 
 	private sendUserPoints(ctx: GameCommand, points: number, event: GameEventType): void {
-		this.deps.gameIdentityService.setGamePoints(ctx.commandUser.playerid, points);
-		const name = this.deps.configService.getGameConfig().pointName;
-		this.deps.dispatchService.sendGamePayload(ctx.socket, `you've earned ${points} ${name}, don't spend it all in one place`, event);
+		if(event === eType.fishing){
+			this.deps.gameIdentityService.addFishingWinnings(ctx.commandUser.playerid, points);
+		}
+		this.deps.gameIdentityService.addGamePoints(ctx.commandUser.playerid, points);
+		const nicepoints = points.toLocaleString('en-US');
+		const name = this.deps.configService.getGameConfig().pointsName;
+		this.deps.dispatchService.sendGamePayload(ctx.socket, `you've earned ${nicepoints} ${name}, don't spend it all in one place`, event);
 	}
 
 	private async executeGameCommand(name: string, ctx: GameCommand): Promise<InputStatus> {
@@ -221,8 +225,9 @@ export class GameCommandService {
 						this.deps.dispatchService.sendGamePayload(ctx.socket, "your hook's empty...", eType.fishing);
 						return clearInput;
 					}
+					const weight = fishResult.weight.toLocaleString('en-US', { maximumFractionDigits: 2 });
 
-					let resultMessage = `you caught a ${fishResult.name.toUpperCase()} weighing ${fishResult.weight} ounces`;
+					let resultMessage = `you caught a [${fishResult.name.toLowerCase()}] weighing ${weight} ounces.`;
 					if(fishResult.record){
 						resultMessage += ' new server fish record!';
 					}
@@ -230,7 +235,7 @@ export class GameCommandService {
 						resultMessage += ' new personal best catch!';
 					}
 					if(fishResult.newcatch){
-						resultMessage += ' never seen one of those before.';
+						resultMessage += " you've never seen one of those before.";
 					}
 					if(fishResult.big){
 						resultMessage += " that's a biggun'";
@@ -243,7 +248,7 @@ export class GameCommandService {
 					this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.info, fishResult.flavor);
 					if(fishResult.record){
 						const basenick = getBaseNick(ctx.commandUser.fullnick);
-						this.deps.dispatchService.sendGamePayload(ctx.io, `${basenick} caught a new server record ${fishResult.name.toLowerCase()} weighing ${fishResult.weight} ounces!`, eType.fishing);
+						this.deps.dispatchService.sendGamePayload(ctx.io, `${basenick} caught a new server record ${fishResult.name.toLowerCase()} weighing ${weight} ounces!`, eType.fishing);
 					}
 					const points = Math.ceil(fishResult.value);
 					this.sendUserPoints(ctx, points, eType.fishing);

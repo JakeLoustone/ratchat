@@ -83,7 +83,7 @@ const GameTypeConfigSchema = {
 export const GameConfigSchema = z.object({
 	enabled: z.boolean(),
 	pointStartAmt: z.number().int().min(0).max(65536),
-	pointName: z.string().min(1).max(64),
+	pointsName: z.string().min(1).max(64),
 	gameSlow: z.number().int().min(0).max(86400),
 	raceFrequency: z.number().int().min(60).max(86400),
 	...GameTypeConfigSchema,
@@ -92,7 +92,7 @@ export const GameConfigSchema = z.object({
 export const defaultGameConfig: GameConfig = {
 	enabled: false,
 	pointStartAmt: 100,
-	pointName: 'points',
+	pointsName: 'points',
 	gameSlow: 30,
 	horseRacing: false,
 	raceFrequency: 900,

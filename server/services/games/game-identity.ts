@@ -35,9 +35,7 @@ export class GameIdentityService {
 	}
 
 	public setLastGame(playerid: GameIdentity['playerid'], gamedate: number): GameIdentity {
-		if(!this.deps.configService.getGameConfig().enabled){
-			throw new AppError('setLastGame call with minigames disabled', 'bug');
-		}
+		this.assertGamesEnabled('setLastGame');
 
 		const user = this.gameUsers.get(playerid);
 		const newDate = gamedate;
@@ -50,35 +48,57 @@ export class GameIdentityService {
 		return user;
 	}
 
-	public setGamePoints(playerid: GameIdentity['playerid'], rawnumber: number): GameIdentity{
-		if(!this.deps.configService.getGameConfig().enabled){
-			throw new AppError('setGamePoints call with minigames disabled', 'bug');
+	public addGamePoints(playerid: GameIdentity['playerid'], pointsadd: number): GameIdentity{
+		this.assertGamesEnabled('addGamePoints');
+
+		if(pointsadd <= 0){
+			throw new AppError('addGamePoints called with negative value', 'bug');
 		}
 
 		const gameId = this.gameUsers.get(playerid);
-		const amount = Math.round(rawnumber);
 		if(!gameId){
-			throw new AppError('set game points: no matching game user found to playerid', 'internal', 'warn');
+			throw new AppError('add game points: no matching game user found to playerid', 'internal', 'warn');
 		}
+
+		const amount = Math.round(pointsadd);
 		const newPoints = gameId.gamePoints + amount;
 		if(newPoints >= MAX_INT){
 			gameId.gamePoints = MAX_INT;
 			this.gameUserQueue.chain();
-			throw new AppError('you won the game, max points gained. use /broke to start again', 'user');
+			const name = this.deps.configService.getGameConfig().pointsName;
+			throw new AppError(`you won the game, max ${name} gained. use /broke to start again`, 'user');
 		}
+
+		gameId.gamePoints = newPoints;
+		this.gameUserQueue.chain();
+		return gameId;
+	}
+
+	public removeGamePoints(playerid: GameIdentity['playerid'], pointsremove: number): GameIdentity{
+		this.assertGamesEnabled('removeGamePoints');
+
+		if(pointsremove <= 0){
+			throw new AppError('removeGamePoints called with neg value', 'bug');
+		}
+
+		const gameId = this.gameUsers.get(playerid);
+		if(!gameId){
+			throw new AppError('remove game points: no matching game user found to playerid', 'internal', 'warn');
+		}
+
+		const amount = Math.round(pointsremove);
+		const newPoints = gameId.gamePoints - amount;
 		if(newPoints < 0){
 			throw new AppError("you can't pay more than you have.", 'user');
 		}
-		gameId.gamePoints = newPoints;
 
+		gameId.gamePoints = newPoints;
 		this.gameUserQueue.chain();
 		return gameId;
 	}
 
 	public setGamePointsDefault(playerid: GameIdentity['playerid']): GameIdentity{
-		if(!this.deps.configService.getGameConfig().enabled){
-			throw new AppError('setGamePointsDefault call with minigames disabled', 'bug');
-		}
+		this.assertGamesEnabled('setGamePointsDefault');
 
 		const gameId = this.gameUsers.get(playerid);
 		if(!gameId){
@@ -91,9 +111,8 @@ export class GameIdentityService {
 	}
 
 	public setFishingBestCatch(playerid: GameIdentity['playerid'], bestCatch: string, value: number): GameIdentity{
-		if(!this.deps.configService.getGameConfig().enabled){
-			throw new AppError('setFishingBestCatch call with minigames disabled', 'bug');
-		}
+		this.assertGamesEnabled('setFishingBestCatch');
+		this.assertFishingEnabled('setFishingBestCatch');
 
 		const gameId = this.gameUsers.get(playerid);
 		if(!gameId){
@@ -107,17 +126,16 @@ export class GameIdentityService {
 		return gameId;
 	}
 
-	public setFishingFishCaught(playerid: GameIdentity['playerid'], fishCaught: string): GameIdentity{
-		if(!this.deps.configService.getGameConfig().enabled){
-			throw new AppError('setFishingBestCatch call with minigames disabled', 'bug');
-		}
+	public addFishingFishCaught(playerid: GameIdentity['playerid'], fishCaught: string): GameIdentity{
+		this.assertGamesEnabled('addFishingFishCaught');
+		this.assertFishingEnabled('addFishingFishCaught');
 
 		const gameId = this.gameUsers.get(playerid);
 		if(!gameId){
-			throw new AppError('set fishing fish caught: no matching game user found to playerid', 'internal', 'warn');
+			throw new AppError('add fishing fish caught: no matching game user found to playerid', 'internal', 'warn');
 		}
 		if(gameId.fishingFishCaught.includes(fishCaught)){
-			throw new AppError('set fishing fish caught: duplicate entry call', 'bug');
+			throw new AppError('add fishing fish caught: duplicate entry call', 'bug');
 		}
 
 		gameId.fishingFishCaught.push(fishCaught);
@@ -126,17 +144,41 @@ export class GameIdentityService {
 	}
 
 	public incrementFishingCatches(playerid: GameIdentity['playerid']): GameIdentity {
-		if(!this.deps.configService.getGameConfig().enabled){
-			throw new AppError('setFishingBestCatch call with minigames disabled', 'bug');
-		}
+		this.assertGamesEnabled('incrementFishingCatches');
+		this.assertFishingEnabled('incrementFishingCatches');
 
 		const gameId = this.gameUsers.get(playerid);
 		if(!gameId){
-			throw new AppError('set fishing fish caught: no matching game user found to playerid', 'internal', 'warn');
+			throw new AppError('increment fishing catches: no matching game user found to playerid', 'internal', 'warn');
 		}
 
 		gameId.fishingCatches++;
 		this.gameUserQueue.chain();
+		return gameId;
+	}
+
+	public addFishingWinnings(playerid: GameIdentity['playerid'], pointsadd: number): GameIdentity{
+		this.assertGamesEnabled('addFishingWinnings');
+		this.assertFishingEnabled('addFishingWinnings');
+		if(pointsadd <= 0){
+			throw new AppError('addFishingWinnings called with negative value', 'bug');
+		}
+
+		const gameId = this.gameUsers.get(playerid);
+		if(!gameId){
+			throw new AppError('add fishing winnings: no matching game user found to playerid', 'internal', 'warn');
+		}
+
+		const amount = Math.round(pointsadd);
+		const newPoints = gameId.fishingWinnings + amount;
+		if(newPoints >= MAX_INT){
+			gameId.fishingWinnings = MAX_INT;
+		}
+		else{
+			gameId.fishingWinnings = newPoints;
+		}
+		this.gameUserQueue.chain();
+
 		return gameId;
 	}
 
@@ -203,6 +245,18 @@ export class GameIdentityService {
 			handleError(error, 'Reload Game Users');
 
 			throw new AppError('failed to reload game users: unknown error', 'user');
+		}
+	}
+
+	private assertGamesEnabled(caller: string): void {
+		if(!this.deps.configService.getGameConfig().enabled){
+			throw new AppError(`${caller} call with minigames disabled`, 'bug');
+		}
+	}
+
+	private assertFishingEnabled(caller: string): void {
+		if(!this.deps.configService.getGameConfig().fishing){
+			throw new AppError(`${caller} call with fishing disabled`, 'bug');
 		}
 	}
 

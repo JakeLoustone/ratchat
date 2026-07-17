@@ -43,6 +43,29 @@ export function pickUniform(candidates: UniformCandidates): Candidate {
 	return candidates[index];
 }
 
+export function pickUniformExclusive(candidates: UniformCandidates, count: number): Candidate[] {
+	if(candidates.length === 0){
+		throw new AppError('No candidates for uniform exclusive selection', 'bug');
+	}
+	if(count > candidates.length){
+		throw new AppError('pickUniformExclusive called with count greater than candidate pool size', 'bug');
+	}
+	if(count < 0){
+		throw new AppError('pickUniformExclusive called with negative count', 'bug');
+	}
+
+	const pool = [...candidates];
+	const picks: Candidate[] = [];
+
+	for(let i = 0; i < count; i++){
+		const index = Math.floor(Math.random() * pool.length);
+		picks.push(pool[index]);
+		pool.splice(index, 1);
+	}
+
+	return picks;
+}
+
 export function pickGaussian(input: GaussianCandidate): number {
 	const standardDev = input.baseline / 3;
 

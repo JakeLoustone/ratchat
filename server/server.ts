@@ -108,12 +108,14 @@ async function main(): Promise<void> {
 
 	const gameStateService = new GameStateService({
 		cacheService: cacheService,
+		configService: configService,
 		dispatchService: dispatchService,
 		gameIdentityService: gameIdentityService,
 		identityService: identityService,
 
 		fishingRecordsPath: fishingRecordsPath,
-		horseRecordsPath: horseRecordsPath
+		horseRecordsPath: horseRecordsPath,
+		io: io
 	});
 
 	const stateService = new StateService({

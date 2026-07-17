@@ -35,5 +35,5 @@ export const HorseCatalogEntrySchema = z.object({
 	horseName: z.string().max(128)
 });
 export const HorseRecordEntrySchema = HorseCatalogEntrySchema.extend({
-	wins: z.number().int().min(0)
+	results: z.tuple([z.number().int().min(0), z.number().int().min(0), z.number().int().min(0)])
 });

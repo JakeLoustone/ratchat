@@ -30,5 +30,5 @@ export const GameIdentitySchema = z.object({
 	fishingBestCatch: z.string().nullable(),
 	fishingBestCatchValue: z.number().int().min(0).nullable(),
 	horseWinnings: z.number().int(),
-	horseBetWins: z.number().int().min(0)
+	horseBetWins: z.tuple([z.number().int().min(0), z.number().int().min(0), z.number().int().min(0)])
 });

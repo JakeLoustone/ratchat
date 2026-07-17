@@ -274,7 +274,7 @@ export class GameIdentityService {
 			fishingBestCatch: null,
 			fishingBestCatchValue: null,
 			horseWinnings: 0,
-			horseBetWins: 0
+			horseBetWins: [0,0,0]
 		};
 	}
 

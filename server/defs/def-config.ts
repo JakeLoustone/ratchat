@@ -85,7 +85,7 @@ export const GameConfigSchema = z.object({
 	pointStartAmt: z.number().int().min(0).max(65536),
 	pointsName: z.string().min(1).max(64),
 	gameSlow: z.number().int().min(0).max(86400),
-	raceFrequency: z.number().int().min(60).max(86400),
+	raceFrequency: z.number().int().min(300).max(86400),
 	...GameTypeConfigSchema,
 });
 

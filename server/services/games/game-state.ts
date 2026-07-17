@@ -1,26 +1,30 @@
+import { RatServer, eType } from '../../defs/def-events';
 import { fType } from '../../defs/def-games';
 import { aType } from '../../defs/def-parse';
 import { HorseRecordEntrySchema, FishRecordEntrySchema } from '../../defs/def-record';
-import type { FishCatch, FishingEventCallback, FishResult } from '../../defs/def-games';
+import type { FishCatch, FishingEventCallback, FishResult, HorseFieldEntry, HorseBet, HorseRaceResult } from '../../defs/def-games';
 import type { GameIdentity } from '../../defs/def-identity';
 import type { LeaderboardEntry, BlackjackEntry, DuelingEntry, FishingEntry, HorseEntry } from '../../defs/def-leaderboard';
 import type { PublicLeaderboard, PublicOverallLeaderboard, PublicBlackjackLeaderboard, PublicDuelingLeaderboard, PublicFishingLeaderboard, PublicHorseLeaderboard } from '../../defs/def-leaderboard';
 import type { KeyedParseFailureRecord, ParseFailureRecord } from '../../defs/def-parse';
 import type { PrivateHorseRecordList, PrivateFishRecordList, DefaultFishRecordEntry, DefaultHorseRecordEntry } from '../../defs/def-record';
 
+import { ConfigService } from '../config';
 import { CacheService } from '../cache';
 import { DispatchService } from '../dispatch';
 import { GameIdentityService } from './game-identity';
 import { IdentityService } from '../identity';
 
 import { handleError, AppError } from '../../utils/errors';
+import { getOrdinalSuffix } from '../../utils/format';
 import { mergeRecordDefaults, isUnknownArray } from '../../utils/parse';
-import { createSaveQueue } from '../../utils/queue';
+import { createSaveQueue, wait } from '../../utils/queue';
 import { randomInt } from '../../utils/random';
 import { assertSafeStartup, getRepairPath } from '../../utils/repair';
 import { createJsonFile, existsFile, readJsonFile, writeJsonFile } from '../../utils/serialize';
 
 import { createCatch } from './game-utils/fishing';
+import { createHorseRaceResult } from './game-utils/horse';
 
 import { defaultFishCatalog } from '../catalogs/catalog-fish';
 import { defaultHorseCatalog } from '../catalogs/catalog-horse';
@@ -39,30 +43,51 @@ type FishingSession = {
 	eventCallback: FishingEventCallback;
 };
 
-//const REDIS_BLACKJACK_KEY = 'ratchat:blackjack';
-const MIN_FISH_WAIT = 5;
-const MAX_FISH_WAIT = 20;
-const MIN_FISH_WAIT_TARGET = 10;
-const MAX_FISH_WAIT_TARGET = 60;
-const MIN_FISH_WAIT_BAD_TARGET = 50;
-const MAX_FISH_WAIT_BAD_TARGET = 60;
-const MIN_FISH_CATCH_WINDOW = 5;
-const MAX_FISH_CATCH_WINDOW = 10;
-const BIG_FISH_THRESHOLD = 80;
-const SMALL_FISH_THRESHOLD = 5;
+type HorseSession = {
+	raceid: number;
+	results: HorseRaceResult;
+	field: HorseFieldEntry[];
+	phase: number;
+	betting: boolean;
+	bets: HorseBet[];
+}
+
+const FISH_MIN_WAIT = 5;
+const FISH_MAX_WAIT = 20;
+const FISH_MIN_WAIT_TARGET = 10;
+const FISH_MAX_WAIT_TARGET = 60;
+const FISH_MIN_WAIT_BAD_TARGET = 50;
+const FISH_MAX_WAIT_BAD_TARGET = 60;
+const FISH_MIN_CATCH_WINDOW = 5;
+const FISH_MAX_CATCH_WINDOW = 10;
+const FISH_BIG_THRESHOLD = 80;
+const FISH_SMALL_THRESHOLD = 5;
+
+const HORSE_PRERACE_DURATION = 120;
+const HORSE_BET_REMINDER_AT = 60;
+const HORSE_CHECKPOINT_1_WAIT = 30;
+const HORSE_CHECKPOINT_2_WAIT = 30;
+const HORSE_CHECKPOINT_3_WAIT = 30;
+const HORSE_FINAL_STRETCH_WAIT = 20;
+const HORSE_MIN_RACEOVER_WAIT = 5;
+const HORSE_MAX_RACEOVER_WAIT = 15;
 
 export interface GameStateServiceDependencies{
 	cacheService: CacheService;
+	configService: ConfigService
 	dispatchService: DispatchService;
 	gameIdentityService: GameIdentityService;
 	identityService: IdentityService;
 
 	fishingRecordsPath: string;
-	horseRecordsPath: string
+	horseRecordsPath: string;
+	io: RatServer;
 }
 
 export class GameStateService {
 	private activeFishing: Map<GameIdentity['playerid'], FishingSession> = new Map();
+	private activeRace: HorseSession | null = null;
+	private raceCounter = 0;
 
 	private horseRecords: PrivateHorseRecordList = [];
 	private fishRecords: PrivateFishRecordList = [];
@@ -81,6 +106,134 @@ export class GameStateService {
 		assertSafeStartup(this.deps.horseRecordsPath);
 		this.initializeFishRecords();
 		this.initializeHorseRecords();
+		this.startHorseTimer();
+		this.createHorseSession();
+	}
+
+	public existsHorseSession(): boolean {
+		if(this.activeRace){
+			return true;
+		}
+		return false;
+	}
+
+	private async createHorseSession(): Promise<void>{
+		try{
+			const raceResult = createHorseRaceResult(this.horseRecords);
+			this.raceCounter++;
+			const raceid = this.raceCounter;
+
+			const session: HorseSession = {
+				raceid: raceid,
+				results: raceResult,
+				field: raceResult.field,
+				phase: 0,
+				betting: true,
+				bets: []
+			};
+			this.activeRace = session;
+
+			const announcement = this.createHorseSessionAnnouncement(raceResult.field, raceid);
+			this.sendHorseSessionResult(announcement, false);
+
+			setTimeout(() => {
+				const reminder = [
+					`the ${raceid}${getOrdinalSuffix(raceid)} semi annual race starts in 1 minute!`,
+					'make sure to get your bets in for a 2x multiplier on your payout!'
+				];
+				this.sendHorseSessionResult(reminder, false);
+			}, HORSE_BET_REMINDER_AT * 1000);
+
+			await wait((HORSE_PRERACE_DURATION -10)* 1000);
+			this.sendHorseSessionResult(['the race begins in 10 seconds!'], false);
+
+			await wait(10 * 1000);
+			session.phase = 1;
+			this.sendHorseSessionResult(raceResult.gates, false);
+
+			await wait(HORSE_CHECKPOINT_1_WAIT * 1000);
+			session.phase = 2;
+			this.sendHorseSessionResult(raceResult.checkpoint1, false);
+
+			await wait(HORSE_CHECKPOINT_2_WAIT * 1000);
+			session.phase = 3;
+			this.sendHorseSessionResult(raceResult.checkpoint2, false);
+
+			await wait(HORSE_CHECKPOINT_3_WAIT * 1000);
+			session.betting = false;
+			this.sendHorseSessionResult(['bets are closed!'], true);
+			session.phase = 4;
+			this.sendHorseSessionResult(raceResult.checkpoint3, false);
+
+			await wait(HORSE_FINAL_STRETCH_WAIT * 1000);
+			session.phase = 5;
+			this.sendHorseSessionResult(raceResult.finalStretch, false);
+
+			const raceOverWait = randomInt(HORSE_MIN_RACEOVER_WAIT, HORSE_MAX_RACEOVER_WAIT);
+			await wait(raceOverWait * 1000);
+			session.phase = 6;
+			this.sendHorseSessionResult(raceResult.end, true);
+
+			try{
+				this.incrementHorseRecord(raceResult.first, 0);
+				this.incrementHorseRecord(raceResult.second, 1);
+				this.incrementHorseRecord(raceResult.third, 2);
+			}
+			catch(error: unknown){
+				handleError(error);
+			}
+
+			this.activeRace = null;
+		}
+		catch(error: unknown){
+			handleError(error, 'Create Horse Session');
+			this.deps.dispatchService.sendGamePayload(this.deps.io, 'the race has been cancelled due to an unexpected error.', eType.horse);
+			this.activeRace = null;
+		}
+	}
+
+	private createHorseSessionAnnouncement(field: HorseFieldEntry[], raceid: number): string[]{
+		const commentary: string[] = [];
+		commentary.push(
+			`the ${raceid}${getOrdinalSuffix(raceid)} semi-annual horse race begins in ${HORSE_PRERACE_DURATION/60} minutes!`,
+			'the betting line is as follows:'
+		);
+
+		const sortedField = [...field].sort((a, b) => {
+			const probA = a.oddsDen / (a.oddsNum + a.oddsDen);
+			const probB = b.oddsDen / (b.oddsNum + b.oddsDen);
+			return probB - probA;
+		});
+
+		for(let index = 0; index < sortedField.length; index++){
+			const horse = sortedField[index];
+			let line = `[${horse.horseName}]: ${horse.oddsNum}:${horse.oddsDen}`;
+
+			if(index === 0){
+				line += ', the favorite!';
+			}
+			else if(index === sortedField.length - 1){
+				line += ', the longshot!';
+			}
+
+			commentary.push(line);
+		}
+
+		commentary.push(
+			'what a beautiful day for a horse race!',
+			'get your bets in now for a 2x multiplier on your payout!',
+			'reminder, the race starts in 2 minutes! see you there!'
+		);
+
+		return commentary;
+	}
+
+	private async sendHorseSessionResult(lines: string[], fast: boolean): Promise<void> {
+		const delay = fast ? 100 : 250;
+		for(const line of lines){
+			this.deps.dispatchService.sendGamePayload(this.deps.io, line, eType.horse);
+			await wait(delay);
+		}
 	}
 
 	public existsFishingSession(playerid: GameIdentity['playerid']): boolean {
@@ -96,13 +249,13 @@ export class GameStateService {
 
 		let castDuration: number;
 		if(!fishCatch){
-			castDuration = randomInt(MIN_FISH_WAIT_BAD_TARGET, MAX_FISH_WAIT_BAD_TARGET);
+			castDuration = randomInt(FISH_MIN_WAIT_BAD_TARGET, FISH_MAX_WAIT_BAD_TARGET);
 		}
 		else if(target){
-			castDuration = randomInt(MIN_FISH_WAIT_TARGET, MAX_FISH_WAIT_TARGET);
+			castDuration = randomInt(FISH_MIN_WAIT_TARGET, FISH_MAX_WAIT_TARGET);
 		}
 		else{
-			castDuration = randomInt(MIN_FISH_WAIT, MAX_FISH_WAIT);
+			castDuration = randomInt(FISH_MIN_WAIT, FISH_MAX_WAIT);
 		}
 
 		const biteTimer = setTimeout(() => {
@@ -166,8 +319,8 @@ export class GameStateService {
 		if(newcatch){
 			this.deps.gameIdentityService.addFishingFishCaught(gameUser.playerid, fishCatch.name);
 		}
-		const big = fishCatch.value > BIG_FISH_THRESHOLD;
-		const small = fishCatch.value < SMALL_FISH_THRESHOLD;
+		const big = fishCatch.value > FISH_BIG_THRESHOLD;
+		const small = fishCatch.value < FISH_SMALL_THRESHOLD;
 		const fishResult = {
 			name: fishCatch.name,
 			flavor: fishCatch.flavor,
@@ -197,7 +350,7 @@ export class GameStateService {
 		session.biting = true;
 		session.eventCallback(playerid, fType.bite);
 
-		const catchWindow = MAX_FISH_CATCH_WINDOW - ((session.fish.value / 100) * (MAX_FISH_CATCH_WINDOW - MIN_FISH_CATCH_WINDOW));
+		const catchWindow = FISH_MAX_CATCH_WINDOW - ((session.fish.value / 100) * (FISH_MAX_CATCH_WINDOW - FISH_MIN_CATCH_WINDOW));
 
 		const expireTimer = setTimeout(() => {
 			this.expireFishingSession(playerid);
@@ -362,7 +515,7 @@ export class GameStateService {
 
 	private buildDefaultHorseRecordEntry(): DefaultHorseRecordEntry{
 		return{
-			wins: 0
+			results: [0, 0, 0]
 		};
 	}
 
@@ -458,6 +611,16 @@ export class GameStateService {
 		}));
 	}
 
+	private incrementHorseRecord(horseName: string, place: number): void {
+		const record = this.horseRecords.find(entry => entry.horseName === horseName);
+		if(!record){
+			throw new AppError('no matching horse record found to increment', 'bug');
+		}
+
+		record.results[place]++;
+		this.horseQueue.chain();
+	}
+
 	private resolveRecords(input: unknown, label: 'fish'): [PrivateFishRecordList, KeyedParseFailureRecord[]];
 	private resolveRecords(input: unknown, label: 'horse'): [PrivateHorseRecordList, KeyedParseFailureRecord[]];
 	private resolveRecords(input: unknown, label: 'fish' | 'horse'): [PrivateFishRecordList, KeyedParseFailureRecord[]] | [PrivateHorseRecordList, KeyedParseFailureRecord[]]{
@@ -495,5 +658,16 @@ export class GameStateService {
 		}
 
 		return [resolvedRecords, failures];
+	}
+
+	private startHorseTimer(): void {
+		const config = this.deps.configService.getGameConfig();
+		if(config.horseRacing){
+			setInterval(() =>{
+				if(!this.existsHorseSession()){
+					this.createHorseSession();
+				}
+			}, config.raceFrequency * 1000);
+		}
 	}
 }

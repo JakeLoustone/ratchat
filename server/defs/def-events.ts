@@ -52,10 +52,10 @@ export const sType = {
 
 export type GameEventType = typeof eType[keyof typeof eType];
 export const eType = {
-	duel: 'duel',
-	fishing: 'fishing',
 	horse: 'horse',
+	duel: 'duel',
 	blackjack: 'blackjack',
+	fishing: 'fishing',
 	leaderboard: 'leaderboard'
 } as const;
 

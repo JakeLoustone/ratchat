@@ -11,6 +11,8 @@ import { createSaveQueue } from '../../utils/queue';
 import { assertSafeStartup, getRepairPath } from '../../utils/repair';
 import { existsFile, createJsonFile, readJsonFile, writeJsonFile } from '../../utils/serialize';
 
+import { assertGamesEnabled, assertFishingEnabled } from './game-utils/checks';
+
 const MAX_INT = 4294967295;
 
 export interface GameIdentityServiceDependencies{
@@ -34,170 +36,12 @@ export class GameIdentityService {
 		this.initializeGameUsers();
 	}
 
-	public setLastGame(playerid: GameIdentity['playerid'], gamedate: number): GameIdentity {
-		this.assertGamesEnabled('setLastGame');
-
-		const user = this.gameUsers.get(playerid);
-		const newDate = gamedate;
-		if(!user){
-			throw new AppError('set last game: no matching game user found to playerid', 'internal', 'warn');
-		}
-		user.lastGame = new Date(newDate);
-
-		this.gameUserQueue.chain();
-		return user;
-	}
-
-	public addGamePoints(playerid: GameIdentity['playerid'], pointsadd: number): GameIdentity{
-		this.assertGamesEnabled('addGamePoints');
-
-		if(pointsadd <= 0){
-			throw new AppError('addGamePoints called with negative value', 'bug');
-		}
-
-		const gameId = this.gameUsers.get(playerid);
-		if(!gameId){
-			throw new AppError('add game points: no matching game user found to playerid', 'internal', 'warn');
-		}
-
-		const amount = Math.round(pointsadd);
-		const newPoints = gameId.gamePoints + amount;
-		if(newPoints >= MAX_INT){
-			gameId.gamePoints = MAX_INT;
-			this.gameUserQueue.chain();
-			const name = this.deps.configService.getGameConfig().pointsName;
-			throw new AppError(`you won the game, max ${name} gained. use /broke to start again`, 'user');
-		}
-
-		gameId.gamePoints = newPoints;
-		this.gameUserQueue.chain();
-		return gameId;
-	}
-
-	public removeGamePoints(playerid: GameIdentity['playerid'], pointsremove: number): GameIdentity{
-		this.assertGamesEnabled('removeGamePoints');
-
-		if(pointsremove <= 0){
-			throw new AppError('removeGamePoints called with neg value', 'bug');
-		}
-
-		const gameId = this.gameUsers.get(playerid);
-		if(!gameId){
-			throw new AppError('remove game points: no matching game user found to playerid', 'internal', 'warn');
-		}
-
-		const amount = Math.round(pointsremove);
-		const newPoints = gameId.gamePoints - amount;
-		if(newPoints < 0){
-			throw new AppError("you can't pay more than you have.", 'user');
-		}
-
-		gameId.gamePoints = newPoints;
-		this.gameUserQueue.chain();
-		return gameId;
-	}
-
-	public setGamePointsDefault(playerid: GameIdentity['playerid']): GameIdentity{
-		this.assertGamesEnabled('setGamePointsDefault');
-
-		const gameId = this.gameUsers.get(playerid);
-		if(!gameId){
-			throw new AppError('set game points default: no matching game user found to playerid', 'internal', 'warn');
-		}
-		const newPoints = Math.round(this.deps.configService.getGameConfig().pointStartAmt);
-		gameId.gamePoints = newPoints;
-		this.gameUserQueue.chain();
-		return gameId;
-	}
-
-	public setFishingBestCatch(playerid: GameIdentity['playerid'], bestCatch: string, value: number): GameIdentity{
-		this.assertGamesEnabled('setFishingBestCatch');
-		this.assertFishingEnabled('setFishingBestCatch');
-
-		const gameId = this.gameUsers.get(playerid);
-		if(!gameId){
-			throw new AppError('set fishing best catch: no matching game user found to playerid', 'internal', 'warn');
-		}
-
-		gameId.fishingBestCatch = bestCatch;
-		gameId.fishingBestCatchValue = Math.ceil(value);
-
-		this.gameUserQueue.chain();
-		return gameId;
-	}
-
-	public addFishingFishCaught(playerid: GameIdentity['playerid'], fishCaught: string): GameIdentity{
-		this.assertGamesEnabled('addFishingFishCaught');
-		this.assertFishingEnabled('addFishingFishCaught');
-
-		const gameId = this.gameUsers.get(playerid);
-		if(!gameId){
-			throw new AppError('add fishing fish caught: no matching game user found to playerid', 'internal', 'warn');
-		}
-		if(gameId.fishingFishCaught.includes(fishCaught)){
-			throw new AppError('add fishing fish caught: duplicate entry call', 'bug');
-		}
-
-		gameId.fishingFishCaught.push(fishCaught);
-		this.gameUserQueue.chain();
-		return gameId;
-	}
-
-	public incrementFishingCatches(playerid: GameIdentity['playerid']): GameIdentity {
-		this.assertGamesEnabled('incrementFishingCatches');
-		this.assertFishingEnabled('incrementFishingCatches');
-
-		const gameId = this.gameUsers.get(playerid);
-		if(!gameId){
-			throw new AppError('increment fishing catches: no matching game user found to playerid', 'internal', 'warn');
-		}
-
-		gameId.fishingCatches++;
-		this.gameUserQueue.chain();
-		return gameId;
-	}
-
-	public addFishingWinnings(playerid: GameIdentity['playerid'], pointsadd: number): GameIdentity{
-		this.assertGamesEnabled('addFishingWinnings');
-		this.assertFishingEnabled('addFishingWinnings');
-		if(pointsadd <= 0){
-			throw new AppError('addFishingWinnings called with negative value', 'bug');
-		}
-
-		const gameId = this.gameUsers.get(playerid);
-		if(!gameId){
-			throw new AppError('add fishing winnings: no matching game user found to playerid', 'internal', 'warn');
-		}
-
-		const amount = Math.round(pointsadd);
-		const newPoints = gameId.fishingWinnings + amount;
-		if(newPoints >= MAX_INT){
-			gameId.fishingWinnings = MAX_INT;
-		}
-		else{
-			gameId.fishingWinnings = newPoints;
-		}
-		this.gameUserQueue.chain();
-
-		return gameId;
-	}
-
 	public existsGameUser(playerid: GameIdentity['playerid']): boolean{
 		const user = this.gameUsers.get(playerid);
 		if(user){
 			return true;
 		}
 		return false;
-	}
-
-	public getGameUsersMap(): Map<GameIdentity['playerid'], GameIdentity> {
-		const copy = new Map<GameIdentity['playerid'], GameIdentity>();
-
-		for(const [playerid, gameIdentity] of this.gameUsers){
-			copy.set(playerid, structuredClone(gameIdentity));
-		}
-
-		return copy;
 	}
 
 	public getGameUser(playerid: GameIdentity['playerid']): GameIdentity {
@@ -230,6 +74,16 @@ export class GameIdentityService {
 		this.gameUserQueue.chain();
 	}
 
+	public getGameUsersMap(): Map<GameIdentity['playerid'], GameIdentity> {
+		const copy = new Map<GameIdentity['playerid'], GameIdentity>();
+
+		for(const [playerid, gameIdentity] of this.gameUsers){
+			copy.set(playerid, structuredClone(gameIdentity));
+		}
+
+		return copy;
+	}
+
 	public reloadGameUsers(): number{
 		try{
 			const raw = this.fetchGameUsersStrict();
@@ -248,16 +102,152 @@ export class GameIdentityService {
 		}
 	}
 
-	private assertGamesEnabled(caller: string): void {
-		if(!this.deps.configService.getGameConfig().enabled){
-			throw new AppError(`${caller} call with minigames disabled`, 'bug');
+	public setLastGame(playerid: GameIdentity['playerid'], gamedate: number): GameIdentity {
+		assertGamesEnabled(this.deps.configService, 'setLastGame');
+
+		const user = this.gameUsers.get(playerid);
+		const newDate = gamedate;
+		if(!user){
+			throw new AppError('set last game: no matching game user found to playerid', 'internal', 'warn');
 		}
+		user.lastGame = new Date(newDate);
+
+		this.gameUserQueue.chain();
+		return user;
 	}
 
-	private assertFishingEnabled(caller: string): void {
-		if(!this.deps.configService.getGameConfig().fishing){
-			throw new AppError(`${caller} call with fishing disabled`, 'bug');
+	public addGamePoints(playerid: GameIdentity['playerid'], pointsadd: number): GameIdentity{
+		assertGamesEnabled(this.deps.configService, 'addGamePoints');
+
+		if(pointsadd <= 0){
+			throw new AppError('addGamePoints called with negative value', 'bug');
 		}
+
+		const gameId = this.gameUsers.get(playerid);
+		if(!gameId){
+			throw new AppError('add game points: no matching game user found to playerid', 'internal', 'warn');
+		}
+
+		const amount = Math.round(pointsadd);
+		const newPoints = gameId.gamePoints + amount;
+		if(newPoints >= MAX_INT){
+			gameId.gamePoints = MAX_INT;
+			this.gameUserQueue.chain();
+			const name = this.deps.configService.getGameConfig().pointsName;
+			throw new AppError(`you won the game, max ${name} gained. use /broke to start again`, 'user');
+		}
+
+		gameId.gamePoints = newPoints;
+		this.gameUserQueue.chain();
+		return gameId;
+	}
+
+	public removeGamePoints(playerid: GameIdentity['playerid'], pointsremove: number): GameIdentity{
+		assertGamesEnabled(this.deps.configService, 'removeGamePoints');
+
+		if(pointsremove <= 0){
+			throw new AppError('removeGamePoints called with neg value', 'bug');
+		}
+
+		const gameId = this.gameUsers.get(playerid);
+		if(!gameId){
+			throw new AppError('remove game points: no matching game user found to playerid', 'internal', 'warn');
+		}
+
+		const amount = Math.round(pointsremove);
+		const newPoints = gameId.gamePoints - amount;
+		if(newPoints < 0){
+			throw new AppError("you can't pay more than you have.", 'user');
+		}
+
+		gameId.gamePoints = newPoints;
+		this.gameUserQueue.chain();
+		return gameId;
+	}
+
+	public setGamePointsDefault(playerid: GameIdentity['playerid']): GameIdentity{
+		assertGamesEnabled(this.deps.configService, 'setGamePointsDefault');
+
+		const gameId = this.gameUsers.get(playerid);
+		if(!gameId){
+			throw new AppError('set game points default: no matching game user found to playerid', 'internal', 'warn');
+		}
+		const newPoints = Math.round(this.deps.configService.getGameConfig().pointStartAmt);
+		gameId.gamePoints = newPoints;
+		this.gameUserQueue.chain();
+		return gameId;
+	}
+
+	public setFishingBestCatch(playerid: GameIdentity['playerid'], bestCatch: string, value: number): GameIdentity{
+		assertGamesEnabled(this.deps.configService, 'setFishingBestCatch');
+		assertFishingEnabled(this.deps.configService, 'setFishingBestCatch');
+
+		const gameId = this.gameUsers.get(playerid);
+		if(!gameId){
+			throw new AppError('set fishing best catch: no matching game user found to playerid', 'internal', 'warn');
+		}
+
+		gameId.fishingBestCatch = bestCatch;
+		gameId.fishingBestCatchValue = Math.ceil(value);
+
+		this.gameUserQueue.chain();
+		return gameId;
+	}
+
+	public addFishingFishCaught(playerid: GameIdentity['playerid'], fishCaught: string): GameIdentity{
+		assertGamesEnabled(this.deps.configService, 'addFishingFishCaught');
+		assertFishingEnabled(this.deps.configService, 'addFishingFishCaught');
+
+		const gameId = this.gameUsers.get(playerid);
+		if(!gameId){
+			throw new AppError('add fishing fish caught: no matching game user found to playerid', 'internal', 'warn');
+		}
+		if(gameId.fishingFishCaught.includes(fishCaught)){
+			throw new AppError('add fishing fish caught: duplicate entry call', 'bug');
+		}
+
+		gameId.fishingFishCaught.push(fishCaught);
+		this.gameUserQueue.chain();
+		return gameId;
+	}
+
+	public incrementFishingCatches(playerid: GameIdentity['playerid']): GameIdentity {
+		assertGamesEnabled(this.deps.configService, 'incrementFishingCatches');
+		assertFishingEnabled(this.deps.configService, 'incrementFishingCatches');
+
+		const gameId = this.gameUsers.get(playerid);
+		if(!gameId){
+			throw new AppError('increment fishing catches: no matching game user found to playerid', 'internal', 'warn');
+		}
+
+		gameId.fishingCatches++;
+		this.gameUserQueue.chain();
+		return gameId;
+	}
+
+	public addFishingWinnings(playerid: GameIdentity['playerid'], pointsadd: number): GameIdentity{
+		assertGamesEnabled(this.deps.configService, 'addFishingWinnings');
+		assertFishingEnabled(this.deps.configService, 'addFishingWinnings');
+		if(pointsadd <= 0){
+			throw new AppError('addFishingWinnings called with negative value', 'bug');
+		}
+
+		const gameId = this.gameUsers.get(playerid);
+		if(!gameId){
+			throw new AppError('add fishing winnings: no matching game user found to playerid', 'internal', 'warn');
+		}
+
+		const amount = Math.round(pointsadd);
+		const newPoints = gameId.fishingWinnings + amount;
+		if(newPoints >= MAX_INT){
+			gameId.fishingWinnings = MAX_INT;
+		}
+		else{
+			gameId.fishingWinnings = newPoints;
+		}
+		this.gameUserQueue.chain();
+
+		return gameId;
 	}
 
 	private buildDefaultGameIdentity(): DefaultGameIdentity{

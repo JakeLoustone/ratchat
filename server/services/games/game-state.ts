@@ -25,6 +25,7 @@ import { createJsonFile, existsFile, readJsonFile, writeJsonFile } from '../../u
 
 import { createCatch } from './game-utils/fishing';
 import { createHorseRaceResult } from './game-utils/horse';
+import { assertFishingEnabled, assertGamesEnabled, assertHorseRacingEnabled } from './game-utils/checks';
 
 import { defaultFishCatalog } from '../catalogs/catalog-fish';
 import { defaultHorseCatalog } from '../catalogs/catalog-horse';
@@ -107,10 +108,12 @@ export class GameStateService {
 		this.initializeFishRecords();
 		this.initializeHorseRecords();
 		this.startHorseTimer();
-		this.createHorseSession();
+		this.createHorseSession().catch((error: unknown) => handleError(error, 'Create Horse Session (Startup/Test)'));
 	}
 
 	public existsHorseSession(): boolean {
+		assertGamesEnabled(this.deps.configService, 'existsHorseSession');
+		assertHorseRacingEnabled(this.deps.configService, 'existsHorseSession');
 		if(this.activeRace){
 			return true;
 		}
@@ -118,6 +121,8 @@ export class GameStateService {
 	}
 
 	private async createHorseSession(): Promise<void>{
+		assertGamesEnabled(this.deps.configService, 'createHorseSession');
+		assertHorseRacingEnabled(this.deps.configService, 'createHorseSession');
 		try{
 			const raceResult = createHorseRaceResult(this.horseRecords);
 			this.raceCounter++;
@@ -237,6 +242,9 @@ export class GameStateService {
 	}
 
 	public existsFishingSession(playerid: GameIdentity['playerid']): boolean {
+		assertGamesEnabled(this.deps.configService, 'existsFishingSession');
+		assertFishingEnabled(this.deps.configService, 'existsFishingSession');
+
 		const session = this.activeFishing.get(playerid);
 		if(session){
 			return true;
@@ -245,6 +253,9 @@ export class GameStateService {
 	}
 
 	public createFishingSession(playerid: GameIdentity['playerid'], target: string | null, callback: FishingEventCallback): void {
+		assertGamesEnabled(this.deps.configService, 'createFishingSession');
+		assertFishingEnabled(this.deps.configService, 'createFishingSession');
+
 		const fishCatch = createCatch(target, this.fishRecords);
 
 		let castDuration: number;
@@ -275,6 +286,8 @@ export class GameStateService {
 	}
 
 	public catchFishingSession(playerid: GameIdentity['playerid']): FishResult | null {
+		assertGamesEnabled(this.deps.configService, 'catchFishingSession');
+		assertFishingEnabled(this.deps.configService, 'catchFishingSession');
 		const session = this.activeFishing.get(playerid);
 
 		if(!session){
@@ -376,6 +389,8 @@ export class GameStateService {
 	public getLeaderboard(label: 'fishing'): PublicFishingLeaderboard;
 	public getLeaderboard(label: 'horse'): PublicHorseLeaderboard;
 	public getLeaderboard(label?: 'blackjack' | 'dueling' | 'fishing' | 'horse'): PublicLeaderboard{
+		assertGamesEnabled(this.deps.configService, 'getLeaderboard');
+
 		const usersMap = this.deps.gameIdentityService.getGameUsersMap();
 		const entriesArray = Array.from(usersMap.values());
 
@@ -519,6 +534,16 @@ export class GameStateService {
 		};
 	}
 
+	private incrementHorseRecord(horseName: string, place: number): void {
+		const record = this.horseRecords.find(entry => entry.horseName === horseName);
+		if(!record){
+			throw new AppError('no matching horse record found to increment', 'bug');
+		}
+
+		record.results[place]++;
+		this.horseQueue.chain();
+	}
+
 	private async saveRecords(path: string, data: unknown): Promise<void> {
 		try{
 			await writeJsonFile(path, data);
@@ -611,16 +636,6 @@ export class GameStateService {
 		}));
 	}
 
-	private incrementHorseRecord(horseName: string, place: number): void {
-		const record = this.horseRecords.find(entry => entry.horseName === horseName);
-		if(!record){
-			throw new AppError('no matching horse record found to increment', 'bug');
-		}
-
-		record.results[place]++;
-		this.horseQueue.chain();
-	}
-
 	private resolveRecords(input: unknown, label: 'fish'): [PrivateFishRecordList, KeyedParseFailureRecord[]];
 	private resolveRecords(input: unknown, label: 'horse'): [PrivateHorseRecordList, KeyedParseFailureRecord[]];
 	private resolveRecords(input: unknown, label: 'fish' | 'horse'): [PrivateFishRecordList, KeyedParseFailureRecord[]] | [PrivateHorseRecordList, KeyedParseFailureRecord[]]{
@@ -665,7 +680,12 @@ export class GameStateService {
 		if(config.horseRacing){
 			setInterval(() =>{
 				if(!this.existsHorseSession()){
-					this.createHorseSession();
+					try{
+						this.createHorseSession();
+					}
+					catch(error: unknown){
+						handleError(error);
+					}
 				}
 			}, config.raceFrequency * 1000);
 		}

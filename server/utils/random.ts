@@ -86,3 +86,26 @@ export function randomInt(min: number, max: number): number {
 
 	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
+
+export function randomIntArray(min: number, max: number): number[] {
+	const minInt = Math.ceil(min);
+	const maxInt = Math.floor(max);
+
+	if(minInt > maxInt){
+		throw new AppError('randomIntArray called with min greater than max', 'bug');
+	}
+
+	const pool: number[] = [];
+	for(let i = minInt; i <= maxInt; i++){
+		pool.push(i);
+	}
+
+	const picks: number[] = [];
+	while(pool.length > 0){
+		const index = Math.floor(Math.random() * pool.length);
+		picks.push(pool[index]);
+		pool.splice(index, 1);
+	}
+
+	return picks;
+}

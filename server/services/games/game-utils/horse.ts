@@ -3,7 +3,7 @@ import { PrivateHorseRecordList } from '../../../defs/def-record';
 import type { Candidate, WeightedCandidates } from '../../../defs/def-random';
 
 import { AppError } from '../../../utils/errors';
-import { pickUniformExclusive, randomInt } from '../../../utils/random';
+import { pickUniformExclusive, randomInt, randomIntArray } from '../../../utils/random';
 
 import { createHorseStartCommentary, createHorseCommentary, createHorseEndCommentary } from './commentary';
 
@@ -16,12 +16,15 @@ export function createHorseRaceResult(records: PrivateHorseRecordList): HorseRac
 	const candidateHorses = records.map(entry => entry.horseName);
 	const selectedHorses = pickUniformExclusive(candidateHorses, fieldSize);
 	const weightedHorses = createHorseWeights(selectedHorses);
+	const horsePosts = randomIntArray(1, 16);
+	let postIndex = 0;
 
 	const raceField: HorseRaceEntry[] = [];
 	for(const [horseName, weight] of weightedHorses){
 		const odds = createHorseOdds(weight);
 		const raceEntry: HorseRaceEntry = {
 			horseName: horseName,
+			horsePost: horsePosts[postIndex++],
 			weight: weight,
 			score: 0,
 			oddsNum: odds.oddsNum,
@@ -59,8 +62,11 @@ export function createHorseRaceResult(records: PrivateHorseRecordList): HorseRac
 		finalStretch: finalStretch,
 		end: end,
 		first: endScores[0].horseName,
+		firstPost: endScores[0].horsePost,
 		second: endScores[1].horseName,
-		third: endScores[2].horseName
+		secondPost: endScores[1].horsePost,
+		third: endScores[2].horseName,
+		thirdPost: endScores[2].horsePost
 	};
 
 	return result;
@@ -196,6 +202,7 @@ function createHorseField(race: HorseRaceEntry[]): HorseFieldEntry[] {
 	for(const raceEntry of race){
 		const fieldEntry: HorseFieldEntry = {
 			horseName: raceEntry.horseName,
+			horsePost: raceEntry.horsePost,
 			oddsNum: raceEntry.oddsNum,
 			oddsDen: raceEntry.oddsDen
 		};

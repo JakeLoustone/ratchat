@@ -212,7 +212,7 @@ export class GameStateService {
 
 		for(let index = 0; index < sortedField.length; index++){
 			const horse = sortedField[index];
-			let line = `[${horse.horseName}]: ${horse.oddsNum}:${horse.oddsDen}`;
+			let line = `Number ${horse.horsePost}: [${horse.horseName}] at ${horse.oddsNum}:${horse.oddsDen}`;
 
 			if(index === 0){
 				line += ', the favorite!';

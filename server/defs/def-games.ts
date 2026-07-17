@@ -1,7 +1,13 @@
 import type { GameIdentity } from './def-identity';
 import { FishRecordEntry, HorseRecordEntry } from './def-record';
 
+export type HorseOdds = {
+	oddsNum: number;
+	oddsDen: number;
+}
+
 export type HorseFieldEntry = {
+	horsePost: number;
 	horseName: HorseRecordEntry['horseName'];
 } & HorseOdds;
 
@@ -19,8 +25,11 @@ export type HorseRaceResult = {
 	finalStretch: string[];
 	end: string[];
 	first: HorseRecordEntry['horseName'];
+	firstPost: number;
 	second: HorseRecordEntry['horseName'];
+	secondPost: number;
 	third: HorseRecordEntry['horseName'];
+	thirdPost: number;
 };
 
 export type HorseBet = {
@@ -55,8 +64,3 @@ export const fType = {
 } as const;
 
 export type FishingEventCallback = (playerid: GameIdentity['playerid'], event: FishingEventType) => void;
-
-export type HorseOdds = {
-	oddsNum: number;
-	oddsDen: number;
-}

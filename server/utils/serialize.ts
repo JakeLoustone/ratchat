@@ -1,8 +1,8 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { mkdir, writeFile, rename } from 'fs/promises';
-import { dirname } from 'path';
+import {readFileSync, writeFileSync, existsSync, mkdirSync} from 'fs';
+import {mkdir, writeFile, rename} from 'fs/promises';
+import {dirname} from 'path';
 
-import { AppError } from './errors';
+import {AppError} from './errors';
 
 export function existsFile(path: string): boolean {
 	return existsSync(path);
@@ -10,8 +10,8 @@ export function existsFile(path: string): boolean {
 
 export function createJsonFile(path: string, defaultValue: unknown): void {
 	try {
-		mkdirSync(dirname(path), { recursive: true });
-		writeFileSync(path, JSON.stringify(defaultValue, null, 4), { flag: 'wx' });
+		mkdirSync(dirname(path), {recursive: true});
+		writeFileSync(path, JSON.stringify(defaultValue, null, 4), {flag: 'wx'});
 	}
 	catch (error: unknown) {
 		if (error instanceof Error) {
@@ -42,7 +42,7 @@ export async function writeJsonFile(path: string, data: unknown): Promise<void> 
 	const tempPath = `${path}.tmp`;
 
 	try{
-		await mkdir(dirname(path), { recursive: true });
+		await mkdir(dirname(path), {recursive: true});
 		await writeFile(tempPath, JSON.stringify(data, null, 4));
 		await rename(tempPath, path);
 	}

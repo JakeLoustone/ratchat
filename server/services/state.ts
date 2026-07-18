@@ -1,19 +1,19 @@
-import { cType } from '../defs/def-events';
-import type { RatServer, RatSocket } from '../defs/def-events';
-import type { Identity, UserSum } from '../defs/def-identity';
+import {cType} from '../defs/def-events';
+import type {RatServer, RatSocket} from '../defs/def-events';
+import type {Identity, UserSum} from '../defs/def-identity';
 
-import { CacheService } from './cache';
-import { ConfigService } from './config';
-import { DispatchService } from './dispatch';
-import { IdentityService } from './identity';
-import type { SafeString } from './moderation';
+import {CacheService} from './cache';
+import {ConfigService} from './config';
+import {DispatchService} from './dispatch';
+import {IdentityService} from './identity';
+import type {SafeString} from './moderation';
 
-import { handleError, AppError } from '../utils/errors';
-import { getBaseNick } from '../utils/format';
-import { hashIP } from '../utils/hash';
-import { isUnknownArray } from '../utils/parse';
-import { createSaveQueue } from '../utils/queue';
-import { isValid7TVID } from '../utils/validate';
+import {handleError, AppError} from '../utils/errors';
+import {getBaseNick} from '../utils/format';
+import {hashIP} from '../utils/hash';
+import {isUnknownArray} from '../utils/parse';
+import {createSaveQueue} from '../utils/queue';
+import {isValid7TVID} from '../utils/validate';
 
 type EmoteEntry = {
 	name: string;
@@ -214,7 +214,7 @@ export class StateService {
 
 	public broadcastUsers(io: RatServer): void {
 		const userList: UserSum[] = Array.from(this.socketUsers.values())
-			.map(({ fullnick, status, isMod, isAfk }) => ({ fullnick, status, isMod, isAfk }))
+			.map(({fullnick, status, isMod, isAfk}) => ({fullnick, status, isMod, isAfk}))
 			.sort((a,b) =>{
 				if(a.isAfk !== b.isAfk){
 					return a.isAfk ? 1 : -1;
@@ -368,7 +368,7 @@ export class StateService {
 		return new Promise<boolean>((resolve, reject) => {
 			try {
 				const hashed = hashIP(socket.handshake.address);
-				this.signupBuffer.set(hashed, { socket, basenick });
+				this.signupBuffer.set(hashed, {socket, basenick});
 				this.signupPromise.set(socket, resolve);
 				if(!this.signupTimer){
 					this.signupTimer = setTimeout(() => this.resolveSignups(), this.deps.configService.getServerConfig().signupTime * 1000);
@@ -480,7 +480,7 @@ export class StateService {
 			}
 
 			if(updates.length > 0){
-				updates.forEach(({ id, user }) => {
+				updates.forEach(({id, user}) => {
 					this.socketUsers.set(id, user);
 				});
 

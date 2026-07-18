@@ -1,4 +1,4 @@
-import type { Identity } from '../defs/def-identity';
+import type {Identity} from '../defs/def-identity';
 
 const DISPLAY_COLOR_LENGTH = 7;
 

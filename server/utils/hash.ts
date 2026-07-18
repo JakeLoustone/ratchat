@@ -1,8 +1,8 @@
 import crypto from 'crypto';
 
-import type { RatSocket } from '../defs/def-events';
+import type {RatSocket} from '../defs/def-events';
 
-import { AppError } from './errors';
+import {AppError} from './errors';
 
 export function hashIP(ip: RatSocket['handshake']['address']): string{
 	if(!process.env.IP_PEPPER){

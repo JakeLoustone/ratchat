@@ -1,12 +1,12 @@
-import { allowedHorseColors } from '../../../defs/def-games';
-import type { HorseOdds, HorseColor, HorseFieldEntry, HorseRaceEntry, HorseRaceResult } from '../../../defs/def-games';
-import type { Candidate, WeightedCandidates } from '../../../defs/def-random';
-import type { PrivateHorseRecordList } from '../../../defs/def-record';
+import {allowedHorseColors} from '../../../defs/def-games';
+import type {HorseOdds, HorseColor, HorseFieldEntry, HorseRaceEntry, HorseRaceResult} from '../../../defs/def-games';
+import type {Candidate, WeightedCandidates} from '../../../defs/def-random';
+import type {PrivateHorseRecordList} from '../../../defs/def-record';
 
-import { AppError } from '../../../utils/errors';
-import { pickUniformExclusive, randomInt, randomIntArray } from '../../../utils/random';
+import {AppError} from '../../../utils/errors';
+import {pickUniformExclusive, randomInt, randomIntArray} from '../../../utils/random';
 
-import { createHorseStartCommentary, createHorseCommentary, createHorseEndCommentary } from './commentary';
+import {createHorseStartCommentary, createHorseCommentary, createHorseEndCommentary} from './commentary';
 
 const MIN_FIELD_SIZE = 8;
 const MAX_FIELD_SIZE = 13;
@@ -129,7 +129,7 @@ function createHorseOdds(weight: number): HorseOdds {
 		const rawNumerator = Math.round(weightOddsRatio * denominator);
 		const numerator = Math.min(Math.max(rawNumerator, minNumerator), maxNumerator);
 		const diff = Math.abs((numerator / denominator) - weightOddsRatio);
-		candidates.push({ denominator, numerator, diff });
+		candidates.push({denominator, numerator, diff});
 	}
 
 	//lowest denom canidadte within margin, fallback to best diff
@@ -157,7 +157,7 @@ function createHorseScoresPhase(race: HorseRaceEntry[], weightWeight: number, sc
 
 	for(const raceEntry of race){
 		const newScore = createHorseScore(raceEntry, weightWeight, scoreWeight);
-		const updatedEntry: HorseRaceEntry = { ...raceEntry, score: newScore };
+		const updatedEntry: HorseRaceEntry = {...raceEntry, score: newScore};
 		scores.push(updatedEntry);
 	}
 

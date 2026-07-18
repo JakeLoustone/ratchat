@@ -1,12 +1,12 @@
-import type { RatSocket } from '../defs/def-events';
+import type {RatSocket} from '../defs/def-events';
 
-import { ConfigService } from './config';
+import {ConfigService} from './config';
 
-import { handleError, AppError } from '../utils/errors';
-import { hashIP } from '../utils/hash';
-import { isUnknownArray } from '../utils/parse';
-import { createSaveQueue } from '../utils/queue';
-import { existsFile, createJsonFile, readJsonFile, writeJsonFile } from '../utils/serialize';
+import {handleError, AppError} from '../utils/errors';
+import {hashIP} from '../utils/hash';
+import {isUnknownArray} from '../utils/parse';
+import {createSaveQueue} from '../utils/queue';
+import {existsFile, createJsonFile, readJsonFile, writeJsonFile} from '../utils/serialize';
 
 type BanEntry = {
 	hash: string;

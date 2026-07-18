@@ -1,12 +1,12 @@
-import type { z } from 'zod';
+import type {z} from 'zod';
 
-import { IdentitySchema, GameIdentitySchema } from '../defs/def-identity';
-import { FishRecordEntrySchema, HorseRecordEntrySchema } from '../defs/def-record';
-import { aType } from '../defs/def-parse';
-import type { Config, ServerConfig, MarkovConfig, GameConfig, ServerConfigParams, MarkovConfigParams, GameConfigParams, ConfigParams } from '../defs/def-config';
-import type { Identity, GameIdentity, DefaultIdentity, DefaultGameIdentity} from '../defs/def-identity';
-import type { DefaultFishRecordEntry, DefaultHorseRecordEntry, FishRecordEntry, HorseRecordEntry } from '../defs/def-record';
-import type { SchemaType, ParseFailureRecord } from '../defs/def-parse';
+import {IdentitySchema, GameIdentitySchema} from '../defs/def-identity';
+import {FishRecordEntrySchema, HorseRecordEntrySchema} from '../defs/def-record';
+import {aType} from '../defs/def-parse';
+import type {Config, ServerConfig, MarkovConfig, GameConfig, ServerConfigParams, MarkovConfigParams, GameConfigParams, ConfigParams} from '../defs/def-config';
+import type {Identity, GameIdentity, DefaultIdentity, DefaultGameIdentity} from '../defs/def-identity';
+import type {DefaultFishRecordEntry, DefaultHorseRecordEntry, FishRecordEntry, HorseRecordEntry} from '../defs/def-record';
+import type {SchemaType, ParseFailureRecord} from '../defs/def-parse';
 
 export function parseArray<T>(parsed: unknown[], schema: z.ZodType<T>): T[]{
 	return parsed.filter((entry): entry is T => schema.safeParse(entry).success);

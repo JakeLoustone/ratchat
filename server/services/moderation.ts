@@ -1,14 +1,14 @@
-import { ProfanityFilterEntrySchema } from '../defs/def-moderation';
-import type { Identity } from '../defs/def-identity';
-import type { TimeType, TextType } from '../defs/def-moderation';
+import {ProfanityFilterEntrySchema} from '../defs/def-moderation';
+import type {Identity} from '../defs/def-identity';
+import type {TimeType, TextType} from '../defs/def-moderation';
 
-import { ConfigService } from './config';
+import {ConfigService} from './config';
 
-import { handleError, AppError } from '../utils/errors';
-import { isUnknownArray, parseArray } from '../utils/parse';
-import { sanitizeText } from '../utils/sanitize';
-import { existsFile, readJsonFile } from '../utils/serialize';
-import { isValidHexColor } from '../utils/validate';
+import {handleError, AppError} from '../utils/errors';
+import {isUnknownArray, parseArray} from '../utils/parse';
+import {sanitizeText} from '../utils/sanitize';
+import {existsFile, readJsonFile} from '../utils/serialize';
+import {isValidHexColor} from '../utils/validate';
 
 export type SafeString = string & {readonly __brand: 'SafeString'};
 

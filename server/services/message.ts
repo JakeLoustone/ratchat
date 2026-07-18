@@ -1,17 +1,17 @@
-import { cType } from '../defs/def-events';
-import { clearInput, keepInput } from '../defs/def-input';
-import type { RatServer, RatSocket } from '../defs/def-events';
-import type { Identity } from '../defs/def-identity';
-import type { InputStatus } from '../defs/def-input';
+import {cType} from '../defs/def-events';
+import {clearInput, keepInput} from '../defs/def-input';
+import type {RatServer, RatSocket} from '../defs/def-events';
+import type {Identity} from '../defs/def-identity';
+import type {InputStatus} from '../defs/def-input';
 
-import { ConfigService } from './config';
-import { DispatchService } from './dispatch';
-import { ModerationService } from './moderation';
-import { IdentityService } from './identity';
-import { StateService } from './state';
-import { MarkovService } from './markov';
+import {ConfigService} from './config';
+import {DispatchService} from './dispatch';
+import {ModerationService} from './moderation';
+import {IdentityService} from './identity';
+import {StateService} from './state';
+import {MarkovService} from './markov';
 
-import { handleError } from '../utils/errors';
+import {handleError} from '../utils/errors';
 
 export interface MessageServiceDependencies {
 	configService: ConfigService;

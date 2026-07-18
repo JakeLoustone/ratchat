@@ -1,21 +1,21 @@
-import { existsSync } from 'fs';
-import { DatabaseSync } from 'node:sqlite';
+import {existsSync} from 'fs';
+import {DatabaseSync} from 'node:sqlite';
 
-import { cType } from '../defs/def-events';
-import { tType } from '../defs/def-moderation';
-import type { RatServer } from '../defs/def-events';
-import type { WeightedCandidates} from '../defs/def-random';
+import {cType} from '../defs/def-events';
+import {tType} from '../defs/def-moderation';
+import type {RatServer} from '../defs/def-events';
+import type {WeightedCandidates} from '../defs/def-random';
 
-import { ConfigService } from './config';
-import { DispatchService } from './dispatch';
-import { ModerationService } from './moderation';
-import { IdentityService } from './identity';
-import { StateService } from './state';
+import {ConfigService} from './config';
+import {DispatchService} from './dispatch';
+import {ModerationService} from './moderation';
+import {IdentityService} from './identity';
+import {StateService} from './state';
 
-import { AppError, handleError } from '../utils/errors';
-import { getBaseNick } from '../utils/format';
-import { isUnknownArray } from '../utils/parse';
-import { pickWeighted } from '../utils/random';
+import {AppError, handleError} from '../utils/errors';
+import {getBaseNick} from '../utils/format';
+import {isUnknownArray} from '../utils/parse';
+import {pickWeighted} from '../utils/random';
 
 const MAX_RETRY_ATTEMPTS = 5;
 const MIN_WORD_COUNT = 4;

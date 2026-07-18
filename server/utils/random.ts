@@ -1,6 +1,6 @@
-import type { Candidate, WeightedCandidates, UniformCandidates, GaussianCandidate } from '../defs/def-random';
+import type {Candidate, WeightedCandidates, UniformCandidates, GaussianCandidate} from '../defs/def-random';
 
-import { AppError } from './errors';
+import {AppError} from './errors';
 
 export function pickWeighted(candidates: WeightedCandidates): Candidate {
 	const firstEntry = candidates.keys().next().value;

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import {z} from 'zod';
 
 export type Identity = z.infer<typeof IdentitySchema>;
 export type DefaultIdentity = Omit<Identity, 'guid' | 'playerid' | 'fullnick'>;

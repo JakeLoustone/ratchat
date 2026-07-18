@@ -1,9 +1,9 @@
-import type { FishCatch } from '../../../defs/def-games';
-import type { PrivateFishRecordList, FishRecordEntry } from '../../../defs/def-record';
-import type { UniformCandidates } from '../../../defs/def-random';
+import type {FishCatch} from '../../../defs/def-games';
+import type {PrivateFishRecordList, FishRecordEntry} from '../../../defs/def-record';
+import type {UniformCandidates} from '../../../defs/def-random';
 
-import { AppError } from '../../../utils/errors';
-import { pickUniform, pickGaussian } from '../../../utils/random';
+import {AppError} from '../../../utils/errors';
+import {pickUniform, pickGaussian} from '../../../utils/random';
 
 export function createCatch(target: string | null, records: PrivateFishRecordList): FishCatch | null {
 	let fish: FishRecordEntry | null;
@@ -56,7 +56,7 @@ function pickTargetFish(target: string, records: PrivateFishRecordList): FishRec
 }
 
 function pickFishWeight(fish: FishRecordEntry): number {
-	const gaussianCandidate = { candidate: fish.fishName, baseline: fish.baseline };
+	const gaussianCandidate = {candidate: fish.fishName, baseline: fish.baseline};
 	const rawWeight = pickGaussian(gaussianCandidate);
 	const roundedWeight = Math.round(rawWeight * 100) / 100;
 	const clampedWeight = Math.max(roundedWeight, 0.01);

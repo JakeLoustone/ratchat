@@ -1,7 +1,7 @@
-import { createClient } from 'redis';
-import type { RedisClientType } from 'redis';
+import {createClient} from 'redis';
+import type {RedisClientType} from 'redis';
 
-import { handleError, AppError } from '../utils/errors';
+import {handleError, AppError} from '../utils/errors';
 
 export type RedisKey = string & {readonly __brand: 'RedisKey'};
 
@@ -21,7 +21,7 @@ export class CacheService{
 			throw new AppError('startRedisClient called without REDIS_URL set', 'bug');
 		}
 
-		const client: RedisClientType = createClient({ url: process.env.REDIS_URL });
+		const client: RedisClientType = createClient({url: process.env.REDIS_URL});
 
 		try{
 			client.on('error', () => {}); //suppress errors until startup completes
@@ -85,7 +85,7 @@ export class CacheService{
 		}
 
 		try{
-			await this.redisClient.set(key, JSON.stringify(value), { EX: REDIS_TTL });
+			await this.redisClient.set(key, JSON.stringify(value), {EX: REDIS_TTL});
 		}
 		catch(error: unknown){
 			if(error instanceof Error){

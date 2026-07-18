@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import {z} from 'zod';
 
 export type ProfanityFilterEntry = z.infer<typeof ProfanityFilterEntrySchema>;
 export const ProfanityFilterEntrySchema = z.object({

@@ -1,5 +1,5 @@
-import { hType } from '../../defs/def-events';
-import type { FishCatalogEntry } from '../../defs/def-record';
+import {hType} from '../../defs/def-events';
+import type {FishCatalogEntry} from '../../defs/def-record';
 
 export const defaultFishCatalog: FishCatalogEntry[] = [
 	{fishName: 'Anchovy', baseline: 2.5, fishFlavor: 'i like them on pizza!', fishColor: hType.navy},

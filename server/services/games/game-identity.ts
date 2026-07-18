@@ -1,17 +1,17 @@
-import { GameIdentitySchema } from '../../defs/def-identity';
-import { aType } from '../../defs/def-parse';
-import type { GameIdentity, DefaultGameIdentity } from '../../defs/def-identity';
-import type { KeyedParseFailureRecord } from '../../defs/def-parse';
+import {GameIdentitySchema} from '../../defs/def-identity';
+import {aType} from '../../defs/def-parse';
+import type {GameIdentity, DefaultGameIdentity} from '../../defs/def-identity';
+import type {KeyedParseFailureRecord} from '../../defs/def-parse';
 
-import { ConfigService } from '../config';
+import {ConfigService} from '../config';
 
-import { AppError, handleError } from '../../utils/errors';
-import { mergeIdentityDefaults, isUnknownArray } from '../../utils/parse';
-import { createSaveQueue } from '../../utils/queue';
-import { assertSafeStartup, getRepairPath } from '../../utils/repair';
-import { existsFile, createJsonFile, readJsonFile, writeJsonFile } from '../../utils/serialize';
+import {AppError, handleError} from '../../utils/errors';
+import {mergeIdentityDefaults, isUnknownArray} from '../../utils/parse';
+import {createSaveQueue} from '../../utils/queue';
+import {assertSafeStartup, getRepairPath} from '../../utils/repair';
+import {existsFile, createJsonFile, readJsonFile, writeJsonFile} from '../../utils/serialize';
 
-import { assertGamesEnabled, assertFishingEnabled } from './game-utils/checks';
+import {assertGamesEnabled, assertFishingEnabled} from './game-utils/checks';
 
 const MAX_INT = 4294967295;
 

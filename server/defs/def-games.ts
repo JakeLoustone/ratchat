@@ -1,7 +1,7 @@
-import { hType } from './def-events';
-import type { GameText } from './def-events';
-import type { GameIdentity } from './def-identity';
-import type { FishRecordEntry, HorseRecordEntry } from './def-record';
+import {hType} from './def-events';
+import type {GameText} from './def-events';
+import type {GameIdentity} from './def-identity';
+import type {FishRecordEntry, HorseRecordEntry} from './def-record';
 
 export type HorseColor = typeof allowedHorseColors[keyof typeof allowedHorseColors];
 export const allowedHorseColors = {

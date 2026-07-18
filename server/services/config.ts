@@ -1,12 +1,12 @@
-import { defaultServerConfig, defaultMarkovConfig, defaultGameConfig, ServerConfigSchema, MarkovConfigSchema, GameConfigSchema } from '../defs/def-config';
-import { aType } from '../defs/def-parse';
-import type { ServerConfig, MarkovConfig, GameConfig, Config, ServerConfigParams, MarkovConfigParams, GameConfigParams, ConfigParams } from '../defs/def-config';
-import type { ParseFailureRecord } from '../defs/def-parse';
+import {defaultServerConfig, defaultMarkovConfig, defaultGameConfig, ServerConfigSchema, MarkovConfigSchema, GameConfigSchema} from '../defs/def-config';
+import {aType} from '../defs/def-parse';
+import type {ServerConfig, MarkovConfig, GameConfig, Config, ServerConfigParams, MarkovConfigParams, GameConfigParams, ConfigParams} from '../defs/def-config';
+import type {ParseFailureRecord} from '../defs/def-parse';
 
-import { handleError, AppError } from '../utils/errors';
-import { mergeConfigDefaults } from '../utils/parse';
-import { assertSafeStartup, getRepairPath } from '../utils/repair';
-import { existsFile, createJsonFile, readJsonFile } from '../utils/serialize';
+import {handleError, AppError} from '../utils/errors';
+import {mergeConfigDefaults} from '../utils/parse';
+import {assertSafeStartup, getRepairPath} from '../utils/repair';
+import {existsFile, createJsonFile, readJsonFile} from '../utils/serialize';
 
 export interface ConfigServiceDependencies{
 	serverConfigPath: string;

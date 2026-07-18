@@ -1,22 +1,22 @@
-import { cType, eType, hType } from '../../defs/def-events';
-import { allGames } from '../../defs/def-config';
-import { fType } from '../../defs/def-games';
-import { clearInput, keepInput } from '../../defs/def-input';
-import type { GameCommand } from '../../defs/def-commands';
-import type { GameType } from '../../defs/def-config';
-import type { RatServer, RatSocket, GameEventType, GameText } from '../../defs/def-events';
-import type { FishingEventType } from '../../defs/def-games';
-import type { Identity, GameIdentity } from '../../defs/def-identity';
-import type { InputStatus } from '../../defs/def-input';
+import {cType, eType, hType} from '../../defs/def-events';
+import {allGames} from '../../defs/def-config';
+import {fType} from '../../defs/def-games';
+import {clearInput, keepInput} from '../../defs/def-input';
+import type {GameCommand} from '../../defs/def-commands';
+import type {GameType} from '../../defs/def-config';
+import type {RatServer, RatSocket, GameEventType, GameText} from '../../defs/def-events';
+import type {FishingEventType} from '../../defs/def-games';
+import type {Identity, GameIdentity} from '../../defs/def-identity';
+import type {InputStatus} from '../../defs/def-input';
 
-import { ConfigService } from '../config';
-import { DispatchService } from '../dispatch';
-import { GameIdentityService } from './game-identity';
-import { IdentityService } from '../identity';
-import { GameStateService } from './game-state';
-import { StateService } from '../state';
+import {ConfigService} from '../config';
+import {DispatchService} from '../dispatch';
+import {GameIdentityService} from './game-identity';
+import {IdentityService} from '../identity';
+import {GameStateService} from './game-state';
+import {StateService} from '../state';
 
-import { getBaseNick } from '../../utils/format';
+import {getBaseNick} from '../../utils/format';
 
 type GameCommandEntry = {
 	enabledFor: GameType[];
@@ -97,10 +97,10 @@ export class GameCommandService {
 		const nicepoints = points.toLocaleString('en-US');
 		const name = this.deps.configService.getGameConfig().pointsName;
 		const message: GameText[] = [
-			{ text: "you've earned ", color: hType.normal },
-			{ text: `${nicepoints} `, color: hType.normal },
-			{ text: name, color: hType.normal },
-			{ text: ", don't spend it all in one place", color: hType.normal }
+			{text: "you've earned ", color: hType.normal},
+			{text: `${nicepoints} `, color: hType.normal},
+			{text: name, color: hType.normal},
+			{text: ", don't spend it all in one place", color: hType.normal}
 		];
 		this.deps.dispatchService.sendGamePayload(ctx.socket, message, event);
 	}
@@ -124,19 +124,19 @@ export class GameCommandService {
 
 		switch(event){
 			case fType.bite:{
-				message = [{ text: 'fish on! /catch it before it gets away!', color: hType.normal }];
+				message = [{text: 'fish on! /catch it before it gets away!', color: hType.normal}];
 				break;
 			}
 			case fType.expired:{
-				message = [{ text: 'damn, it got away...', color: hType.normal }];
+				message = [{text: 'damn, it got away...', color: hType.normal}];
 				break;
 			}
 			case fType.nothing:{
-				message = [{ text: 'looks like nothing bit...', color: hType.normal }];
+				message = [{text: 'looks like nothing bit...', color: hType.normal}];
 				break;
 			}
 			default:{
-				message = [{ text: 'looks like nothing bit...', color: hType.normal }];
+				message = [{text: 'looks like nothing bit...', color: hType.normal}];
 			}
 		}
 
@@ -188,7 +188,7 @@ export class GameCommandService {
 
 				for(const color of colors){
 					const message: GameText[] = [
-						{ text: `[${color}]: The quick brown fox jumped over the lazy dog. 1234567890.`, color: color }
+						{text: `[${color}]: The quick brown fox jumped over the lazy dog. 1234567890.`, color: color}
 					];
 					this.deps.dispatchService.sendGamePayload(ctx.socket, message, eType.horse);
 				}
@@ -224,15 +224,15 @@ export class GameCommandService {
 
 				if(target){
 					const message: GameText[] = [
-						{ text: 'you carefully cast your line looking for ', color: hType.normal },
-						{ text: `"${target}"`, color: hType.normal },
-						{ text: '...', color: hType.normal }
+						{text: 'you carefully cast your line looking for ', color: hType.normal},
+						{text: `"${target}"`, color: hType.normal},
+						{text: '...', color: hType.normal}
 					];
 					this.deps.dispatchService.sendGamePayload(ctx.socket, message, eType.fishing);
 					return clearInput;
 				}
 				else{
-					const message: GameText[] = [{ text: 'you cast out your line...', color: hType.normal }];
+					const message: GameText[] = [{text: 'you cast out your line...', color: hType.normal}];
 					this.deps.dispatchService.sendGamePayload(ctx.socket, message, eType.fishing);
 					return clearInput;
 				}
@@ -249,33 +249,33 @@ export class GameCommandService {
 				try{
 					const fishResult = this.deps.gameStateService.catchFishingSession(ctx.commandUser.playerid);
 					if(!fishResult){
-						const message: GameText[] = [{ text: "your hook's empty...", color: hType.normal }];
+						const message: GameText[] = [{text: "your hook's empty...", color: hType.normal}];
 						this.deps.dispatchService.sendGamePayload(ctx.socket, message, eType.fishing);
 						return clearInput;
 					}
 
-					const weight = fishResult.weight.toLocaleString('en-US', { maximumFractionDigits: 2 });
+					const weight = fishResult.weight.toLocaleString('en-US', {maximumFractionDigits: 2});
 
 					const message: GameText[] = [
-						{ text: 'you caught a [', color: hType.normal },
-						{ text: fishResult.name.toLowerCase(), color: fishResult.color },
-						{ text: `] weighing ${weight} ounces. `, color: hType.normal }
+						{text: 'you caught a [', color: hType.normal},
+						{text: fishResult.name.toLowerCase(), color: fishResult.color},
+						{text: `] weighing ${weight} ounces. `, color: hType.normal}
 					];
 
 					if(fishResult.record){
-						message.push({ text: 'new server fish record! ', color: hType.normal });
+						message.push({text: 'new server fish record! ', color: hType.normal});
 					}
 					if(fishResult.pb){
-						message.push({ text: 'new personal best catch! ', color: hType.normal });
+						message.push({text: 'new personal best catch! ', color: hType.normal});
 					}
 					if(fishResult.newcatch){
-						message.push({ text: "you've never seen one of those before. ", color: hType.normal });
+						message.push({text: "you've never seen one of those before. ", color: hType.normal});
 					}
 					if(fishResult.big){
-						message.push({ text: "that's a biggun' ", color: hType.normal });
+						message.push({text: "that's a biggun' ", color: hType.normal});
 					}
 					if(fishResult.small){
-						message.push({ text: "that's a smallun' ", color: hType.normal });
+						message.push({text: "that's a smallun' ", color: hType.normal});
 					}
 
 					this.deps.dispatchService.sendGamePayload(ctx.socket, message, eType.fishing);
@@ -283,10 +283,10 @@ export class GameCommandService {
 					if(fishResult.record){
 						const basenick = getBaseNick(ctx.commandUser.fullnick);
 						const announcement: GameText[] = [
-							{ text: basenick, color: hType.normal },
-							{ text: ' caught a new server record [', color: hType.normal },
-							{ text: fishResult.name.toLowerCase(), color: fishResult.color },
-							{ text: `] weighing ${weight} ounces!`, color: hType.normal }
+							{text: basenick, color: hType.normal},
+							{text: ' caught a new server record [', color: hType.normal},
+							{text: fishResult.name.toLowerCase(), color: fishResult.color},
+							{text: `] weighing ${weight} ounces!`, color: hType.normal}
 						];
 						this.deps.dispatchService.sendGamePayload(ctx.io, announcement, eType.fishing);
 					}

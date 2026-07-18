@@ -1,35 +1,35 @@
-import { RatServer, eType, hType } from '../../defs/def-events';
-import { fType } from '../../defs/def-games';
-import { aType } from '../../defs/def-parse';
-import { HorseRecordEntrySchema, FishRecordEntrySchema } from '../../defs/def-record';
-import type { GameText } from '../../defs/def-events';
-import type { FishCatch, FishingEventCallback, FishResult, HorseFieldEntry, HorseBet, HorseRaceResult } from '../../defs/def-games';
-import type { GameIdentity } from '../../defs/def-identity';
-import type { LeaderboardEntry, BlackjackEntry, DuelingEntry, FishingEntry, HorseEntry } from '../../defs/def-leaderboard';
-import type { PublicLeaderboard, PublicOverallLeaderboard, PublicBlackjackLeaderboard, PublicDuelingLeaderboard, PublicFishingLeaderboard, PublicHorseLeaderboard } from '../../defs/def-leaderboard';
-import type { KeyedParseFailureRecord, ParseFailureRecord } from '../../defs/def-parse';
-import type { PrivateHorseRecordList, PrivateFishRecordList, DefaultFishRecordEntry, DefaultHorseRecordEntry } from '../../defs/def-record';
+import {RatServer, eType, hType} from '../../defs/def-events';
+import {fType} from '../../defs/def-games';
+import {aType} from '../../defs/def-parse';
+import {HorseRecordEntrySchema, FishRecordEntrySchema} from '../../defs/def-record';
+import type {GameText} from '../../defs/def-events';
+import type {FishCatch, FishingEventCallback, FishResult, HorseFieldEntry, HorseBet, HorseRaceResult} from '../../defs/def-games';
+import type {GameIdentity} from '../../defs/def-identity';
+import type {LeaderboardEntry, BlackjackEntry, DuelingEntry, FishingEntry, HorseEntry} from '../../defs/def-leaderboard';
+import type {PublicLeaderboard, PublicOverallLeaderboard, PublicBlackjackLeaderboard, PublicDuelingLeaderboard, PublicFishingLeaderboard, PublicHorseLeaderboard} from '../../defs/def-leaderboard';
+import type {KeyedParseFailureRecord, ParseFailureRecord} from '../../defs/def-parse';
+import type {PrivateHorseRecordList, PrivateFishRecordList, DefaultFishRecordEntry, DefaultHorseRecordEntry} from '../../defs/def-record';
 
-import { ConfigService } from '../config';
-import { CacheService } from '../cache';
-import { DispatchService } from '../dispatch';
-import { GameIdentityService } from './game-identity';
-import { IdentityService } from '../identity';
+import {ConfigService} from '../config';
+import {CacheService} from '../cache';
+import {DispatchService} from '../dispatch';
+import {GameIdentityService} from './game-identity';
+import {IdentityService} from '../identity';
 
-import { handleError, AppError } from '../../utils/errors';
-import { getOrdinalSuffix } from '../../utils/format';
-import { mergeRecordDefaults, isUnknownArray } from '../../utils/parse';
-import { createSaveQueue, wait } from '../../utils/queue';
-import { randomInt } from '../../utils/random';
-import { assertSafeStartup, getRepairPath } from '../../utils/repair';
-import { createJsonFile, existsFile, readJsonFile, writeJsonFile } from '../../utils/serialize';
+import {handleError, AppError} from '../../utils/errors';
+import {getOrdinalSuffix} from '../../utils/format';
+import {mergeRecordDefaults, isUnknownArray} from '../../utils/parse';
+import {createSaveQueue, wait} from '../../utils/queue';
+import {randomInt} from '../../utils/random';
+import {assertSafeStartup, getRepairPath} from '../../utils/repair';
+import {createJsonFile, existsFile, readJsonFile, writeJsonFile} from '../../utils/serialize';
 
-import { createCatch } from './game-utils/fishing';
-import { createHorseRaceResult } from './game-utils/horse';
-import { assertFishingEnabled, assertGamesEnabled, assertHorseRacingEnabled } from './game-utils/checks';
+import {createCatch} from './game-utils/fishing';
+import {createHorseRaceResult} from './game-utils/horse';
+import {assertFishingEnabled, assertGamesEnabled, assertHorseRacingEnabled} from './game-utils/checks';
 
-import { defaultFishCatalog } from '../catalogs/catalog-fish';
-import { defaultHorseCatalog } from '../catalogs/catalog-horse';
+import {defaultFishCatalog} from '../catalogs/catalog-fish';
+import {defaultHorseCatalog} from '../catalogs/catalog-horse';
 
 type StageOne = GameIdentity & {fullnick: string };
 type StageTwo = StageOne & { fishingTypesCaught: number, fishingRecords: number };
@@ -145,13 +145,13 @@ export class GameStateService {
 			setTimeout(() => {
 				const reminder: GameText[][] = [
 					[
-						{ text: 'the ', color: hType.normal },
-						{ text: `${raceid}${getOrdinalSuffix(raceid)} `, color: hType.normal },
-						{ text: 'semi annual race starts in ', color: hType.normal },
-						{ text: `${HORSE_BET_REMINDER_AT / 60} `, color: hType.normal },
-						{ text: 'minute(s)!', color: hType.normal }
+						{text: 'the ', color: hType.normal},
+						{text: `${raceid}${getOrdinalSuffix(raceid)} `, color: hType.normal},
+						{text: 'semi annual race starts in ', color: hType.normal},
+						{text: `${HORSE_BET_REMINDER_AT / 60} `, color: hType.normal},
+						{text: 'minute(s)!', color: hType.normal}
 					],
-					[{ text: 'make sure to get your bets in for a 2x multiplier on your payout!', color: hType.normal }]
+					[{text: 'make sure to get your bets in for a 2x multiplier on your payout!', color: hType.normal}]
 				];
 				this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
 				this.sendHorseSessionResult(reminder, false);
@@ -488,7 +488,7 @@ export class GameStateService {
 		for(const gameidentity of entries){
 			try{
 				const fullnick = this.deps.identityService.getFullNickByPlayerId(gameidentity.playerid);
-				results.push({ ...gameidentity, fullnick });
+				results.push({...gameidentity, fullnick});
 			}
 			catch(error: unknown){
 				handleError(error, `Join Nicks To Array (playerid ${gameidentity.playerid})`);
@@ -712,7 +712,7 @@ export class GameStateService {
 			const [record, mergeFailures] = resolveEntry(entry);
 
 			for(const failure of mergeFailures){
-				failures.push({ ...failure, recordKey: `index ${index}` });
+				failures.push({...failure, recordKey: `index ${index}`});
 			}
 			if(record === null){
 				continue;

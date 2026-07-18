@@ -1,9 +1,9 @@
-import { z } from 'zod';
-import type { Server, Socket } from 'socket.io';
+import {z} from 'zod';
+import type {Server, Socket} from 'socket.io';
 
-import { IdentitySchema } from './def-identity';
-import type { Identity, UserSum } from './def-identity';
-import type { InputStatus } from './def-input';
+import {IdentitySchema} from './def-identity';
+import type {Identity, UserSum} from './def-identity';
+import type {InputStatus} from './def-input';
 
 export type RatServer = Server<ToServer, ToClient>;
 export type RatSocket = Socket<ToServer, ToClient>;

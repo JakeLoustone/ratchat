@@ -1,26 +1,26 @@
-import { cType } from '../defs/def-events';
-import { keepInput, clearInput } from '../defs/def-input';
-import { tType } from '../defs/def-moderation';
-import type { Command } from '../defs/def-commands';
-import type { RatServer, RatSocket } from '../defs/def-events';
-import type { Identity } from '../defs/def-identity';
-import type { InputStatus } from '../defs/def-input';
+import {cType} from '../defs/def-events';
+import {keepInput, clearInput} from '../defs/def-input';
+import {tType} from '../defs/def-moderation';
+import type {Command} from '../defs/def-commands';
+import type {RatServer, RatSocket} from '../defs/def-events';
+import type {Identity} from '../defs/def-identity';
+import type {InputStatus} from '../defs/def-input';
 
-import { ConfigService } from './config';
-import { DispatchService } from './dispatch';
-import { ModerationService } from './moderation';
-import { SecurityService } from './security';
-import { GameIdentityService } from './games/game-identity';
-import { IdentityService } from './identity';
-import { GameStateService } from './games/game-state';
-import { StateService } from './state';
-import { MarkovService } from './markov';
-import { MessageService } from './message';
-import { GameCommandService } from './games/game-command';
+import {ConfigService} from './config';
+import {DispatchService} from './dispatch';
+import {ModerationService} from './moderation';
+import {SecurityService} from './security';
+import {GameIdentityService} from './games/game-identity';
+import {IdentityService} from './identity';
+import {GameStateService} from './games/game-state';
+import {StateService} from './state';
+import {MarkovService} from './markov';
+import {MessageService} from './message';
+import {GameCommandService} from './games/game-command';
 
-import { getBaseNick, getNickColor } from '../utils/format';
-import { AppError, handleError } from '../utils/errors';
-import { isValidGUID } from '../utils/validate';
+import {getBaseNick, getNickColor} from '../utils/format';
+import {AppError, handleError} from '../utils/errors';
+import {isValidGUID} from '../utils/validate';
 
 type CommandEntry = {
 	requiresMod: boolean;

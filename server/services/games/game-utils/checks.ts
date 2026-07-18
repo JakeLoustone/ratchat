@@ -1,6 +1,6 @@
-import type { ConfigService } from '../../config';
+import type {ConfigService} from '../../config';
 
-import { AppError } from '../../../utils/errors';
+import {AppError} from '../../../utils/errors';
 
 export function assertGamesEnabled(configService: ConfigService, caller: string): void {
 	if(!configService.getGameConfig().enabled){

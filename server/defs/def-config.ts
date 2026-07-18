@@ -1,8 +1,8 @@
-import{ z } from 'zod';
+import{z} from 'zod';
 
-import { aType } from './def-parse';
+import {aType} from './def-parse';
 
-import { isValid7TVID, isValidHexColor } from '../utils/validate';
+import {isValid7TVID, isValidHexColor} from '../utils/validate';
 
 export type Config = ServerConfig | MarkovConfig | GameConfig;
 export type ConfigSchema = typeof ServerConfigSchema | typeof MarkovConfigSchema | typeof GameConfigSchema;
@@ -24,7 +24,7 @@ export const ServerConfigSchema = z.object({
 	msgArrayLen: z.number().int().min(0).max(1024),
 	msgArrayTimeout: z.number().int().min(60).max(2592000),
 	banLength: z.number().int().min(1).max(365), //days
-	stvurl: z.string().refine(isValid7TVID, { message: "doesn't look like a 7tv emote set ID" }).optional(),
+	stvurl: z.string().refine(isValid7TVID, {message: "doesn't look like a 7tv emote set ID"}).optional(),
 	baseNickRes: z.array(z.string().min(2).max(64).regex(/^\S+$/)).max(32),
 	gdprcontact: z.email().or(z.string().min(1).max(255)),
 	PORT: z.number().int().min(1).max(65535)
@@ -55,7 +55,7 @@ export const MarkovConfigSchema = z.object({
 	enabled: z.boolean(),
 	learning: z.boolean(),
 	basenick: z.string().min(2).max(64).regex(/^\S+$/),
-	color: z.string().refine(isValidHexColor, { message: 'must be a valid hex color, e.g. #A1B2C3' }),
+	color: z.string().refine(isValidHexColor, {message: 'must be a valid hex color, e.g. #A1B2C3'}),
 	status: z.string().min(1).max(128),
 	cooldown: z.number().int().min(5).max(86400),
 	timer: z.number().int().min(60).max(86400)

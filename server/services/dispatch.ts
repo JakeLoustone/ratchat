@@ -1,15 +1,15 @@
-import { cType, eType, hType, ChatPayloadSchema } from '../defs/def-events';
-import type { RatServer, RatSocket, ClientEventType, GameEventType, GameText } from '../defs/def-events';
-import type { ToClient, ChatPayload, GamePayload, IdentityPayload, UserListPayload, EventListPayload, EmoteListPayload, DeleteMessagePayload, DeleteClientLocalDataPayload } from '../defs/def-events';
-import type { Identity } from '../defs/def-identity';
+import {cType, eType, hType, ChatPayloadSchema} from '../defs/def-events';
+import type {RatServer, RatSocket, ClientEventType, GameEventType, GameText} from '../defs/def-events';
+import type {ToClient, ChatPayload, GamePayload, IdentityPayload, UserListPayload, EventListPayload, EmoteListPayload, DeleteMessagePayload, DeleteClientLocalDataPayload} from '../defs/def-events';
+import type {Identity} from '../defs/def-identity';
 
-import { CacheService } from './cache';
-import { ConfigService } from './config';
+import {CacheService} from './cache';
+import {ConfigService} from './config';
 
-import { handleError } from '../utils/errors';
-import { getBaseNick } from '../utils/format';
-import { parseArray, isUnknownArray } from '../utils/parse';
-import { createSaveQueue } from '../utils/queue';
+import {handleError} from '../utils/errors';
+import {getBaseNick} from '../utils/format';
+import {parseArray, isUnknownArray} from '../utils/parse';
+import {createSaveQueue} from '../utils/queue';
 
 type Target = { emit: RatServer['emit'] };
 type TextPayload = typeof cType.chat | typeof cType.ann | typeof cType.error | typeof cType.info | typeof cType.welcome | typeof cType.markov;

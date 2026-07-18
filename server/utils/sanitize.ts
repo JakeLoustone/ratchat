@@ -1,6 +1,6 @@
-import { default as sanitizeHtml } from 'sanitize-html';
+import {default as sanitizeHtml} from 'sanitize-html';
 
-import { handleError } from './errors';
+import {handleError} from './errors';
 
 export function sanitizeText(str: string): string {
 	try{

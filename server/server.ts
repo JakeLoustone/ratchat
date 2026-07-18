@@ -1,31 +1,31 @@
-import { default as express } from 'express';
-import { createServer } from 'http';
-import { join } from 'node:path';
-import { Server } from 'socket.io';
+import {default as express} from 'express';
+import {createServer} from 'http';
+import {join} from 'node:path';
+import {Server} from 'socket.io';
 
-import { clearInput, keepInput } from './defs/def-input';
-import { eType, cType, sType } from './defs/def-events';
-import { tType } from './defs/def-moderation';
-import type { RatServer } from './defs/def-events';
-import type { Identity } from './defs/def-identity';
+import {clearInput, keepInput} from './defs/def-input';
+import {eType, cType, sType} from './defs/def-events';
+import {tType} from './defs/def-moderation';
+import type {RatServer} from './defs/def-events';
+import type {Identity} from './defs/def-identity';
 
-import { CacheService } from './services/cache';
-import { ConfigService } from './services/config';
-import { DispatchService } from './services/dispatch';
-import { ModerationService } from './services/moderation';
-import { SecurityService } from './services/security';
-import { GameIdentityService } from './services/games/game-identity';
-import { IdentityService } from './services/identity';
-import { GameStateService } from './services/games/game-state';
-import { StateService } from './services/state';
-import { MarkovService } from './services/markov';
-import { MessageService } from './services/message';
-import { GameCommandService } from './services/games/game-command';
-import { CommandService } from './services/command';
+import {CacheService} from './services/cache';
+import {ConfigService} from './services/config';
+import {DispatchService} from './services/dispatch';
+import {ModerationService} from './services/moderation';
+import {SecurityService} from './services/security';
+import {GameIdentityService} from './services/games/game-identity';
+import {IdentityService} from './services/identity';
+import {GameStateService} from './services/games/game-state';
+import {StateService} from './services/state';
+import {MarkovService} from './services/markov';
+import {MessageService} from './services/message';
+import {GameCommandService} from './services/games/game-command';
+import {CommandService} from './services/command';
 
-import { getBaseNick } from './utils/format';
-import { handleError } from './utils/errors';
-import { isValidGUID } from './utils/validate';
+import {getBaseNick} from './utils/format';
+import {handleError} from './utils/errors';
+import {isValidGUID} from './utils/validate';
 
 main().catch(error => {
 	console.error('Fatal error:', error);
@@ -344,7 +344,7 @@ async function main(): Promise<void> {
 	//Client Deployment
 	app.get('/ratchat', (req, res) => {
 		res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-		res.sendFile('www/ratchat.html', { root : __dirname });
+		res.sendFile('www/ratchat.html', {root : __dirname});
 	});
 
 	//Health check

@@ -1,7 +1,7 @@
-import { z } from 'zod';
+import {z} from 'zod';
 
-import { hType } from './def-events';
-import { IdentitySchema, GameIdentitySchema } from './def-identity';
+import {hType} from './def-events';
+import {IdentitySchema, GameIdentitySchema} from './def-identity';
 
 export type PrivateHorseRecordList = HorseRecordEntry[];
 export type PrivateFishRecordList = FishRecordEntry[];

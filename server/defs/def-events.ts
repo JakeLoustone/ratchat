@@ -50,13 +50,20 @@ export const sType = {
 	elist: 'toServerEventList'
 } as const;
 
-export type GameEventType = typeof eType[keyof typeof eType];
-export const eType = {
+export type GameEventType = typeof gType[keyof typeof gType];
+export const gType = {
 	horse: 'horse',
 	duel: 'duel',
 	blackjack: 'blackjack',
 	fishing: 'fishing',
 	leaderboard: 'leaderboard'
+} as const;
+
+export type FormatType = typeof fType[keyof typeof fType];
+export const fType = {
+	b: 'bold',
+	i: 'italics',
+	mono: 'mono'
 } as const;
 
 export type GameHighlightType = typeof hType[keyof typeof hType];
@@ -90,12 +97,13 @@ export type EmoteListPayload = z.infer<typeof EmoteListPayloadSchema>;
 export const EmoteListPayloadSchema = z.record(z.string(), z.string());
 
 export type EventListPayload = z.infer<typeof EventListPayloadSchema>;
-export const EventListPayloadSchema = z.array(z.enum(eType));
+export const EventListPayloadSchema = z.array(z.enum(gType));
 
 export type GameText = z.infer<typeof GameTextSchema>;
 export const GameTextSchema = z.object({
 	text: z.string(),
-	color: z.enum(hType)
+	color: z.enum(hType),
+	format: z.array(z.enum(fType))
 });
 export type GameLine = z.infer<typeof GameLineSchema>
 export const GameLineSchema = z.array(GameTextSchema);
@@ -107,7 +115,7 @@ export const GamePayloadSchema = z.object({
 	content: GameTextPayloadSchema,
 	timestamp: z.number(),
 	msdelay: z.number().int().min(0).max(32768),
-	event: z.enum(eType)
+	event: z.enum(gType)
 });
 
 export type ChatPayload = z.infer<typeof ChatPayloadSchema>;
@@ -117,5 +125,6 @@ export const ChatPayloadSchema = z.object({
 	content: z.string(),
 	timestamp: z.number(),
 	type: z.enum(cType),
+	format: z.array(z.enum(fType)),
 	spoiler: z.boolean()
 });

@@ -1,5 +1,4 @@
-import {RatServer, eType, hType} from '../../defs/def-events';
-import {fType} from '../../defs/def-games';
+import {RatServer, fType, gType, hType} from '../../defs/def-events';
 import {aType} from '../../defs/def-parse';
 import {HorseRecordEntrySchema, FishRecordEntrySchema} from '../../defs/def-record';
 import type {GameLine, GameTextPayload} from '../../defs/def-events';
@@ -126,7 +125,7 @@ export class GameStateService {
 		assertGamesEnabled(this.deps.configService, 'createHorseSession');
 		assertHorseRacingEnabled(this.deps.configService, 'createHorseSession');
 		try{
-			const blankLine: GameLine = [{text: '', color: hType.clear}];
+			const blankLine: GameLine = [{text: '', color: hType.clear, format: []}];
 
 			const raceResult = createHorseRaceResult(this.horseRecords);
 			this.raceCounter++;
@@ -143,59 +142,59 @@ export class GameStateService {
 			this.activeRace = session;
 
 			const announcement = this.createHorseSessionAnnouncement(raceResult.field, raceid);
-			this.deps.dispatchService.sendGamePayload(this.deps.io, announcement, eType.horse, HORSE_TEXT_DELAY);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, announcement, gType.horse, HORSE_TEXT_DELAY);
 
 			setTimeout(() => {
 				const reminder: GameTextPayload = [
 					blankLine,
 					[
-						{text: 'the ', color: hType.normal},
-						{text: `${raceid}${getOrdinalSuffix(raceid)} `, color: hType.normal},
-						{text: 'semi annual race starts in ', color: hType.normal},
-						{text: `${HORSE_BET_REMINDER_AT / 60} `, color: hType.normal},
-						{text: 'minute!', color: hType.normal}
+						{text: 'the ', color: hType.normal, format: []},
+						{text: `${raceid}${getOrdinalSuffix(raceid)} `, color: hType.normal, format: [fType.b]},
+						{text: 'semi annual race starts in ', color: hType.normal, format: []},
+						{text: `${HORSE_BET_REMINDER_AT / 60} `, color: hType.normal, format: []},
+						{text: 'minute!', color: hType.normal, format: []}
 					],
-					[{text: 'make sure to get your bets in for a 2x multiplier on your payout!', color: hType.normal}],
+					[{text: 'make sure to get your bets in for a 2x multiplier on your payout!', color: hType.normal, format: []}],
 					blankLine
 				];
-				this.deps.dispatchService.sendGamePayload(this.deps.io, reminder, eType.horse, HORSE_TEXT_DELAY);
+				this.deps.dispatchService.sendGamePayload(this.deps.io, reminder, gType.horse, HORSE_TEXT_DELAY);
 			}, HORSE_BET_REMINDER_AT * 1000);
 
 			await wait((HORSE_PRERACE_DURATION -10)* 1000);
-			const tenSecondWarning: GameLine = [{text: 'the race begins in 10 seconds!', color: hType.normal}];
-			this.deps.dispatchService.sendGamePayload(this.deps.io, [tenSecondWarning], eType.horse);
+			const tenSecondWarning: GameLine = [{text: 'the race begins in 10 seconds!', color: hType.normal, format: []}];
+			this.deps.dispatchService.sendGamePayload(this.deps.io, [tenSecondWarning], gType.horse);
 
 			await wait(10 * 1000);
 			session.phase = 1;
-			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.gates, eType.horse, HORSE_TEXT_DELAY);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.gates, gType.horse, HORSE_TEXT_DELAY);
 
 			await wait(HORSE_CHECKPOINT_1_WAIT * 1000);
 			session.phase = 2;
-			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.checkpoint1, eType.horse, HORSE_TEXT_DELAY);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.checkpoint1, gType.horse, HORSE_TEXT_DELAY);
 
 			await wait(HORSE_CHECKPOINT_2_WAIT * 1000);
 			session.phase = 3;
-			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.checkpoint2, eType.horse, HORSE_TEXT_DELAY);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.checkpoint2, gType.horse, HORSE_TEXT_DELAY);
 
 			await wait(HORSE_CHECKPOINT_3_WAIT * 1000);
 			session.phase = 4;
 			session.betting = false;
 			const betsClosed: GameTextPayload= [
 				blankLine,
-				[{text: 'bets are closed!', color: hType.normal}],
+				[{text: 'bets are closed!', color: hType.normal, format: [fType.i]}],
 				blankLine
 			];
-			this.deps.dispatchService.sendGamePayload(this.deps.io, betsClosed, eType.horse);
-			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.checkpoint3, eType.horse, HORSE_TEXT_DELAY);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, betsClosed, gType.horse);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.checkpoint3, gType.horse, HORSE_TEXT_DELAY);
 
 			await wait(HORSE_FINAL_STRETCH_WAIT * 1000);
 			session.phase = 5;
-			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.finalStretch, eType.horse, HORSE_TEXT_DELAY);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.finalStretch, gType.horse, HORSE_TEXT_DELAY);
 
 			const raceOverWait = randomInt(HORSE_MIN_RACEOVER_WAIT, HORSE_MAX_RACEOVER_WAIT);
 			await wait(raceOverWait * 1000);
 			session.phase = 6;
-			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.end, eType.horse, 100);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.end, gType.horse, 100);
 
 			try{
 				this.incrementHorseRecord(raceResult.first, 0);
@@ -210,27 +209,27 @@ export class GameStateService {
 		}
 		catch(error: unknown){
 			handleError(error, 'Create Horse Session');
-			const line: GameLine = [{text: 'the race has been cancelled due to an unexpected error.', color: hType.normal}];
-			this.deps.dispatchService.sendGamePayload(this.deps.io, [line], eType.horse);
+			const line: GameLine = [{text: 'the race has been cancelled due to an unexpected error.', color: hType.normal, format: []}];
+			this.deps.dispatchService.sendGamePayload(this.deps.io, [line], gType.horse);
 			this.activeRace = null;
 		}
 	}
 
 	private createHorseSessionAnnouncement(field: HorseFieldEntry[], raceid: number): GameTextPayload {
-		const blankLine: GameLine = [{text: '', color: hType.clear}];
+		const blankLine: GameLine = [{text: '', color: hType.clear, format: []}];
 
 		const commentary: GameTextPayload = [];
 		const welcome: GameLine =[
-			{text: 'the ', color: hType.normal},
-			{text: `${raceid}${getOrdinalSuffix(raceid)} `, color: hType.normal},
-			{text: 'semi-annual horse race begins in ', color: hType.normal},
-			{text: `${HORSE_PRERACE_DURATION/60} `, color: hType.normal},
-			{text: 'minutes!', color: hType.normal},
+			{text: 'the ', color: hType.normal, format: []},
+			{text: `${raceid}${getOrdinalSuffix(raceid)} `, color: hType.normal, format: [fType.b]},
+			{text: 'semi-annual horse race begins in ', color: hType.normal, format: []},
+			{text: `${HORSE_PRERACE_DURATION/60} `, color: hType.normal, format: []},
+			{text: 'minutes!', color: hType.normal, format: []},
 		];
 		commentary.push(welcome);
 
 		commentary.push(blankLine);
-		const oddsIntro: GameLine = [{text: 'the betting line is as follows:', color: hType.normal}];
+		const oddsIntro: GameLine = [{text: 'the betting line is as follows:', color: hType.normal, format: []}];
 		commentary.push(oddsIntro);
 
 		const sortedField = [...field].sort((a, b) => {
@@ -242,31 +241,31 @@ export class GameStateService {
 		for(let index = 0; index < sortedField.length; index++){
 			const horse = sortedField[index];
 			const line: GameLine = [
-				{text: '[', color: hType.normal},
-				{text: `No. ${String(horse.horsePost).padStart(2, '0')}`, color: horse.horseColor},
-				{text: '][', color: hType.normal},
-				{text: horse.horseName, color: horse.horseColor},
-				{text: '] at ', color: hType.normal},
-				{text: `${horse.oddsNum} : ${horse.oddsDen}`, color: hType.normal},
+				{text: '[', color: hType.normal, format: []},
+				{text: `No.${String(horse.horsePost).padStart(2, '0')}`, color: horse.horseColor, format: [fType.b, fType.mono]},
+				{text: '][', color: hType.normal, format: []},
+				{text: horse.horseName, color: horse.horseColor, format: []},
+				{text: '] at ', color: hType.normal, format: []},
+				{text: `${horse.oddsNum} : ${horse.oddsDen}`, color: hType.normal, format: []},
 			];
 
 			if(index === 0){
-				line.push({text: ', the favorite!', color: hType.normal});
+				line.push({text: ', the favorite!', color: hType.normal, format: []});
 			}
 			else if(index === sortedField.length - 1){
-				line.push({text: ', the longshot!', color: hType.normal});
+				line.push({text: ', the longshot!', color: hType.normal, format: []});
 			}
 
 			commentary.push(line);
 		}
 		commentary.push(blankLine);
 
-		const outro1: GameLine = [{text: 'what a beautiful day for a horse race!', color: hType.normal}];
-		const outro2: GameLine = [{text: 'get your bets in now for a 2x multiplier on your payout!', color: hType.normal}];
+		const outro1: GameLine = [{text: 'what a beautiful day for a horse race!', color: hType.normal, format: []}];
+		const outro2: GameLine = [{text: 'get your bets in now for a 2x multiplier on your payout!', color: hType.normal, format: []}];
 		const outro3: GameLine = [
-			{text: 'reminder, the race starts in ', color: hType.normal},
-			{text: `${HORSE_PRERACE_DURATION/60} `, color: hType.normal},
-			{text: 'minutes! see you there!', color: hType.normal}
+			{text: 'reminder, the race starts in ', color: hType.normal, format: []},
+			{text: `${HORSE_PRERACE_DURATION/60} `, color: hType.normal, format: []},
+			{text: 'minutes! see you there!', color: hType.normal, format: []}
 		];
 		commentary.push(outro1,outro2,outro3);
 
@@ -390,12 +389,12 @@ export class GameStateService {
 		}
 		if(!session.fish){
 			this.activeFishing.delete(playerid);
-			session.eventCallback(playerid, fType.nothing);
+			session.eventCallback(playerid, 'nothing');
 			return;
 		}
 
 		session.biting = true;
-		session.eventCallback(playerid, fType.bite);
+		session.eventCallback(playerid, 'bite');
 
 		const catchWindow = FISH_MAX_CATCH_WINDOW - ((session.fish.value / 100) * (FISH_MAX_CATCH_WINDOW - FISH_MIN_CATCH_WINDOW));
 
@@ -414,7 +413,7 @@ export class GameStateService {
 		}
 
 		this.activeFishing.delete(playerid);
-		session.eventCallback(playerid, fType.expired);
+		session.eventCallback(playerid, 'expired');
 	}
 
 	public getLeaderboard(): PublicOverallLeaderboard;

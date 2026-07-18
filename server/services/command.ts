@@ -1,4 +1,4 @@
-import {cType} from '../defs/def-events';
+import {cType, fType} from '../defs/def-events';
 import {keepInput, clearInput} from '../defs/def-input';
 import {tType} from '../defs/def-moderation';
 import type {Command} from '../defs/def-commands';
@@ -152,7 +152,8 @@ export class CommandService {
 
 		this.commands['h'] = this.commands['commands'] = this.commands['help'];
 		this.commands['chrat'] = this.commands['nickname'] = this.commands['name'] = this.commands['nick'];
-		this.commands['me'] = this.commands['status'];
+		this.commands['b'] = this.commands['bold'];
+		this.commands['me'] = this.commands['i'] = this.commands['italics'];
 		this.commands['to'] = this.commands['timeout'];
 		this.commands['announcement'] = this.commands['announce'];
 		this.commands['emote'] = this.commands['emotes'];
@@ -196,7 +197,11 @@ export class CommandService {
 					"/export : returns your GUID for later importing on other devices. if you like your name don't share it :)",
 					'/import : import a GUID exported earlier to reclaim your nickname. must match exactly!',
 					'/afk <status> : toggle AFK status in the user listing, and sets status if one is provided.',
-					'/status or /me : set your status in the user listing',
+					'/status : set your status in the user listing',
+					'/b or /bold : send your message with emphasis',
+					'/i or /italics : speak softly and carry a big stick',
+					'/mono : send your message with monotyped font',
+					//./background and /bg handled client side
 					'/background or /bg : set your background image. use /bgreset to clear',
 					'/gdpr <flag> : <info> or <ip> for more information, <export> for a copy of your data, and <delete> to wipe your data.',
 					"/spoiler <text> : wraps your message in a spoiler warning. btw darth vader is luke's dad"
@@ -417,6 +422,39 @@ export class CommandService {
 			}
 		};
 
+		this.commands['bold'] = {
+			requiresMod: false,
+			requiresMarkov: false,
+			handler: (ctx): InputStatus => {
+				if(!ctx.commandUser){
+					return this.sendRegistrationWarning(ctx.socket, 'chat, boldly');
+				}
+				return this.deps.messageService.handleChat(ctx.fullArgs, ctx.commandUser, ctx.socket, [fType.b], false);
+			}
+		};
+
+		this.commands['italics'] = {
+			requiresMod: false,
+			requiresMarkov: false,
+			handler: (ctx): InputStatus => {
+				if(!ctx.commandUser){
+					return this.sendRegistrationWarning(ctx.socket, 'roleplay');
+				}
+				return this.deps.messageService.handleChat(ctx.fullArgs, ctx.commandUser, ctx.socket, [fType.i], false);
+			}
+		};
+
+		this.commands['mono'] = {
+			requiresMod: false,
+			requiresMarkov: false,
+			handler: (ctx): InputStatus => {
+				if(!ctx.commandUser){
+					return this.sendRegistrationWarning(ctx.socket, 'roleplay as a robot');
+				}
+				return this.deps.messageService.handleChat(ctx.fullArgs, ctx.commandUser, ctx.socket, [fType.mono], false);
+			}
+		};
+
 		this.commands['spoiler'] = {
 			requiresMod: false,
 			requiresMarkov: false,
@@ -424,7 +462,7 @@ export class CommandService {
 				if(!ctx.commandUser){
 					return this.sendRegistrationWarning(ctx.socket, 'ruin things for everyone else');
 				}
-				return this.deps.messageService.handleChat(ctx.fullArgs, ctx.commandUser, ctx.socket, true);
+				return this.deps.messageService.handleChat(ctx.fullArgs, ctx.commandUser, ctx.socket, [], true);
 			}
 		};
 

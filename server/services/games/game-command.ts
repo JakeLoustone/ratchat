@@ -1,11 +1,10 @@
-import {cType, eType, hType} from '../../defs/def-events';
+import {cType, fType, gType, hType} from '../../defs/def-events';
 import {allGames} from '../../defs/def-config';
-import {fType} from '../../defs/def-games';
 import {clearInput, keepInput} from '../../defs/def-input';
 import type {GameCommand} from '../../defs/def-commands';
 import type {GameType} from '../../defs/def-config';
 import type {RatServer, RatSocket, GameEventType, GameLine, GameTextPayload} from '../../defs/def-events';
-import type {FishingEventType} from '../../defs/def-games';
+import type {FishingCallback} from '../../defs/def-games';
 import type {Identity, GameIdentity} from '../../defs/def-identity';
 import type {InputStatus} from '../../defs/def-input';
 
@@ -90,17 +89,17 @@ export class GameCommandService {
 	}
 
 	private sendUserPoints(ctx: GameCommand, points: number, event: GameEventType): void {
-		if(event === eType.fishing){
+		if(event === gType.fishing){
 			this.deps.gameIdentityService.addFishingWinnings(ctx.commandUser.playerid, points);
 		}
 		this.deps.gameIdentityService.addGamePoints(ctx.commandUser.playerid, points);
 		const nicepoints = points.toLocaleString('en-US');
 		const name = this.deps.configService.getGameConfig().pointsName;
 		const message: GameLine = [
-			{text: "you've earned ", color: hType.normal},
-			{text: `${nicepoints} `, color: hType.normal},
-			{text: name, color: hType.normal},
-			{text: ", don't spend it all in one place", color: hType.normal}
+			{text: "you've earned ", color: hType.normal, format: []},
+			{text: `${nicepoints} `, color: hType.normal, format: [fType.b]},
+			{text: name, color: hType.normal, format: [fType.b]},
+			{text: ", don't spend it all in one place", color: hType.normal, format: []}
 		];
 		this.deps.dispatchService.sendGamePayload(ctx.socket, [message], event);
 	}
@@ -119,24 +118,24 @@ export class GameCommandService {
 		return await entry.handler(ctx);
 	}
 
-	private handleFishingEvent(playerid: GameIdentity['playerid'], event: FishingEventType, io: RatServer): void {
+	private handleFishingEvent(playerid: GameIdentity['playerid'], event: FishingCallback, io: RatServer): void {
 		let message: GameLine;
 
 		switch(event){
-			case fType.bite:{
-				message = [{text: 'fish on! /catch it before it gets away!', color: hType.normal}];
+			case 'bite':{
+				message = [{text: 'fish on! /catch it before it gets away!', color: hType.normal, format: [fType.b]}];
 				break;
 			}
-			case fType.expired:{
-				message = [{text: 'damn, it got away...', color: hType.normal}];
+			case 'expired':{
+				message = [{text: 'damn, it got away...', color: hType.normal, format: []}];
 				break;
 			}
-			case fType.nothing:{
-				message = [{text: 'looks like nothing bit...', color: hType.normal}];
+			case 'nothing':{
+				message = [{text: 'looks like nothing bit...', color: hType.normal, format: []}];
 				break;
 			}
 			default:{
-				message = [{text: 'looks like nothing bit...', color: hType.normal}];
+				message = [{text: 'looks like nothing bit...', color: hType.normal, format: []}];
 			}
 		}
 
@@ -147,7 +146,7 @@ export class GameCommandService {
 
 			const targetSocket = io.sockets.sockets.get(socketID);
 			if(targetSocket){
-				this.deps.dispatchService.sendGamePayload(targetSocket, [message], eType.fishing);
+				this.deps.dispatchService.sendGamePayload(targetSocket, [message], gType.fishing);
 			}
 		}
 	}
@@ -185,16 +184,19 @@ export class GameCommandService {
 			enabledFor: allGames,
 			handler: (ctx): InputStatus => {
 				const colors = Object.values(hType);
+				const formats = Object.values(fType);
 
 				const textPayload: GameTextPayload = [];
 				for(const color of colors){
-					const line: GameLine = [
-						{text: `[${color}]: The quick brown fox jumped over the lazy dog. 1234567890.`, color: color}
-					];
-					textPayload.push(line);
+					for(const format of formats){
+						const line: GameLine = [
+							{text: `[${color}][${format}]: The quick brown fox jumped over the lazy dog. 1234567890.`, color: color, format: [format]}
+						];
+						textPayload.push(line);
+					}
 				}
 
-				this.deps.dispatchService.sendGamePayload(ctx.socket, textPayload, eType.horse, 250);
+				this.deps.dispatchService.sendGamePayload(ctx.socket, textPayload, gType.horse, 250);
 
 				return clearInput;
 			}
@@ -215,8 +217,8 @@ export class GameCommandService {
 				}
 
 				try{
-					const callback = (playerid: GameIdentity['playerid'], event: FishingEventType): void => {
-						this.handleFishingEvent(playerid, event, ctx.io);
+					const callback = (playerid: GameIdentity['playerid'], fishcallback: FishingCallback): void => {
+						this.handleFishingEvent(playerid, fishcallback, ctx.io);
 					};
 					this.deps.gameStateService.createFishingSession(ctx.commandUser.playerid, target, callback);
 				}
@@ -227,16 +229,16 @@ export class GameCommandService {
 
 				if(target){
 					const message: GameLine = [
-						{text: 'you carefully cast your line looking for ', color: hType.normal},
-						{text: `"${target}"`, color: hType.normal},
-						{text: '...', color: hType.normal}
+						{text: 'you carefully cast your line looking for ', color: hType.normal, format: []},
+						{text: `"${target}"`, color: hType.normal, format: []},
+						{text: '...', color: hType.normal, format: []}
 					];
-					this.deps.dispatchService.sendGamePayload(ctx.socket, [message], eType.fishing);
+					this.deps.dispatchService.sendGamePayload(ctx.socket, [message], gType.fishing);
 					return clearInput;
 				}
 				else{
-					const message: GameLine = [{text: 'you cast out your line...', color: hType.normal}];
-					this.deps.dispatchService.sendGamePayload(ctx.socket, [message], eType.fishing);
+					const message: GameLine = [{text: 'you cast out your line...', color: hType.normal, format: []}];
+					this.deps.dispatchService.sendGamePayload(ctx.socket, [message], gType.fishing);
 					return clearInput;
 				}
 			}
@@ -252,49 +254,49 @@ export class GameCommandService {
 				try{
 					const fishResult = this.deps.gameStateService.catchFishingSession(ctx.commandUser.playerid);
 					if(!fishResult){
-						const message: GameLine = [{text: "your hook's empty...", color: hType.normal}];
-						this.deps.dispatchService.sendGamePayload(ctx.socket, [message], eType.fishing);
+						const message: GameLine = [{text: "your hook's empty...", color: hType.normal, format: []}];
+						this.deps.dispatchService.sendGamePayload(ctx.socket, [message], gType.fishing);
 						return clearInput;
 					}
 
 					const weight = fishResult.weight.toLocaleString('en-US', {maximumFractionDigits: 2});
 
 					const message: GameLine = [
-						{text: 'you caught a [', color: hType.normal},
-						{text: fishResult.name.toLowerCase(), color: fishResult.color},
-						{text: `] weighing ${weight} ounces. `, color: hType.normal}
+						{text: 'you caught a [', color: hType.normal, format: []},
+						{text: fishResult.name.toLowerCase(), color: fishResult.color, format: []},
+						{text: `] weighing ${weight} ounces. `, color: hType.normal, format: []}
 					];
 
 					if(fishResult.record){
-						message.push({text: 'new server fish record! ', color: hType.normal});
+						message.push({text: 'new server fish record! ', color: hType.normal, format: []});
 					}
 					if(fishResult.pb){
-						message.push({text: 'new personal best catch! ', color: hType.normal});
+						message.push({text: 'new personal best catch! ', color: hType.normal, format: []});
 					}
 					if(fishResult.newcatch){
-						message.push({text: "you've never seen one of those before. ", color: hType.normal});
+						message.push({text: "you've never seen one of those before. ", color: hType.normal, format: []});
 					}
 					if(fishResult.big){
-						message.push({text: "that's a biggun' ", color: hType.normal});
+						message.push({text: "that's a biggun' ", color: hType.normal, format: []});
 					}
 					if(fishResult.small){
-						message.push({text: "that's a smallun' ", color: hType.normal});
+						message.push({text: "that's a smallun' ", color: hType.normal, format: []});
 					}
 
-					this.deps.dispatchService.sendGamePayload(ctx.socket, [message], eType.fishing);
+					this.deps.dispatchService.sendGamePayload(ctx.socket, [message], gType.fishing);
 					this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.info, fishResult.flavor);
 					if(fishResult.record){
 						const basenick = getBaseNick(ctx.commandUser.fullnick);
 						const announcement: GameLine = [
-							{text: basenick, color: hType.normal},
-							{text: ' caught a new server record [', color: hType.normal},
-							{text: fishResult.name.toLowerCase(), color: fishResult.color},
-							{text: `] weighing ${weight} ounces!`, color: hType.normal}
+							{text: basenick, color: hType.normal, format: []},
+							{text: ' caught a new server record [', color: hType.normal, format: []},
+							{text: fishResult.name.toLowerCase(), color: fishResult.color, format: []},
+							{text: `] weighing ${weight} ounces!`, color: hType.normal, format: []}
 						];
-						this.deps.dispatchService.sendGamePayload(ctx.io, [announcement], eType.fishing);
+						this.deps.dispatchService.sendGamePayload(ctx.io, [announcement], gType.fishing);
 					}
 					const points = Math.ceil(fishResult.value);
-					this.sendUserPoints(ctx, points, eType.fishing);
+					this.sendUserPoints(ctx, points, gType.fishing);
 					return clearInput;
 				}
 				catch(error: unknown){

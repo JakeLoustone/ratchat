@@ -19,7 +19,21 @@
 
 		html {
 			background-color: #000000;
+		}
+
+		.format-bold {
+			font-weight: bold;
+			font-size: 1rem;
+		}
+		.format-italics {
+			font-style: italic;
+		}
+		.format-mono {
+			font-family: 'VT323', monospace;
 			font-variant-numeric: tabular-nums;
+			font-size: 1.275rem;
+			display: inline-block;
+			transform-origin: bottom;
 		}
 
 		body {
@@ -667,6 +681,51 @@
 	<script src="https://cdn.socket.io/4.8.3/socket.io.min.js" crossorigin="anonymous" integrity="sha384-kzavj5fiMwLKzzD1f8S7TeoVIEi7uKHvbTA3ueZkrzYq75pNQUiUi6Dy98Q3fxb0"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.3/purify.min.js" crossorigin="anonymous" integrity="sha384-osZDKVu4ipZP703HmPOhWdyBajcFyjX2Psjk//TG1Rc0AdwEtuToaylrmcK3LdAl"></script>
 	<script>
+		async function loadVerifiedFont(url, expectedHashBase64, fontFamily, fontWeight, fontStyle, mimeType){
+			const response = await fetch(url);
+			if(!response.ok){
+				throw new Error(`font fetch failed: ${response.status}`);
+			}
+
+			const buffer = await response.arrayBuffer();
+			const digest = await crypto.subtle.digest('SHA-384', buffer);
+			const actualHashBase64 = btoa(String.fromCharCode(...new Uint8Array(digest)));
+
+			if(actualHashBase64 !== expectedHashBase64){
+				throw new Error('font integrity check failed, refusing to load');
+			}
+
+			const blob = new Blob([buffer], {type: mimeType});
+			const blobUrl = URL.createObjectURL(blob);
+
+			const fontFace = new FontFace(fontFamily, `url(${blobUrl})`, {weight: fontWeight, style: fontStyle});
+			const loadedFace = await fontFace.load();
+			document.fonts.add(loadedFace);
+		}
+
+		loadVerifiedFont(
+			'https://cdn.jsdelivr.net/fontsource/fonts/vt323@5.2.7/latin-400-normal.woff2',
+			'QJLvofbGdhBPL6ITttGSyiYZXfA3tOmIyRlsd0l0hWuY9sVMU1aNCMYgs95btLjw',
+			'VT323',
+			'400',
+			'normal',
+			'font/woff2'
+		).catch(error => {
+			console.error('VT323 load failed integrity check or network error:', error);
+		});
+
+		loadVerifiedFont(
+			'https://cdn.jsdelivr.net/fontsource/fonts/vt323@5.2.7/latin-400-normal.woff',
+			'W1Dlso+B2HPo5jXxg3O7/RvKO0m1xUy9HU9d7VZ/NkxFobhx8pQ5Az2xob+d+Ekp',
+			'VT323',
+			'400',
+			'normal',
+			'font/woff'
+		).catch(error => {
+			console.error('VT323 load failed integrity check or network error:', error);
+		});
+	</script>
+	<script>
 		let localGUID = localStorage.getItem('ratGUID');
 		const socket = io({
 			path: '/ratchat/socket.io/',
@@ -1279,8 +1338,11 @@
 					const span = document.createElement('span');
 					span.textContent = chunk.text;
 					if(chunk.color !== 'normal'){
-						span.className = `g-color-${chunk.color}`;
+						span.classList.add(`g-color-${chunk.color}`);
 					}
+					chunk.format.forEach(tag => {
+						span.classList.add(`format-${tag}`);
+					});
 					li.appendChild(span);
 				});
 
@@ -1385,6 +1447,12 @@
 				contentSpan.textContent = raw;
 			}
 
+			if(msg.format && msg.format.length > 0){
+				msg.format.forEach(tag => {
+					contentSpan.classList.add(`format-${tag}`);
+				});
+			}
+		
 			li.appendChild(contentSpan);
 
 			return li;

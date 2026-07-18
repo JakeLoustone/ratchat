@@ -1,6 +1,6 @@
 import {cType} from '../defs/def-events';
 import {clearInput, keepInput} from '../defs/def-input';
-import type {RatServer, RatSocket} from '../defs/def-events';
+import type {RatServer, RatSocket, FormatType} from '../defs/def-events';
 import type {Identity} from '../defs/def-identity';
 import type {InputStatus} from '../defs/def-input';
 
@@ -30,10 +30,10 @@ export class MessageService {
 		this.deps = dependencies;
 	}
 
-	public handleChat(msg: string, user: Identity, socket: RatSocket, spoiler: boolean): InputStatus {
+	public handleChat(msg: string, user: Identity, socket: RatSocket, format: FormatType[], spoiler: boolean): InputStatus {
 		try{
 			const safe = this.deps.moderationService.moderateText(msg, user, 'chat');
-			this.deps.dispatchService.sendChatPayload(this.deps.io, user, safe, spoiler);
+			this.deps.dispatchService.sendChatPayload(this.deps.io, user, safe, format, spoiler);
 
 			if(this.deps.markovService && this.deps.configService.getMarkovConfig().learning){
 				const markov = this.deps.markovService;

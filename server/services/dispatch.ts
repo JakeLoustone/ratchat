@@ -1,5 +1,5 @@
-import {cType, eType, ChatPayloadSchema} from '../defs/def-events';
-import type {RatServer, RatSocket, ClientEventType, GameEventType, GameTextPayload} from '../defs/def-events';
+import {cType, gType, ChatPayloadSchema} from '../defs/def-events';
+import type {RatServer, RatSocket, ClientEventType, GameEventType, GameTextPayload, FormatType} from '../defs/def-events';
 import type {ToClient, ChatPayload, GamePayload, IdentityPayload, UserListPayload, EventListPayload, EmoteListPayload, DeleteMessagePayload, DeleteClientLocalDataPayload} from '../defs/def-events';
 import type {Identity} from '../defs/def-identity';
 
@@ -40,8 +40,8 @@ export class DispatchService{
 		this.startExpireMessageTimer();
 	}
 
-	public sendChatPayload(to: Target, author: Identity, content:string, spoiler: boolean): void {
-		const chatMessage = this.createChatPayload(false, author, content, cType.chat, spoiler);
+	public sendChatPayload(to: Target, author: Identity, content:string, format: FormatType[], spoiler: boolean): void {
+		const chatMessage = this.createChatPayload(false, author, content, cType.chat, format, spoiler);
 		this.sendPayload(to, cType.chat, chatMessage);
 		const msgArrayLen = this.deps.configService.getServerConfig().msgArrayLen;
 		if(msgArrayLen > 0){
@@ -57,13 +57,13 @@ export class DispatchService{
 	}
 
 	public sendSystemChatPayload(to: Target, type: TextPayload, text: string): void {
-		const systemChatMessage = this.createChatPayload(true,'system',text, type, false);
+		const systemChatMessage = this.createChatPayload(true,'system',text, type, [], false);
 		this.sendPayload(to, type, systemChatMessage);
 	}
 
 	public sendMarkovChatPayload(to: Target, text: string, markov: Identity, user: Identity, seed?: string): void {
 		const taggedText = `${getBaseNick(user.fullnick)}|${seed}|${text}`;
-		const markovChat = this.createChatPayload(false,markov, taggedText, cType.markov, false);
+		const markovChat = this.createChatPayload(false,markov, taggedText, cType.markov, [], false);
 		this.sendPayload(to, cType.markov, markovChat);
 	}
 
@@ -90,7 +90,7 @@ export class DispatchService{
 	}
 
 	public sendEventListPayload(to: Target): void {
-		const eventList: EventListPayload = Object.values(eType);
+		const eventList: EventListPayload = Object.values(gType);
 		this.sendPayload(to, cType.elist, eventList);
 	}
 
@@ -202,15 +202,16 @@ export class DispatchService{
 		to.emit(key, ...args);
 	}
 
-	private createChatPayload(sys: false, author: Identity, content: string, eventtype: TextPayload, spoiler: boolean): ChatPayload;
-	private createChatPayload(sys: true, author: string, content: string, eventtype: TextPayload, spoiler: boolean): ChatPayload;
-	private createChatPayload(sys: boolean = false, author: Identity | string = 'system', content: string, eventtype: TextPayload, spoiler: boolean = false): ChatPayload {
+	private createChatPayload(sys: false, author: Identity, content: string, eventtype: TextPayload, format: FormatType[], spoiler: boolean): ChatPayload;
+	private createChatPayload(sys: true, author: string, content: string, eventtype: TextPayload, format: FormatType[], spoiler: boolean): ChatPayload;
+	private createChatPayload(sys: boolean = false, author: Identity | string = 'system', content: string, eventtype: TextPayload, format: FormatType[] = [], spoiler: boolean = false): ChatPayload {
 		return {
 			id: sys? -1: this.generateMessageId(),
 			author: typeof author === 'string' ? author : author.fullnick,
 			content: content,
 			timestamp: Date.now(),
 			type: eventtype,
+			format: format,
 			spoiler: spoiler
 		};
 	}

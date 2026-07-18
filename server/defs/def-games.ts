@@ -78,11 +78,5 @@ export type FishResult = FishCatch & {
 	small: boolean;
 };
 
-export type FishingEventType = typeof fType[keyof typeof fType];
-export const fType = {
-	bite: 'bite',
-	nothing: 'nothing',
-	expired: 'expired'
-} as const;
-
-export type FishingEventCallback = (playerid: GameIdentity['playerid'], event: FishingEventType) => void;
+export type FishingCallback = 'bite' | 'expired' | 'nothing';
+export type FishingEventCallback = (playerid: GameIdentity['playerid'], event: FishingCallback) => void;

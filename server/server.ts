@@ -4,7 +4,7 @@ import {join} from 'node:path';
 import {Server} from 'socket.io';
 
 import {clearInput, keepInput} from './defs/def-input';
-import {eType, cType, sType} from './defs/def-events';
+import {gType, cType, sType} from './defs/def-events';
 import {tType} from './defs/def-moderation';
 import type {RatServer} from './defs/def-events';
 import type {Identity} from './defs/def-identity';
@@ -84,7 +84,7 @@ async function main(): Promise<void> {
 		basenickFilterPath: basenickFilterPath,
 		profFilterPath: profFilterPath,
 		clientCommands: ['export', 'clear', 'clr', 'background', 'bg', 'bgreset', 'dark', 'mute'],
-		clientSubCommands: ['info', 'ip', 'list', 'all', 'allevents', 'eventlist', ...Object.values(eType)]
+		clientSubCommands: ['info', 'ip', 'list', 'all', 'allevents', 'eventlist', ...Object.values(gType)]
 	});
 
 	const securityService = new SecurityService({
@@ -300,7 +300,7 @@ async function main(): Promise<void> {
 			}
 
 			//Sanitize and broadcast
-			callback(messageService.handleChat(msg, user, socket, false));
+			callback(messageService.handleChat(msg, user, socket, [], false));
 		});
 
 		socket.on(sType.elist, (callback) => {

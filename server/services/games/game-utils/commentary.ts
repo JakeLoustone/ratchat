@@ -1,4 +1,4 @@
-import {hType} from '../../../defs/def-events';
+import {fType, hType} from '../../../defs/def-events';
 import type {GameText, GameLine, GameTextPayload} from '../../../defs/def-events';
 import type {HorseRaceEntry} from '../../../defs/def-games';
 
@@ -29,7 +29,7 @@ type HorseLabel = Pick<HorseRaceEntry, 'horseName' | 'horseColor' | 'horsePost'>
 const BIG = 0.2;
 const SMALL = 0.1;
 
-const blankLine: GameLine = [{text:'', color:hType.clear}];
+const blankLine: GameLine = [{text:'', color:hType.clear, format: []}];
 
 const openingLines: CommentaryLine[] = [
 	{commentary: "and they're off!", singular: true, small: false, big: false},
@@ -373,7 +373,7 @@ const finishThird: CommentaryLine[] = [
 export function createHorseStartCommentary(curr: HorseRaceEntry[]): GameTextPayload {
 	const commentary: GameTextPayload = [blankLine];
 	const openerChosen = pickUniform(openingLines.map(line => line.commentary));
-	const openerLine: GameLine = [{text: openerChosen, color: hType.normal}];
+	const openerLine: GameLine = [{text: openerChosen, color: hType.normal, format: []}];
 	commentary.push(openerLine);
 	commentary.push(blankLine);
 
@@ -382,7 +382,7 @@ export function createHorseStartCommentary(curr: HorseRaceEntry[]): GameTextPayl
 	const leaderChosen = pickUniform(leaderCandidates.map(line => line.commentary));
 	const leaderLabel = {horseName: curr[0].horseName, horseColor: curr[0].horseColor, horsePost: curr[0].horsePost};
 	const leaderName = appendHorseNames([leaderLabel]);
-	const leaderLine: GameLine = [...leaderName, {text: leaderChosen, color: hType.normal}];
+	const leaderLine: GameLine = [...leaderName, {text: leaderChosen, color: hType.normal, format: []}];
 	commentary.push(leaderLine);
 
 	const movementArray = curr.slice(1).map(entry => ({...entry, surged: false, fell: false}));
@@ -448,7 +448,7 @@ export function createHorseCommentary(curr: HorseRaceEntry[], prev: HorseRaceEnt
 
 	const commentary: GameTextPayload = [blankLine];
 	const openerChosen = pickUniform(locationCandidates.map(line => line.commentary));
-	const openerLine: GameLine = [{text: openerChosen, color: hType.normal}];
+	const openerLine: GameLine = [{text: openerChosen, color: hType.normal, format: []}];
 	commentary.push(openerLine);
 	commentary.push(blankLine);
 
@@ -479,7 +479,7 @@ export function createHorseCommentary(curr: HorseRaceEntry[], prev: HorseRaceEnt
 	const leaderChosen = pickUniform(leaderCandidates.map(line => line.commentary));
 	const leaderLabel = {horseName: curr[0].horseName, horseColor: curr[0].horseColor, horsePost: curr[0].horsePost};
 	const leaderName = appendHorseNames([leaderLabel]);
-	const leaderLine: GameLine = [...leaderName, {text: leaderChosen, color: hType.normal}];
+	const leaderLine: GameLine = [...leaderName, {text: leaderChosen, color: hType.normal, format: []}];
 	commentary.push(leaderLine);
 
 	const clusters = createHorseClusters(movementArray.slice(1));
@@ -559,7 +559,7 @@ export function createHorseEndCommentary(curr: HorseRaceEntry[]): GameTextPayloa
 	const firstChosen = pickUniform(firstCandidates.map(line => line.commentary));
 	const firstLabel = {horseName: curr[0].horseName, horseColor: curr[0].horseColor, horsePost: curr[0].horsePost};
 	const firstName = appendHorseNames([firstLabel]);
-	const firstLine: GameLine = [...firstName, {text: firstChosen, color: hType.gold}];
+	const firstLine: GameLine = [...firstName, {text: firstChosen, color: hType.gold, format: [fType.b]}];
 	commentary.push(firstLine);
 
 	const secondGap = curr[0].score - curr[1].score;
@@ -567,7 +567,7 @@ export function createHorseEndCommentary(curr: HorseRaceEntry[]): GameTextPayloa
 	const secondChosen = pickUniform(secondCandidates.map(line => line.commentary));
 	const secondLabel = {horseName: curr[1].horseName, horseColor: curr[1].horseColor, horsePost: curr[1].horsePost};
 	const secondName = appendHorseNames([secondLabel]);
-	const secondLine: GameLine = [...secondName, {text: secondChosen, color: hType.silver}];
+	const secondLine: GameLine = [...secondName, {text: secondChosen, color: hType.silver, format: []}];
 	commentary.push(secondLine);
 
 	const thirdGap = curr[1].score - curr[2].score;
@@ -575,7 +575,7 @@ export function createHorseEndCommentary(curr: HorseRaceEntry[]): GameTextPayloa
 	const thirdChosen = pickUniform(thirdCandidates.map(line => line.commentary));
 	const thirdLabel = {horseName: curr[2].horseName, horseColor: curr[2].horseColor, horsePost: curr[2].horsePost};
 	const thirdName = appendHorseNames([thirdLabel]);
-	const thirdLine: GameLine = [...thirdName, {text: thirdChosen, color: hType.bronze}];
+	const thirdLine: GameLine = [...thirdName, {text: thirdChosen, color: hType.bronze, format: []}];
 	commentary.push(thirdLine);
 
 	commentary.push(blankLine);
@@ -583,7 +583,7 @@ export function createHorseEndCommentary(curr: HorseRaceEntry[]): GameTextPayloa
 		const place = index + 1;
 		const label = {horseName: curr[index].horseName, horseColor: curr[index].horseColor, horsePost: curr[index].horsePost};
 		const name = appendHorseNames([label]);
-		const line: GameLine = [...name, {text: ` finishes ${place}${getOrdinalSuffix(place)}.`, color: hType.normal}];
+		const line: GameLine = [...name, {text: ` finishes ${place}${getOrdinalSuffix(place)}.`, color: hType.normal, format: []}];
 		commentary.push(line);
 	}
 
@@ -632,7 +632,7 @@ function createClusterCommentary(input: HorseRaceEntry[], gap: number, type: Clu
 
 	const chosen = pickUniform(candidates.map(line => line.commentary));
 	const names = appendHorseNames(input);
-	const line: GameLine = [...names, {text: chosen, color: hType.normal}];
+	const line: GameLine = [...names, {text: chosen, color: hType.normal, format: []}];
 	return line;
 }
 
@@ -642,14 +642,14 @@ function createSurgeCommentary(entry: HorseMovement, nextCluster: HorseMovement[
 
 	let passedNames: GameText[];
 	if(nextCluster.length === 0){
-		passedNames = [{text: 'no one!', color: hType.normal}];
+		passedNames = [{text: 'no one!', color: hType.normal, format: [fType.b]}];
 	}
 	else{
 		passedNames = appendHorseNames(nextCluster);
 	}
 	const horseLabel = {horseName: entry.horseName, horseColor: entry.horseColor, horsePost: entry.horsePost};
 	const horse = appendHorseNames([horseLabel]);
-	const line: GameLine = [...horse, {text: chosen, color: hType.normal}, ...passedNames];
+	const line: GameLine = [...horse, {text: chosen, color: hType.normal, format: [fType.b]}, ...passedNames];
 	return line;
 }
 
@@ -658,7 +658,7 @@ function createFallCommentary(entry: HorseMovement): GameLine {
 	const chosen = pickUniform(fallCandidates.map(line => line.commentary));
 	const horseLabel = {horseName: entry.horseName, horseColor: entry.horseColor, horsePost: entry.horsePost};
 	const horse = appendHorseNames([horseLabel]);
-	const line: GameLine = [...horse, {text: chosen, color: hType.normal}];
+	const line: GameLine = [...horse, {text: chosen, color: hType.normal, format: []}];
 	return line;
 }
 
@@ -737,7 +737,7 @@ function appendHorseNames(horses: HorseLabel[]): GameText[] {
 	}
 	else if(horses.length === 2){
 		names.push(...createHorseNameText(horses[0]));
-		names.push({text: ' and ', color: hType.normal});
+		names.push({text: ' and ', color: hType.normal, format: []});
 		names.push(...createHorseNameText(horses[1]));
 	}
 	else{
@@ -746,9 +746,9 @@ function appendHorseNames(horses: HorseLabel[]): GameText[] {
 
 		for(const horse of allButLast){
 			names.push(...createHorseNameText(horse));
-			names.push({text: ', ', color: hType.normal});
+			names.push({text: ', ', color: hType.normal, format: []});
 		}
-		names.push({text: 'and ', color: hType.normal});
+		names.push({text: 'and ', color: hType.normal, format: []});
 		names.push(...createHorseNameText(last));
 	}
 
@@ -757,11 +757,11 @@ function appendHorseNames(horses: HorseLabel[]): GameText[] {
 
 function createHorseNameText(horse: HorseLabel): GameText[] {
 	const nametext: GameText[] = [
-		{text: '[', color: hType.normal},
-		{text: `No. ${String(horse.horsePost).padStart(2, '0')}`, color: horse.horseColor},
-		{text: '][', color: hType.normal},
-		{text: horse.horseName, color: horse.horseColor},
-		{text: ']', color: hType.normal}
+		{text: '[', color: hType.normal, format: []},
+		{text: `No.${String(horse.horsePost).padStart(2, '0')}`, color: horse.horseColor, format: [fType.b,fType.mono]},
+		{text: '][', color: hType.normal, format: []},
+		{text: horse.horseName, color: horse.horseColor, format: []},
+		{text: ']', color: hType.normal, format: []}
 	];
 
 	return nametext;

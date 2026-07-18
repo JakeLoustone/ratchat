@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { hType } from './def-events';
 import { IdentitySchema, GameIdentitySchema } from './def-identity';
 
 export type PrivateHorseRecordList = HorseRecordEntry[];
@@ -31,7 +32,8 @@ export type DefaultFishRecordEntry = Omit<FishRecordEntry, 'fishName' | 'fishFla
 export const FishCatalogEntrySchema = z.object({
 	fishName: z.string().min(2).max(128),
 	baseline: z.number().min(0),
-	fishFlavor: z.string().min(2).max(128)
+	fishFlavor: z.string().min(2).max(128),
+	fishColor: z.enum(hType)
 });
 export const FishRecordEntrySchema = FishCatalogEntrySchema.extend({
 	weight: z.number().min(0).nullable(),

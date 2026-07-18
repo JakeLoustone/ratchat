@@ -1,3 +1,5 @@
+import { hType } from '../../../defs/def-events';
+import type { GameText } from '../../../defs/def-events';
 import type { HorseRaceEntry } from '../../../defs/def-games';
 
 import { AppError } from '../../../utils/errors';
@@ -21,6 +23,8 @@ type HorseMovement = HorseRaceEntry & {
 	surged: boolean;
 	fell: boolean;
 };
+
+type HorseLabel = Pick<HorseRaceEntry, 'horseName' | 'horseColor' | 'horsePost'>;
 
 const BIG = 0.2;
 const SMALL = 0.1;
@@ -364,13 +368,16 @@ const finishThird: CommentaryLine[] = [
 	{ commentary: ' tried their best and got third!', singular: true, small: false, big: true }
 ];
 
-export function createHorseStartCommentary(curr: HorseRaceEntry[]): string[] {
+export function createHorseStartCommentary(curr: HorseRaceEntry[]): GameText[][] {
 	const opener = pickUniform(openingLines.map(line => line.commentary));
-	const commentary: string[] = [opener];
+	const commentary: GameText[][] = [[{ text: opener, color: hType.normal }]];
 
 	const leaderGap = curr[0].score - curr[1].score;
 	const leaderCandidates = filterCommentaryPool(leadStart, leaderGap, true);
-	const leaderLine = appendHorseNames([curr[0].horseName]) + pickUniform(leaderCandidates.map(line => line.commentary));
+	const leaderChosen = pickUniform(leaderCandidates.map(line => line.commentary));
+	const leaderLabel = {horseName: curr[0].horseName, horseColor: curr[0].horseColor, horsePost: curr[0].horsePost};
+	const leaderName = appendHorseNames([leaderLabel]);
+	const leaderLine: GameText[] = [...leaderName, { text: leaderChosen, color: hType.normal }];
 	commentary.push(leaderLine);
 
 	const movementArray = curr.slice(1).map(entry => ({ ...entry, surged: false, fell: false }));
@@ -407,7 +414,7 @@ export function createHorseStartCommentary(curr: HorseRaceEntry[]): string[] {
 	return commentary;
 }
 
-export function createHorseCommentary(curr: HorseRaceEntry[], prev: HorseRaceEntry[], phase: number): string[] {
+export function createHorseCommentary(curr: HorseRaceEntry[], prev: HorseRaceEntry[], phase: number): GameText[][] {
 	let locationPool: CommentaryLine[];
 	switch(phase){
 		case 2:{
@@ -434,7 +441,7 @@ export function createHorseCommentary(curr: HorseRaceEntry[], prev: HorseRaceEnt
 	const locationCandidates = filterCommentaryPool(locationPool, leaderGap, true);
 
 	const opener = pickUniform(locationCandidates.map(line => line.commentary));
-	const commentary: string[] = [opener];
+	const commentary: GameText[][] = [[{ text: opener, color: hType.normal }]];
 
 	const movementArray = createHorseMovementArray(curr, prev);
 
@@ -460,7 +467,10 @@ export function createHorseCommentary(curr: HorseRaceEntry[], prev: HorseRaceEnt
 		}
 	}
 	const leaderCandidates = filterCommentaryPool(leaderPool, leaderGap, true);
-	const leaderLine = appendHorseNames([curr[0].horseName]) + pickUniform(leaderCandidates.map(line => line.commentary));
+	const leaderChosen = pickUniform(leaderCandidates.map(line => line.commentary));
+	const leaderLabel = {horseName: curr[0].horseName, horseColor: curr[0].horseColor, horsePost: curr[0].horsePost};
+	const leaderName = appendHorseNames([leaderLabel]);
+	const leaderLine: GameText[] = [...leaderName, { text: leaderChosen, color: hType.normal }];
 	commentary.push(leaderLine);
 
 	const clusters = createHorseClusters(movementArray.slice(1));
@@ -531,27 +541,38 @@ export function createHorseCommentary(curr: HorseRaceEntry[], prev: HorseRaceEnt
 	return commentary;
 }
 
-export function createHorseEndCommentary(curr: HorseRaceEntry[]): string[] {
-	const commentary: string[] = [];
+export function createHorseEndCommentary(curr: HorseRaceEntry[]): GameText[][] {
+	const commentary: GameText[][] = [];
 
 	const firstGap = curr[0].score - curr[1].score;
 	const firstCandidates = filterCommentaryPool(finishFirst, firstGap, true);
-	const firstLine = appendHorseNames([curr[0].horseName]) + pickUniform(firstCandidates.map(line => line.commentary));
+	const firstChosen = pickUniform(firstCandidates.map(line => line.commentary));
+	const firstLabel = {horseName: curr[0].horseName, horseColor: curr[0].horseColor, horsePost: curr[0].horsePost};
+	const firstName = appendHorseNames([firstLabel]);
+	const firstLine: GameText[] = [...firstName, { text: firstChosen, color: hType.gold }];
 	commentary.push(firstLine);
 
 	const secondGap = curr[0].score - curr[1].score;
 	const secondCandidates = filterCommentaryPool(finishSecond, secondGap, true);
-	const secondLine = appendHorseNames([curr[1].horseName]) + pickUniform(secondCandidates.map(line => line.commentary));
+	const secondChosen = pickUniform(secondCandidates.map(line => line.commentary));
+	const secondLabel = {horseName: curr[1].horseName, horseColor: curr[1].horseColor, horsePost: curr[1].horsePost};
+	const secondName = appendHorseNames([secondLabel]);
+	const secondLine: GameText[] = [...secondName, { text: secondChosen, color: hType.silver }];
 	commentary.push(secondLine);
 
 	const thirdGap = curr[1].score - curr[2].score;
 	const thirdCandidates = filterCommentaryPool(finishThird, thirdGap, true);
-	const thirdLine = appendHorseNames([curr[2].horseName]) + pickUniform(thirdCandidates.map(line => line.commentary));
+	const thirdChosen = pickUniform(thirdCandidates.map(line => line.commentary));
+	const thirdLabel = {horseName: curr[2].horseName, horseColor: curr[2].horseColor, horsePost: curr[2].horsePost};
+	const thirdName = appendHorseNames([thirdLabel]);
+	const thirdLine: GameText[] = [...thirdName, { text: thirdChosen, color: hType.bronze }];
 	commentary.push(thirdLine);
 
 	for(let index = 3; index < curr.length; index++){
 		const place = index + 1;
-		const line = `[${curr[index].horseName}] finishes ${place}${getOrdinalSuffix(place)}.`;
+		const label = { horseName: curr[index].horseName, horseColor: curr[index].horseColor, horsePost: curr[index].horsePost };
+		const name = appendHorseNames([label]);
+		const line: GameText[] = [...name, { text: ` finishes ${place}${getOrdinalSuffix(place)}.`, color: hType.normal }];
 		commentary.push(line);
 	}
 
@@ -577,7 +598,7 @@ function filterCommentaryPool(pool: CommentaryLine[], gap: number, singular: boo
 	return candidates;
 }
 
-function createClusterCommentary(input: HorseRaceEntry[], gap: number, type: ClusterType): string {
+function createClusterCommentary(input: HorseRaceEntry[], gap: number, type: ClusterType): GameText[] {
 	let pool: CommentaryLine[];
 	switch(type){
 		case ClusterType.Second:{
@@ -598,32 +619,34 @@ function createClusterCommentary(input: HorseRaceEntry[], gap: number, type: Clu
 	const candidates = filterCommentaryPool(pool, gap, singular);
 
 	const chosen = pickUniform(candidates.map(line => line.commentary));
-	const names = input.map(entry => entry.horseName);
-	const line = appendHorseNames(names) + chosen;
+	const names = appendHorseNames(input);
+	const line: GameText[] = [...names, { text: chosen, color: hType.normal }];
 	return line;
 }
 
-function createSurgeCommentary(entry: HorseMovement, nextCluster: HorseMovement[]): string {
+function createSurgeCommentary(entry: HorseMovement, nextCluster: HorseMovement[]): GameText[] {
 	const surgeCandidates = filterCommentaryPool(surgeLines, 0, true);
 	const chosen = pickUniform(surgeCandidates.map(line => line.commentary));
 
-	let passedNames: string;
+	let passedNames: GameText[];
 	if(nextCluster.length === 0){
-		passedNames = 'no one!';
+		passedNames = [{ text: 'no one!', color: hType.normal }];
 	}
 	else{
-		passedNames = appendHorseNames(nextCluster.map(passedEntry => passedEntry.horseName));
+		passedNames = appendHorseNames(nextCluster);
 	}
-	const horse = appendHorseNames([entry.horseName]);
-	const line = horse + chosen + passedNames;
+	const horseLabel = {horseName: entry.horseName, horseColor: entry.horseColor, horsePost: entry.horsePost};
+	const horse = appendHorseNames([horseLabel]);
+	const line: GameText[] = [...horse, { text: chosen, color: hType.normal }, ...passedNames];
 	return line;
 }
 
-function createFallCommentary(entry: HorseMovement): string {
+function createFallCommentary(entry: HorseMovement): GameText[] {
 	const fallCandidates = filterCommentaryPool(fallLines, 0, true);
 	const chosen = pickUniform(fallCandidates.map(line => line.commentary));
-	const horse = appendHorseNames([entry.horseName]);
-	const line = horse + chosen;
+	const horseLabel = {horseName: entry.horseName, horseColor: entry.horseColor, horsePost: entry.horsePost};
+	const horse = appendHorseNames([horseLabel]);
+	const line: GameText[] = [...horse, { text: chosen, color: hType.normal}];
 	return line;
 }
 
@@ -694,16 +717,40 @@ function createHorseClusters(horses: HorseMovement[]): HorseMovement[][] {
 	return clusters;
 }
 
-function appendHorseNames(names: string[]): string {
-	if(names.length === 1){
-		return `[${names[0]}]`;
+function appendHorseNames(horses: HorseLabel[]): GameText[] {
+	const names: GameText[] = [];
+
+	if(horses.length === 1){
+		names.push(...createHorseNameText(horses[0]));
+	}
+	else if(horses.length === 2){
+		names.push(...createHorseNameText(horses[0]));
+		names.push({ text: ' and ', color: hType.normal });
+		names.push(...createHorseNameText(horses[1]));
+	}
+	else{
+		const allButLast = horses.slice(0, -1);
+		const last = horses[horses.length - 1];
+
+		for(const horse of allButLast){
+			names.push(...createHorseNameText(horse));
+			names.push({ text: ', ', color: hType.normal });
+		}
+		names.push({ text: 'and ', color: hType.normal });
+		names.push(...createHorseNameText(last));
 	}
 
-	if(names.length === 2){
-		return `[${names[0]}] and [${names[1]}]`;
-	}
+	return names;
+}
 
-	const allButLast = names.slice(0, -1).map(name => `[${name}]`).join(', ');
-	const last = names[names.length - 1];
-	return `${allButLast}, and [${last}]`;
+function createHorseNameText(horse: HorseLabel): GameText[] {
+	const nametext: GameText[] = [
+		{ text: '[', color: hType.normal },
+		{ text: `No. ${horse.horsePost}`, color: horse.horseColor },
+		{ text: '][', color: hType.normal },
+		{ text: horse.horseName, color: horse.horseColor },
+		{ text: ']', color: hType.normal }
+	];
+
+	return nametext;
 }

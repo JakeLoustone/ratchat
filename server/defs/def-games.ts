@@ -1,5 +1,24 @@
+import { hType } from './def-events';
+import type { GameText } from './def-events';
 import type { GameIdentity } from './def-identity';
-import { FishRecordEntry, HorseRecordEntry } from './def-record';
+import type { FishRecordEntry, HorseRecordEntry } from './def-record';
+
+export type HorseColor = typeof allowedHorseColors[keyof typeof allowedHorseColors];
+export const allowedHorseColors = {
+	[hType.blue]: hType.blue,
+	[hType.brown]: hType.brown,
+	[hType.black]: hType.black,
+	[hType.gray]: hType.gray,
+	[hType.navy]: hType.navy,
+	[hType.green]: hType.green,
+	[hType.orange]: hType.orange,
+	[hType.pink]: hType.pink,
+	[hType.purple]: hType.purple,
+	[hType.teal]: hType.teal,
+	[hType.red]: hType.red,
+	[hType.white]: hType.white,
+	[hType.yellow]: hType.yellow
+} as const;
 
 export type HorseOdds = {
 	oddsNum: number;
@@ -8,6 +27,7 @@ export type HorseOdds = {
 
 export type HorseFieldEntry = {
 	horsePost: number;
+	horseColor: HorseColor;
 	horseName: HorseRecordEntry['horseName'];
 } & HorseOdds;
 
@@ -18,23 +38,24 @@ export type HorseRaceEntry = HorseFieldEntry & {
 
 export type HorseRaceResult = {
 	field: HorseFieldEntry[];
-	gates: string[];
-	checkpoint1: string[];
-	checkpoint2: string[];
-	checkpoint3: string[];
-	finalStretch: string[];
-	end: string[];
+	gates: GameText[][];
+	checkpoint1: GameText[][];
+	checkpoint2: GameText[][];
+	checkpoint3: GameText[][];
+	finalStretch: GameText[][];
+	end: GameText[][];
 	first: HorseRecordEntry['horseName'];
-	firstPost: number;
+	firstPost: HorseFieldEntry['horsePost'];
 	second: HorseRecordEntry['horseName'];
-	secondPost: number;
+	secondPost: HorseFieldEntry['horsePost'];
 	third: HorseRecordEntry['horseName'];
-	thirdPost: number;
+	thirdPost: HorseFieldEntry['horsePost'];
 };
 
 export type HorseBet = {
 	playerid: GameIdentity['playerid'];
 	horseName: HorseRecordEntry['horseName'];
+	postNumber: HorseFieldEntry['horsePost'];
 	stake: number;
 	oddsNum: number;
 	oddsDen: number;
@@ -44,6 +65,7 @@ export type HorseBet = {
 export type FishCatch = {
 	name: FishRecordEntry['fishName'];
 	flavor: FishRecordEntry['fishFlavor'];
+	color: FishRecordEntry['fishColor'];
 	weight: number;
 	value: number;
 };

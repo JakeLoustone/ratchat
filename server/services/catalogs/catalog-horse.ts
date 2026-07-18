@@ -50,5 +50,6 @@ export const defaultHorseCatalog: HorseCatalogEntry[] = [
 	{horseName: 'Whorre "C"'},
 	{horseName: '24 Carrot Bold'},
 	{horseName: 'Ran Away to Join the Circus'},
-	{horseName: 'Break a Leg'}
+	{horseName: 'Break a Leg'},
+	{horseName: 'Neigh King Colt'}
 ];

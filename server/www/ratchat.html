@@ -315,6 +315,11 @@
 			min-height: 100%;
 			font-size: large;
 		}
+		#messages .user-name {
+			font-weight: bold;
+			color: var(--user-color, black);
+			margin-right: .15rem;
+		}
 		#messages > li{
 			padding-top: 0.2rem;
 			padding-bottom: 0.2rem;
@@ -322,6 +327,12 @@
 			padding-right: 0.2rem;
 			white-space: pre-wrap;
 			word-break: break-word;
+		}
+		#messages > li:hover {
+			background-color: rgba(0, 0, 0, 0.05);
+		}
+		#messages > li.hidden-message:hover {
+			cursor: pointer;
 		}
 		#messages > .e-li {
 			color: #D12626;
@@ -338,16 +349,57 @@
 		#messages > .g-li{
 			color: #6f0475;
 		}
-		#messages .user-name {
-			font-weight: bold;
-			color: var(--user-color, black);
-			margin-right: .15rem;
+
+		.g-color-clear {
+			color: initial;
 		}
-		#messages > li:hover {
-			background-color: rgba(0, 0, 0, 0.05);
+		.g-color-gold {
+			color: #b8860b;
 		}
-		#messages > li.hidden-message:hover {
-			cursor: pointer;
+		.g-color-silver {
+			color: #708090;
+		}
+		.g-color-bronze {
+			color: #8c5a2b;
+		}
+		.g-color-blue {
+			color: #0084FF;
+		}
+		.g-color-brown {
+			color: #7a4a2b;
+		}
+		.g-color-black {
+			color: #1a1a1a;
+		}
+		.g-color-gray {
+			color: #6b6b6b;
+		}
+		.g-color-navy {
+			color: #1b2a5e;
+		}
+		.g-color-green {
+			color: #6eab6e;
+		}
+		.g-color-orange {
+			color: #c2650c;
+		}
+		.g-color-pink {
+			color: #c2408a;
+		}
+		.g-color-purple {
+			color: #6f0475;
+		}
+		.g-color-teal {
+			color: #157a72;
+		}
+		.g-color-red {
+			color: #D12626;
+		}
+		.g-color-white {
+			color: #a8a8a8;
+		}
+		.g-color-yellow {
+			color: #a68a00;
 		}
 
 		.fake-scrollbar {
@@ -471,6 +523,24 @@
 		[data-theme="dark"] #messages > li:hover {
 			background-color: rgba(255, 255, 255, 0.08);
 		}
+
+		[data-theme="dark"] .g-color-clear { color: #ffffff; }
+		[data-theme="dark"] .g-color-gold { color: #e0b84d; }
+		[data-theme="dark"] .g-color-silver { color: #b8c0c8; }
+		[data-theme="dark"] .g-color-bronze { color: #c9915a; }
+		[data-theme="dark"] .g-color-blue { color: #8ac7ff; }
+		[data-theme="dark"] .g-color-brown { color: #b8825a; }
+		[data-theme="dark"] .g-color-black { color: #cfcfcf; }
+		[data-theme="dark"] .g-color-gray { color: #a8a8a8; }
+		[data-theme="dark"] .g-color-navy { color: #7d95d6; }
+		[data-theme="dark"] .g-color-green { color: #9df79d; }
+		[data-theme="dark"] .g-color-orange { color: #e8973f; }
+		[data-theme="dark"] .g-color-pink { color: #e075b8; }
+		[data-theme="dark"] .g-color-purple { color: #e889ed; }
+		[data-theme="dark"] .g-color-teal { color: #4fc3b8; }
+		[data-theme="dark"] .g-color-red { color: #ff8a8a; }
+		[data-theme="dark"] .g-color-white { color: #e0e0e0; }
+		[data-theme="dark"] .g-color-yellow { color: #e0c95a; }
 
 		[data-theme="dark"] .fake-scrollbar {
 			background: #2a2a2a;
@@ -1199,8 +1269,20 @@
 			if(mutedEvents.includes(msg.event.toLowerCase())){
 				return;
 			}
-		
-			displayClientMessage(msg.content, 'g-li');
+
+			const li = document.createElement('li');
+
+			msg.content.forEach(chunk => {
+				const span = document.createElement('span');
+				span.textContent = chunk.text;
+				if(chunk.color !== 'normal'){
+					span.className = `g-color-${chunk.color}`;
+				}
+				li.appendChild(span);
+			});
+
+			li.classList.add('g-li');
+			renderMessage(li);
 		}
 
 		function handleMessage(msg){

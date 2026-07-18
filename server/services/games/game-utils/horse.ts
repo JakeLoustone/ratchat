@@ -1,6 +1,7 @@
-import { HorseOdds, HorseFieldEntry, HorseRaceEntry, HorseRaceResult } from '../../../defs/def-games';
-import { PrivateHorseRecordList } from '../../../defs/def-record';
+import { allowedHorseColors } from '../../../defs/def-games';
+import type { HorseOdds, HorseColor, HorseFieldEntry, HorseRaceEntry, HorseRaceResult } from '../../../defs/def-games';
 import type { Candidate, WeightedCandidates } from '../../../defs/def-random';
+import type { PrivateHorseRecordList } from '../../../defs/def-record';
 
 import { AppError } from '../../../utils/errors';
 import { pickUniformExclusive, randomInt, randomIntArray } from '../../../utils/random';
@@ -17,14 +18,16 @@ export function createHorseRaceResult(records: PrivateHorseRecordList): HorseRac
 	const selectedHorses = pickUniformExclusive(candidateHorses, fieldSize);
 	const weightedHorses = createHorseWeights(selectedHorses);
 	const horsePosts = randomIntArray(1, 16);
-	let postIndex = 0;
+	const colors = createHorseColors(fieldSize);
+	let index = 0;
 
 	const raceField: HorseRaceEntry[] = [];
 	for(const [horseName, weight] of weightedHorses){
 		const odds = createHorseOdds(weight);
 		const raceEntry: HorseRaceEntry = {
 			horseName: horseName,
-			horsePost: horsePosts[postIndex++],
+			horsePost: horsePosts[index],
+			horseColor: colors[index++],
 			weight: weight,
 			score: 0,
 			oddsNum: odds.oddsNum,
@@ -197,12 +200,31 @@ function normalizeHorseScores(race: HorseRaceEntry[]): HorseRaceEntry[] {
 	return race;
 }
 
+function createHorseColors(count: number): HorseColor[] {
+	const colorPool: string[] = Object.values(allowedHorseColors);
+
+	const isHorseColor = (color: string): color is HorseColor => colorPool.includes(color);
+
+	const picks = pickUniformExclusive(colorPool, count);
+	const verifiedColors: HorseColor[] = [];
+
+	for(const pick of picks){
+		if(!isHorseColor(pick)){
+			throw new AppError('pickUniformExclusive returned an invalid horse color', 'bug');
+		}
+		verifiedColors.push(pick);
+	}
+
+	return verifiedColors;
+}
+
 function createHorseField(race: HorseRaceEntry[]): HorseFieldEntry[] {
 	const field: HorseFieldEntry[] = [];
 	for(const raceEntry of race){
 		const fieldEntry: HorseFieldEntry = {
 			horseName: raceEntry.horseName,
 			horsePost: raceEntry.horsePost,
+			horseColor: raceEntry.horseColor,
 			oddsNum: raceEntry.oddsNum,
 			oddsDen: raceEntry.oddsDen
 		};

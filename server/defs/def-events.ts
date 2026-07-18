@@ -59,6 +59,28 @@ export const eType = {
 	leaderboard: 'leaderboard'
 } as const;
 
+export type GameHighlightType = typeof hType[keyof typeof hType];
+export const hType = {
+	normal: 'normal',
+	clear: 'clear',
+	gold: 'gold',
+	silver: 'silver',
+	bronze: 'bronze',
+	blue: 'blue',
+	brown: 'brown',
+	black: 'black',
+	gray: 'gray',
+	green: 'green',
+	navy: 'navy',
+	orange: 'orange',
+	pink: 'pink',
+	purple: 'purple',
+	teal: 'teal',
+	red: 'red',
+	white: 'white',
+	yellow: 'yellow'
+} as const;
+
 export type IdentityPayload = Identity;
 export type UserListPayload = UserSum[];
 export type DeleteMessagePayload = ChatPayload['id'][];
@@ -70,9 +92,15 @@ export const EmoteListPayloadSchema = z.record(z.string(), z.string());
 export type EventListPayload = z.infer<typeof EventListPayloadSchema>;
 export const EventListPayloadSchema = z.array(z.enum(eType));
 
+export type GameText = z.infer<typeof GameTextSchema>;
+export const GameTextSchema = z.object({
+	text: z.string(),
+	color: z.enum(hType)
+});
+
 export type GamePayload = z.infer<typeof GamePayloadSchema>;
 export const GamePayloadSchema = z.object({
-	content: z.string(),
+	content: z.array(GameTextSchema),
 	timestamp: z.number(),
 	event: z.enum(eType)
 });

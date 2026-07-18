@@ -19,6 +19,7 @@
 
 		html {
 			background-color: #000000;
+			font-variant-numeric: tabular-nums;
 		}
 
 		body {
@@ -1265,26 +1266,32 @@
 			renderMessage(li);
 		}
 
-		function handleGameEvent(msg){
+		async function handleGameEvent(msg){
 			if(mutedEvents.includes(msg.event.toLowerCase())){
 				return;
 			}
 
-			const li = document.createElement('li');
+			for(let lineIndex = 0; lineIndex < msg.content.length; lineIndex++){
+				const line = msg.content[lineIndex];
+				const li = document.createElement('li');
 
-			msg.content.forEach(chunk => {
-				const span = document.createElement('span');
-				span.textContent = chunk.text;
-				if(chunk.color !== 'normal'){
-					span.className = `g-color-${chunk.color}`;
+				line.forEach(chunk => {
+					const span = document.createElement('span');
+					span.textContent = chunk.text;
+					if(chunk.color !== 'normal'){
+						span.className = `g-color-${chunk.color}`;
+					}
+					li.appendChild(span);
+				});
+
+				li.classList.add('g-li');
+				renderMessage(li);
+
+				if(lineIndex < msg.content.length - 1 && msg.msdelay > 0){
+					await wait(msg.msdelay);
 				}
-				li.appendChild(span);
-			});
-
-			li.classList.add('g-li');
-			renderMessage(li);
+			}
 		}
-
 		function handleMessage(msg){
 			if(msg.id >= 0){
 				const dupe = document.querySelector(`li[data-id="${msg.id}"]`);
@@ -1556,6 +1563,10 @@
 			}
 			historyIndex = -1;
 			draftMessage = '';
+		}
+
+		function wait(ms){
+			return new Promise(resolve => setTimeout(resolve, ms));
 		}
 
 		//Fake scrollbar

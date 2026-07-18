@@ -2,7 +2,7 @@ import {RatServer, eType, hType} from '../../defs/def-events';
 import {fType} from '../../defs/def-games';
 import {aType} from '../../defs/def-parse';
 import {HorseRecordEntrySchema, FishRecordEntrySchema} from '../../defs/def-record';
-import type {GameText} from '../../defs/def-events';
+import type {GameLine, GameTextPayload} from '../../defs/def-events';
 import type {FishCatch, FishingEventCallback, FishResult, HorseFieldEntry, HorseBet, HorseRaceResult} from '../../defs/def-games';
 import type {GameIdentity} from '../../defs/def-identity';
 import type {LeaderboardEntry, BlackjackEntry, DuelingEntry, FishingEntry, HorseEntry} from '../../defs/def-leaderboard';
@@ -73,6 +73,7 @@ const HORSE_CHECKPOINT_3_WAIT = 30;
 const HORSE_FINAL_STRETCH_WAIT = 20;
 const HORSE_MIN_RACEOVER_WAIT = 5;
 const HORSE_MAX_RACEOVER_WAIT = 15;
+const HORSE_TEXT_DELAY = 250;
 
 export interface GameStateServiceDependencies{
 	cacheService: CacheService;
@@ -125,6 +126,8 @@ export class GameStateService {
 		assertGamesEnabled(this.deps.configService, 'createHorseSession');
 		assertHorseRacingEnabled(this.deps.configService, 'createHorseSession');
 		try{
+			const blankLine: GameLine = [{text: '', color: hType.clear}];
+
 			const raceResult = createHorseRaceResult(this.horseRecords);
 			this.raceCounter++;
 			const raceid = this.raceCounter;
@@ -140,69 +143,59 @@ export class GameStateService {
 			this.activeRace = session;
 
 			const announcement = this.createHorseSessionAnnouncement(raceResult.field, raceid);
-			this.sendHorseSessionResult(announcement, false);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, announcement, eType.horse, HORSE_TEXT_DELAY);
 
 			setTimeout(() => {
-				const reminder: GameText[][] = [
+				const reminder: GameTextPayload = [
+					blankLine,
 					[
 						{text: 'the ', color: hType.normal},
 						{text: `${raceid}${getOrdinalSuffix(raceid)} `, color: hType.normal},
 						{text: 'semi annual race starts in ', color: hType.normal},
 						{text: `${HORSE_BET_REMINDER_AT / 60} `, color: hType.normal},
-						{text: 'minute(s)!', color: hType.normal}
+						{text: 'minute!', color: hType.normal}
 					],
-					[{text: 'make sure to get your bets in for a 2x multiplier on your payout!', color: hType.normal}]
+					[{text: 'make sure to get your bets in for a 2x multiplier on your payout!', color: hType.normal}],
+					blankLine
 				];
-				this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
-				this.sendHorseSessionResult(reminder, false);
-				this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
+				this.deps.dispatchService.sendGamePayload(this.deps.io, reminder, eType.horse, HORSE_TEXT_DELAY);
 			}, HORSE_BET_REMINDER_AT * 1000);
 
 			await wait((HORSE_PRERACE_DURATION -10)* 1000);
-			const tenSecondWarning: GameText[] = [{text: 'the race begins in 10 seconds!', color: hType.normal}];
-			this.sendHorseSessionResult([tenSecondWarning], false);
+			const tenSecondWarning: GameLine = [{text: 'the race begins in 10 seconds!', color: hType.normal}];
+			this.deps.dispatchService.sendGamePayload(this.deps.io, [tenSecondWarning], eType.horse);
 
 			await wait(10 * 1000);
 			session.phase = 1;
-			this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
-			this.sendHorseSessionResult(raceResult.gates, false);
-			this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.gates, eType.horse, HORSE_TEXT_DELAY);
 
 			await wait(HORSE_CHECKPOINT_1_WAIT * 1000);
 			session.phase = 2;
-			this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
-			this.sendHorseSessionResult(raceResult.checkpoint1, false);
-			this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.checkpoint1, eType.horse, HORSE_TEXT_DELAY);
 
 			await wait(HORSE_CHECKPOINT_2_WAIT * 1000);
-			this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
 			session.phase = 3;
-			this.sendHorseSessionResult(raceResult.checkpoint2, false);
-			this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.checkpoint2, eType.horse, HORSE_TEXT_DELAY);
 
 			await wait(HORSE_CHECKPOINT_3_WAIT * 1000);
-			session.betting = false;
-			this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
-			const betsClosed: GameText[] = [{text: 'bets are closed!', color: hType.normal}];
-			this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
-			this.sendHorseSessionResult([betsClosed], true);
 			session.phase = 4;
-			this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
-			this.sendHorseSessionResult(raceResult.checkpoint3, false);
-			this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
+			session.betting = false;
+			const betsClosed: GameTextPayload= [
+				blankLine,
+				[{text: 'bets are closed!', color: hType.normal}],
+				blankLine
+			];
+			this.deps.dispatchService.sendGamePayload(this.deps.io, betsClosed, eType.horse);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.checkpoint3, eType.horse, HORSE_TEXT_DELAY);
 
 			await wait(HORSE_FINAL_STRETCH_WAIT * 1000);
 			session.phase = 5;
-			this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
-			this.sendHorseSessionResult(raceResult.finalStretch, false);
-			this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.finalStretch, eType.horse, HORSE_TEXT_DELAY);
 
 			const raceOverWait = randomInt(HORSE_MIN_RACEOVER_WAIT, HORSE_MAX_RACEOVER_WAIT);
 			await wait(raceOverWait * 1000);
 			session.phase = 6;
-			this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
-			this.sendHorseSessionResult(raceResult.end, true);
-			this.deps.dispatchService.sendGameBlankPayload(this.deps.io, eType.horse);
+			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.end, eType.horse, 100);
 
 			try{
 				this.incrementHorseRecord(raceResult.first, 0);
@@ -217,15 +210,17 @@ export class GameStateService {
 		}
 		catch(error: unknown){
 			handleError(error, 'Create Horse Session');
-			const gameText = {text: 'the race has been cancelled due to an unexpected error.', color: hType.normal};
-			this.deps.dispatchService.sendGamePayload(this.deps.io, [gameText], eType.horse);
+			const line: GameLine = [{text: 'the race has been cancelled due to an unexpected error.', color: hType.normal}];
+			this.deps.dispatchService.sendGamePayload(this.deps.io, [line], eType.horse);
 			this.activeRace = null;
 		}
 	}
 
-	private createHorseSessionAnnouncement(field: HorseFieldEntry[], raceid: number): GameText[][]{
-		const commentary: GameText[][] = [];
-		const welcome: GameText[] =[
+	private createHorseSessionAnnouncement(field: HorseFieldEntry[], raceid: number): GameTextPayload {
+		const blankLine: GameLine = [{text: '', color: hType.clear}];
+
+		const commentary: GameTextPayload = [];
+		const welcome: GameLine =[
 			{text: 'the ', color: hType.normal},
 			{text: `${raceid}${getOrdinalSuffix(raceid)} `, color: hType.normal},
 			{text: 'semi-annual horse race begins in ', color: hType.normal},
@@ -233,9 +228,9 @@ export class GameStateService {
 			{text: 'minutes!', color: hType.normal},
 		];
 		commentary.push(welcome);
-		const blankLine: GameText[] = [{text: '', color: hType.clear}];
+
 		commentary.push(blankLine);
-		const oddsIntro = [{text: 'the betting line is as follows:', color: hType.normal}];
+		const oddsIntro: GameLine = [{text: 'the betting line is as follows:', color: hType.normal}];
 		commentary.push(oddsIntro);
 
 		const sortedField = [...field].sort((a, b) => {
@@ -246,9 +241,9 @@ export class GameStateService {
 
 		for(let index = 0; index < sortedField.length; index++){
 			const horse = sortedField[index];
-			const line: GameText[] = [
+			const line: GameLine = [
 				{text: '[', color: hType.normal},
-				{text: `No. ${horse.horsePost}`, color: horse.horseColor},
+				{text: `No. ${String(horse.horsePost).padStart(2, '0')}`, color: horse.horseColor},
 				{text: '][', color: hType.normal},
 				{text: horse.horseName, color: horse.horseColor},
 				{text: '] at ', color: hType.normal},
@@ -266,9 +261,9 @@ export class GameStateService {
 		}
 		commentary.push(blankLine);
 
-		const outro1 = [{text: 'what a beautiful day for a horse race!', color: hType.normal}];
-		const outro2 = [{text: 'get your bets in now for a 2x multiplier on your payout!', color: hType.normal}];
-		const outro3 = [
+		const outro1: GameLine = [{text: 'what a beautiful day for a horse race!', color: hType.normal}];
+		const outro2: GameLine = [{text: 'get your bets in now for a 2x multiplier on your payout!', color: hType.normal}];
+		const outro3: GameLine = [
 			{text: 'reminder, the race starts in ', color: hType.normal},
 			{text: `${HORSE_PRERACE_DURATION/60} `, color: hType.normal},
 			{text: 'minutes! see you there!', color: hType.normal}
@@ -277,14 +272,6 @@ export class GameStateService {
 
 		commentary.push(blankLine);
 		return commentary;
-	}
-
-	private async sendHorseSessionResult(lines: GameText[][], fast: boolean): Promise<void> {
-		const delay = fast ? 100 : 250;
-		for(const line of lines){
-			this.deps.dispatchService.sendGamePayload(this.deps.io, line, eType.horse);
-			await wait(delay);
-		}
 	}
 
 	public existsFishingSession(playerid: GameIdentity['playerid']): boolean {

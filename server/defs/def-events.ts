@@ -97,11 +97,16 @@ export const GameTextSchema = z.object({
 	text: z.string(),
 	color: z.enum(hType)
 });
+export type GameLine = z.infer<typeof GameLineSchema>
+export const GameLineSchema = z.array(GameTextSchema);
+export type GameTextPayload = z.infer<typeof GameTextPayloadSchema>
+export const GameTextPayloadSchema = z.array(GameLineSchema);
 
 export type GamePayload = z.infer<typeof GamePayloadSchema>;
 export const GamePayloadSchema = z.object({
-	content: z.array(GameTextSchema),
+	content: GameTextPayloadSchema,
 	timestamp: z.number(),
+	msdelay: z.number().int().min(0).max(32768),
 	event: z.enum(eType)
 });
 

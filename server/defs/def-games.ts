@@ -1,5 +1,5 @@
 import {hType} from './def-events';
-import type {GameText} from './def-events';
+import type {GameTextPayload} from './def-events';
 import type {GameIdentity} from './def-identity';
 import type {FishRecordEntry, HorseRecordEntry} from './def-record';
 
@@ -38,12 +38,12 @@ export type HorseRaceEntry = HorseFieldEntry & {
 
 export type HorseRaceResult = {
 	field: HorseFieldEntry[];
-	gates: GameText[][];
-	checkpoint1: GameText[][];
-	checkpoint2: GameText[][];
-	checkpoint3: GameText[][];
-	finalStretch: GameText[][];
-	end: GameText[][];
+	gates: GameTextPayload;
+	checkpoint1: GameTextPayload;
+	checkpoint2: GameTextPayload;
+	checkpoint3: GameTextPayload;
+	finalStretch: GameTextPayload;
+	end: GameTextPayload;
 	first: HorseRecordEntry['horseName'];
 	firstPost: HorseFieldEntry['horsePost'];
 	second: HorseRecordEntry['horseName'];

@@ -62,6 +62,13 @@ export type HorseBet = {
 	prerace: boolean;
 };
 
+export type CommentaryLine = {
+	commentary: string;
+	singular: boolean;
+	small: boolean;
+	big: boolean;
+};
+
 export type FishCatch = {
 	name: FishRecordEntry['fishName'];
 	flavor: FishRecordEntry['fishFlavor'];

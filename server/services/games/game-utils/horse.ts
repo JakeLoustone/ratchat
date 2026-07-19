@@ -24,15 +24,29 @@ export function createHorseRaceResult(records: PrivateHorseRecordList): HorseRac
 	const raceField: HorseRaceEntry[] = [];
 	for(const [horseName, weight] of weightedHorses){
 		const odds = createHorseOdds(weight);
-		const raceEntry: HorseRaceEntry = {
-			horseName: horseName,
-			horsePost: horsePosts[index],
-			horseColor: colors[index++],
-			weight: weight,
-			score: 0,
-			oddsNum: odds.oddsNum,
-			oddsDen: odds.oddsDen
-		};
+		let raceEntry: HorseRaceEntry;
+		if(horseName === 'Seis Siete'){
+			raceEntry = {
+				horseName: horseName,
+				horsePost: 67, //lol
+				horseColor: colors[index++],
+				weight: weight,
+				score: 0,
+				oddsNum: odds.oddsNum,
+				oddsDen: odds.oddsDen
+			};
+		}
+		else{
+			raceEntry = {
+				horseName: horseName,
+				horsePost: horsePosts[index],
+				horseColor: colors[index++],
+				weight: weight,
+				score: 0,
+				oddsNum: odds.oddsNum,
+				oddsDen: odds.oddsDen
+			};
+		}
 		raceField.push(raceEntry);
 	}
 

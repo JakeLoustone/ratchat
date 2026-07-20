@@ -1,4 +1,3 @@
-import {cType} from '../defs/def-events';
 import {clearInput, keepInput} from '../defs/def-input';
 import type {RatServer, RatSocket, FormatType} from '../defs/def-events';
 import type {Identity} from '../defs/def-identity';
@@ -48,13 +47,7 @@ export class MessageService {
 			}
 		}
 		catch(error: unknown){
-			const response = handleError(error, 'handleChat text check');
-			if(response){
-				this.deps.dispatchService.sendSystemChatPayload(socket, cType.error, `system: ${response}`);
-			}
-			else{
-				this.deps.dispatchService.sendSystemChatPayload(socket, cType.error, 'system: unknown error. try again');
-			}
+			this.deps.dispatchService.sendUserErrorMessage(socket, error, 'handleChat text check');
 			return keepInput;
 		}
 		try{

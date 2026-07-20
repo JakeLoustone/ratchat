@@ -1,5 +1,5 @@
 import {allowedHorseColors} from '../../../defs/def-games';
-import type {HorseOdds, HorseLabel, HorseColor, HorseFieldEntry, HorseRaceEntry, HorseRaceResult, HorseStandings, HorseBet, HorseBetResult} from '../../../defs/def-games';
+import type {HorseOdds, HorseLabel, HorseColor, HorseField, HorseFieldEntry, HorseRaceEntry, HorseRaceResult, HorseStandings, HorseBet, HorseBetResult} from '../../../defs/def-games';
 import type {Candidate, WeightedCandidates} from '../../../defs/def-random';
 import type {PrivateHorseRecordList} from '../../../defs/def-record';
 
@@ -12,7 +12,7 @@ const MIN_FIELD_SIZE = 8;
 const MAX_FIELD_SIZE = 13;
 
 export function createHorseBetResult(bet: HorseBet, standings: HorseStandings): HorseBetResult {
-	const index = standings.findIndex(entry => entry.horsePost === bet.postNumber);
+	const index = standings.findIndex(entry => entry.horsePost === bet.horsePost);
 	const place = index + 1;
 
 	let payout = bet.stake + (bet.stake * (bet.oddsNum / bet.oddsDen));
@@ -39,7 +39,8 @@ export function createHorseBetResult(bet: HorseBet, standings: HorseStandings): 
 	const result: HorseBetResult = {
 		playerid: bet.playerid,
 		horseName: bet.horseName,
-		postNumber: bet.postNumber,
+		horsePost: bet.horsePost,
+		horseColor: bet.horseColor,
 		stake: bet.stake,
 		oddsNum: bet.oddsNum,
 		oddsDen: bet.oddsDen,
@@ -273,8 +274,8 @@ function createHorseColors(count: number): HorseColor[] {
 	return verifiedColors;
 }
 
-function createHorseField(race: HorseRaceEntry[]): HorseFieldEntry[] {
-	const field: HorseFieldEntry[] = [];
+function createHorseField(race: HorseRaceEntry[]): HorseField {
+	const field: HorseField = [];
 	for(const raceEntry of race){
 		const fieldEntry: HorseFieldEntry = {
 			horseName: raceEntry.horseName,

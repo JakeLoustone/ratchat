@@ -2,7 +2,7 @@ import {RatServer, fType, gType, hType} from '../../defs/def-events';
 import {aType} from '../../defs/def-parse';
 import {HorseRecordEntrySchema, FishRecordEntrySchema} from '../../defs/def-record';
 import type {GameLine, GameTextPayload} from '../../defs/def-events';
-import type {FishCatch, FishingEventCallback, FishResult, HorseFieldEntry, HorseBet, HorseRaceResult} from '../../defs/def-games';
+import type {FishCatch, FishingEventCallback, FishResult, HorseBet, HorseRaceResult, HorseField, HorseBetResult} from '../../defs/def-games';
 import type {GameIdentity} from '../../defs/def-identity';
 import type {LeaderboardEntry, BlackjackEntry, DuelingEntry, FishingEntry, HorseEntry} from '../../defs/def-leaderboard';
 import type {PublicLeaderboard, PublicOverallLeaderboard, PublicBlackjackLeaderboard, PublicDuelingLeaderboard, PublicFishingLeaderboard, PublicHorseLeaderboard} from '../../defs/def-leaderboard';
@@ -23,9 +23,10 @@ import {randomInt} from '../../utils/random';
 import {assertSafeStartup, getRepairPath} from '../../utils/repair';
 import {createJsonFile, existsFile, readJsonFile, writeJsonFile} from '../../utils/serialize';
 
+import {assertFishingEnabled, assertGamesEnabled, assertHorseRacingEnabled} from './game-utils/checks';
+import {createHorseNameText} from './game-utils/commentary';
 import {createCatch} from './game-utils/fishing';
 import {createHorseRaceResult, createHorseBetResult} from './game-utils/horse';
-import {assertFishingEnabled, assertGamesEnabled, assertHorseRacingEnabled} from './game-utils/checks';
 
 import {defaultFishCatalog} from '../catalogs/catalog-fish';
 import {defaultHorseCatalog} from '../catalogs/catalog-horse';
@@ -47,7 +48,7 @@ type FishingSession = {
 type HorseSession = {
 	raceid: number;
 	results: HorseRaceResult;
-	field: HorseFieldEntry[];
+	field: HorseField;
 	phase: number;
 	betting: boolean;
 	bets: HorseBet[];
@@ -121,7 +122,34 @@ export class GameStateService {
 		return false;
 	}
 
-	private async createHorseSession(): Promise<void>{
+	public getFieldHorseSession(): HorseField {
+		assertGamesEnabled(this.deps.configService, 'getFieldHorseSession');
+		assertHorseRacingEnabled(this.deps.configService, 'getFieldHorseSession');
+		if(!this.activeRace){
+			throw new AppError('get horse field: called without an active session', 'bug');
+		}
+		return structuredClone(this.activeRace.field);
+	}
+
+	public pushBetHorseSession(bet: HorseBet): HorseBet {
+		assertGamesEnabled(this.deps.configService, 'pushBetHorseSession');
+		assertHorseRacingEnabled(this.deps.configService, 'pushBetHorseSession');
+		if(!this.activeRace){
+			throw new AppError('add bet horse session: called without an active session', 'bug');
+		}
+		if(!this.activeRace.betting){
+			throw new AppError('betting is closed for this race', 'user');
+		}
+
+		if(this.activeRace.phase === 0){
+			bet.prerace = true;
+		}
+
+		this.activeRace.bets.push(bet);
+		return bet;
+	}
+
+	private async createHorseSession(): Promise<void> {
 		assertGamesEnabled(this.deps.configService, 'createHorseSession');
 		assertHorseRacingEnabled(this.deps.configService, 'createHorseSession');
 		let session: HorseSession | null = null;
@@ -198,12 +226,29 @@ export class GameStateService {
 			this.deps.dispatchService.sendGamePayload(this.deps.io, raceResult.end, gType.horse, 100);
 
 			const resolvingBets = [...session.bets];
-			for(const bet of resolvingBets){
-				const result = createHorseBetResult(bet, raceResult.standings);
-				bet.callback(result);
+			const betsGrouped = new Map<GameIdentity['playerid'], HorseBet[]>();
 
-				const betIndex = session.bets.indexOf(bet);
-				session.bets.splice(betIndex, 1);
+			for(const bet of resolvingBets){
+				const existing = betsGrouped.get(bet.playerid);
+				if(existing){
+					existing.push(bet);
+				}
+				else{
+					betsGrouped.set(bet.playerid, [bet]);
+				}
+			}
+
+			for(const playerbets of betsGrouped.values()){
+				const results: HorseBetResult[] = [];
+				for(const bet of playerbets){
+					results.push(createHorseBetResult(bet, raceResult.standings));
+				}
+				playerbets[0].callback(results);
+
+				for(const bet of playerbets){
+					const betIndex = session.bets.indexOf(bet);
+					session.bets.splice(betIndex, 1);
+				}
 			}
 
 			try{
@@ -243,7 +288,7 @@ export class GameStateService {
 		}
 	}
 
-	private createHorseSessionAnnouncement(field: HorseFieldEntry[], raceid: number): GameTextPayload {
+	private createHorseSessionAnnouncement(field: HorseField, raceid: number): GameTextPayload {
 		const blankLine: GameLine = [{text: '', color: hType.clear, format: []}];
 
 		const commentary: GameTextPayload = [];
@@ -268,13 +313,10 @@ export class GameStateService {
 
 		for(let index = 0; index < sortedField.length; index++){
 			const horse = sortedField[index];
+			const horseNameText = createHorseNameText(horse);
 			const line: GameLine = [
-				{text: '[', color: hType.normal, format: []},
-				{text: `No.${String(horse.horsePost).padStart(2, '0')}`, color: horse.horseColor, format: [fType.b, fType.mono]},
-				{text: '][', color: hType.normal, format: []},
-				{text: horse.horseName, color: horse.horseColor, format: []},
-				{text: '] at ', color: hType.normal, format: []},
-				{text: `${horse.oddsNum} : ${horse.oddsDen}`, color: hType.normal, format: []},
+				...horseNameText,
+				{text: `at ${horse.oddsNum} : ${horse.oddsDen}`, color: hType.normal, format: []},
 			];
 
 			if(index === 0){

@@ -28,6 +28,18 @@ const SMALL = 0.1;
 
 const blankLine: GameLine = [{text:'', color:hType.clear, format: []}];
 
+export function createHorseNameText(horse: HorseLabel): GameText[] {
+	const nametext: GameText[] = [
+		{text: '[', color: hType.normal, format: []},
+		{text: `No.${String(horse.horsePost).padStart(2, '0')}`, color: horse.horseColor, format: [fType.b,fType.mono]},
+		{text: '][', color: hType.normal, format: []},
+		{text: horse.horseName, color: horse.horseColor, format: []},
+		{text: ']', color: hType.normal, format: []}
+	];
+
+	return nametext;
+}
+
 export function createHorseStartCommentary(curr: HorseRaceEntry[]): GameTextPayload {
 	const commentary: GameTextPayload = [blankLine];
 	const openerChosen = pickUniform(commOpeningLines.map(line => line.commentary));
@@ -417,16 +429,4 @@ function appendHorseNames(horses: HorseLabel[]): GameText[] {
 	}
 
 	return names;
-}
-
-function createHorseNameText(horse: HorseLabel): GameText[] {
-	const nametext: GameText[] = [
-		{text: '[', color: hType.normal, format: []},
-		{text: `No.${String(horse.horsePost).padStart(2, '0')}`, color: horse.horseColor, format: [fType.b,fType.mono]},
-		{text: '][', color: hType.normal, format: []},
-		{text: horse.horseName, color: horse.horseColor, format: []},
-		{text: ']', color: hType.normal, format: []}
-	];
-
-	return nametext;
 }

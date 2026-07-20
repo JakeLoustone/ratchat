@@ -31,6 +31,7 @@ export type HorseLabel = {
 };
 export type HorseStandings = HorseLabel[];
 export type HorseFieldEntry = HorseLabel & HorseOdds;
+export type HorseField = HorseFieldEntry[]
 
 export type HorseRaceEntry = HorseFieldEntry & {
 	weight: number;
@@ -38,7 +39,7 @@ export type HorseRaceEntry = HorseFieldEntry & {
 }
 
 export type HorseRaceResult = {
-	field: HorseFieldEntry[];
+	field: HorseField;
 	gates: GameTextPayload;
 	checkpoint1: GameTextPayload;
 	checkpoint2: GameTextPayload;
@@ -50,11 +51,8 @@ export type HorseRaceResult = {
 
 export type HorseBet = {
 	playerid: GameIdentity['playerid'];
-	horseName: HorseRecordEntry['horseName'];
-	postNumber: HorseFieldEntry['horsePost'];
+} & HorseFieldEntry & {
 	stake: number;
-	oddsNum: number;
-	oddsDen: number;
 	prerace: boolean;
 	callback: HorseBetCallback;
 };
@@ -63,7 +61,7 @@ export type HorseBetResult = Omit<HorseBet, 'callback'> & {
 	payout: number;
 };
 
-export type HorseBetCallback = (result: HorseBetResult) => void;
+export type HorseBetCallback = (results: HorseBetResult[]) => void;
 
 export type CommentaryLine = {
 	commentary: string;

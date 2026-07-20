@@ -4,7 +4,7 @@ import {clearInput, keepInput} from '../../defs/def-input';
 import type {GameCommand} from '../../defs/def-commands';
 import type {GameType} from '../../defs/def-config';
 import type {RatServer, RatSocket, GameEventType, GameLine, GameTextPayload} from '../../defs/def-events';
-import type {FishingCallback} from '../../defs/def-games';
+import type {FishingCallback, HorseBet, HorseBetCallback, HorseBetResult} from '../../defs/def-games';
 import type {Identity, GameIdentity} from '../../defs/def-identity';
 import type {InputStatus} from '../../defs/def-input';
 
@@ -15,7 +15,10 @@ import {IdentityService} from '../identity';
 import {GameStateService} from './game-state';
 import {StateService} from '../state';
 
+import {AppError, handleError} from '../../utils/errors';
 import {getBaseNick} from '../../utils/format';
+
+import {createHorseNameText} from './game-utils/commentary';
 
 type GameCommandEntry = {
 	enabledFor: GameType[];
@@ -65,7 +68,8 @@ export class GameCommandService {
 				io,
 				args,
 				fullArgs: args.join(' '),
-				commandUser: caller
+				commandUser: caller,
+				commandName: commandName
 			});
 
 			return result;
@@ -84,24 +88,27 @@ export class GameCommandService {
 	}
 
 	private sendNotCommand(socket: RatSocket): InputStatus {
-		this.deps.dispatchService.sendSystemChatPayload(socket, cType.error, "system: that's not a command lol");
+		const error = new AppError("that's not a command lol", 'user');
+		this.deps.dispatchService.sendUserErrorMessage(socket, error, 'Game Command Service Not Command');
 		return keepInput;
 	}
 
-	private sendUserPoints(ctx: GameCommand, points: number, event: GameEventType): void {
-		if(event === gType.fishing){
-			this.deps.gameIdentityService.addFishingWinnings(ctx.commandUser.playerid, points);
+	private sendUserPoints(playerid: GameIdentity['playerid'], socket: RatSocket, points: number, event: GameEventType): void {
+		try{
+			this.deps.gameIdentityService.addGamePoints(playerid, points);
+			const nicepoints = points.toLocaleString('en-US');
+			const name = this.deps.configService.getGameConfig().pointsName;
+			const message: GameLine = [
+				{text: "you've earned ", color: hType.normal, format: []},
+				{text: `${nicepoints} `, color: hType.normal, format: [fType.b]},
+				{text: name, color: hType.normal, format: [fType.b]},
+				{text: ", don't spend it all in one place", color: hType.normal, format: []}
+			];
+			this.deps.dispatchService.sendGamePayload(socket, [message], event);
 		}
-		this.deps.gameIdentityService.addGamePoints(ctx.commandUser.playerid, points);
-		const nicepoints = points.toLocaleString('en-US');
-		const name = this.deps.configService.getGameConfig().pointsName;
-		const message: GameLine = [
-			{text: "you've earned ", color: hType.normal, format: []},
-			{text: `${nicepoints} `, color: hType.normal, format: [fType.b]},
-			{text: name, color: hType.normal, format: [fType.b]},
-			{text: ", don't spend it all in one place", color: hType.normal, format: []}
-		];
-		this.deps.dispatchService.sendGamePayload(ctx.socket, [message], event);
+		catch(error: unknown){
+			this.deps.dispatchService.sendUserErrorMessage(socket, error, 'Send User Points');
+		}
 	}
 
 	private async executeGameCommand(name: string, ctx: GameCommand): Promise<InputStatus> {
@@ -118,7 +125,97 @@ export class GameCommandService {
 		return await entry.handler(ctx);
 	}
 
-	private handleFishingEvent(playerid: GameIdentity['playerid'], event: FishingCallback, io: RatServer): void {
+	private handleHorseCallback(playerid: GameIdentity['playerid'], results: HorseBetResult[], io: RatServer): void {
+		for(const result of results){
+			if(result.playerid !== playerid){
+				throw new AppError('handleHorseCallback received a result for a mismatched playerid', 'internal', 'warn');
+			}
+		}
+
+		const message: GameTextPayload = [];
+		let totalStake = 0;
+		let totalPayout = 0;
+
+		for(const result of results){
+			totalStake += result.stake;
+			totalPayout += result.payout;
+
+			const horseName = createHorseNameText(result);
+			let line: GameLine;
+			if(result.payout > 0){
+				line = [
+					{text: `your bet of ${result.stake.toLocaleString('en-US')} on `, color: hType.normal, format: []},
+					...horseName,
+					{text: ` won ${result.payout.toLocaleString('en-US')}.`, color: hType.normal, format: []}
+				];
+			}
+			else{
+				line = [
+					{text: `your bet of ${result.stake.toLocaleString('en-US')} on `, color: hType.normal, format: []},
+					...horseName,
+					{text: ' did not pay out.', color: hType.normal, format: []}
+				];
+			}
+			message.push(line);
+		}
+
+		const netWinnings = totalPayout - totalStake;
+
+		const summaryLine: GameLine = [];
+		if(netWinnings > 0){
+			summaryLine.push({text: `you made a total of ${netWinnings.toLocaleString('en-US')} on ${totalStake.toLocaleString('en-US')} staked.`, color: hType.normal, format: [fType.b]});
+		}
+		else if(netWinnings < 0){
+			summaryLine.push({text: `you lost a total of ${Math.abs(netWinnings).toLocaleString('en-US')} on ${totalStake.toLocaleString('en-US')} staked.`, color: hType.normal, format: [fType.b]});
+		}
+		else{
+			summaryLine.push({text: `you broke even on ${totalStake.toLocaleString('en-US')} staked.`, color: hType.normal, format: [fType.b]});
+		}
+		message.push(summaryLine);
+
+		let targetSocket: RatSocket | null = null;
+		try{
+			for(const [socketID, identity] of this.deps.stateService.getSocketUsersMap()){
+				if(identity.playerid !== playerid){
+					continue;
+				}
+
+				const foundSocket = io.sockets.sockets.get(socketID);
+				if(foundSocket){
+					this.deps.dispatchService.sendGamePayload(foundSocket, message, gType.horse);
+					targetSocket = foundSocket;
+				}
+			}
+		}
+		catch(error: unknown){
+			handleError(error, 'Horse Bet Result Message');
+		}
+
+		if(totalPayout > 0){
+			if(targetSocket){
+				this.sendUserPoints(playerid, targetSocket, totalPayout, gType.horse);
+			}
+			else{
+				try{
+					this.deps.gameIdentityService.addGamePoints(playerid, totalPayout);
+				}
+				catch(error: unknown){
+					handleError(error, 'Add Game Points (No Socket)');
+				}
+			}
+		}
+
+		if(netWinnings !== 0){
+			try{
+				this.deps.gameIdentityService.adjustHorseWinnings(playerid, netWinnings);
+			}
+			catch(error: unknown){
+				handleError(error, 'Adjust Horse Winnings');
+			}
+		}
+	}
+
+	private handleFishingCallback(playerid: GameIdentity['playerid'], event: FishingCallback, io: RatServer): void {
 		let message: GameLine;
 
 		switch(event){
@@ -153,12 +250,18 @@ export class GameCommandService {
 
 	private initializeGameCommands(): void {
 		this.registerGameCommands();
-		//this.registerHorseCommands
-		//this.registerDuelingCommands
-		//this.registerBlackjackCommands
+		this.registerHorseCommands();
+		//this.registerDuelingCommands();
+		//this.registerBlackjackCommands();
 		this.registerFishingCommands();
 
 		this.gameCommands['cast'] = this.gameCommands['fish'];
+		for(let post = 0; post <= 9; post++){
+			this.gameCommands[`bethorse${post}`] = this.gameCommands['bethorse'];
+		}
+		for(let post = 0; post <= 99; post++){
+			this.gameCommands[`bethorse${String(post).padStart(2, '0')}`] = this.gameCommands['bethorse'];
+		}
 	}
 
 	private registerGameCommands(): void {
@@ -203,12 +306,103 @@ export class GameCommandService {
 		};
 	}
 
+	private registerHorseCommands(): void {
+		this.gameCommands['bethorse'] = {
+			enabledFor: ['horseRacing'],
+			handler: (ctx): InputStatus => {
+				let paid = false;
+				let stake = 0;
+				try{
+					if(!this.deps.gameStateService.existsHorseSession()){
+						throw new AppError("you can't bet when there isn't a race on", 'user');
+					}
+
+					if(ctx.commandName === 'bethorse'){
+						throw new AppError('please pick a horse to bet on, e.g. /bethorse13', 'user');
+					}
+
+					const commandSlice = ctx.commandName.slice('bethorse'.length);
+					const post = Number(commandSlice);
+					if(Number.isNaN(post)){
+						throw new AppError('resolved a non-numeric post number from command name', 'internal', 'warn');
+					}
+
+					const field = this.deps.gameStateService.getFieldHorseSession();
+					const horse = field.find(entry => entry.horsePost === post);
+					if(!horse){
+						throw new AppError(`there is no horse numbered ${post}, use /odds to check the field`, 'user');
+					}
+
+					stake = Number(ctx.args[0]);
+					if(Number.isNaN(stake)){
+						throw new AppError('please provide a valid stake amount, e.g. /bethorse13 500', 'user');
+					}
+					if(stake <= 0 || !Number.isInteger(stake)){
+						throw new AppError('very clever, please use a integer number larger than 0', 'user');
+					}
+
+					this.deps.gameIdentityService.removeGamePoints(ctx.commandUser.playerid, stake);
+					paid = true;
+
+					const callback: HorseBetCallback = (results): void => {
+						this.handleHorseCallback(ctx.commandUser.playerid, results, ctx.io);
+					};
+
+					const bet: HorseBet = {
+						playerid: ctx.commandUser.playerid,
+						horseName: horse.horseName,
+						horsePost: horse.horsePost,
+						horseColor: horse.horseColor,
+						stake: stake,
+						oddsNum: horse.oddsNum,
+						oddsDen: horse.oddsDen,
+						prerace: false,
+						callback: callback
+					};
+
+					const placedBet = this.deps.gameStateService.pushBetHorseSession(bet);
+					const message: GameTextPayload = [];
+					const horseNameText = createHorseNameText(horse);
+					const line1: GameLine = [
+						{text: `you bet ${placedBet.stake.toLocaleString('en-US')} on `, color: hType.normal, format: []},
+						...horseNameText,
+						{text: ` at ${placedBet.oddsNum} : ${placedBet.oddsDen}`, color: hType.normal, format: []},
+					];
+					message.push(line1);
+
+					let expectedPayout = stake + (stake * (placedBet.oddsNum/placedBet.oddsDen));
+					if(placedBet.prerace){
+						expectedPayout = expectedPayout *2;
+						const preraceline: GameLine = [{text: 'prerace bonus applied!', color: hType.normal, format: [fType.i]}];
+						message.push(preraceline);
+					}
+					expectedPayout = Math.ceil(expectedPayout);
+					const line2: GameLine =[
+						{text: `expected payout: 1st - ${expectedPayout}, 2nd - ${expectedPayout/2}, 3rd - ${expectedPayout/3}`, color: hType.normal, format:[]}
+					];
+					message.push(line2);
+
+					this.deps.dispatchService.sendGamePayload(ctx.socket, message, gType.horse);
+					return clearInput;
+				}
+				catch(error: unknown){
+					this.deps.dispatchService.sendUserErrorMessage(ctx.socket, error, 'Bet Horse Command');
+					if(paid){
+						this.deps.gameIdentityService.addGamePoints(ctx.commandUser.playerid, stake);
+					}
+					return keepInput;
+				}
+			}
+		};
+	}
+
 	private registerFishingCommands(): void {
 		this.gameCommands['fish'] = {
 			enabledFor: ['fishing'],
 			handler: (ctx): InputStatus => {
 				if(this.deps.gameStateService.existsFishingSession(ctx.commandUser.playerid)){
-					this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.error, 'system: you already have a line in the water');
+					const error = new AppError('you already have a line in the water', 'user');
+					this.deps.dispatchService.sendUserErrorMessage(ctx.socket, error, 'Fish Command Exists');
 					return clearInput;
 				}
 				let target = null;
@@ -218,7 +412,7 @@ export class GameCommandService {
 
 				try{
 					const callback = (playerid: GameIdentity['playerid'], fishcallback: FishingCallback): void => {
-						this.handleFishingEvent(playerid, fishcallback, ctx.io);
+						this.handleFishingCallback(playerid, fishcallback, ctx.io);
 					};
 					this.deps.gameStateService.createFishingSession(ctx.commandUser.playerid, target, callback);
 				}
@@ -248,7 +442,8 @@ export class GameCommandService {
 			enabledFor: ['fishing'],
 			handler: (ctx): InputStatus =>{
 				if(!this.deps.gameStateService.existsFishingSession(ctx.commandUser.playerid)){
-					this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.error, "system: you ain't got a line in the wooter. /fish to cast it out");
+					const error = new AppError("you ain't got a line in the wooter. /fish to cast it out", 'user');
+					this.deps.dispatchService.sendUserErrorMessage(ctx.socket, error, 'Catch Command Exists');
 					return clearInput;
 				}
 				try{
@@ -296,7 +491,13 @@ export class GameCommandService {
 						this.deps.dispatchService.sendGamePayload(ctx.io, [announcement], gType.fishing);
 					}
 					const points = Math.ceil(fishResult.value);
-					this.sendUserPoints(ctx, points, gType.fishing);
+					try{
+						this.deps.gameIdentityService.addFishingWinnings(ctx.commandUser.playerid, points);
+					}
+					catch(error: unknown){
+						handleError(error);
+					}
+					this.sendUserPoints(ctx.commandUser.playerid, ctx.socket, points, gType.fishing);
 					return clearInput;
 				}
 				catch(error: unknown){

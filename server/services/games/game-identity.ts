@@ -11,7 +11,7 @@ import {createSaveQueue} from '../../utils/queue';
 import {assertSafeStartup, getRepairPath} from '../../utils/repair';
 import {existsFile, createJsonFile, readJsonFile, writeJsonFile} from '../../utils/serialize';
 
-import {assertGamesEnabled, assertFishingEnabled} from './game-utils/checks';
+import {assertGamesEnabled, assertHorseRacingEnabled, assertFishingEnabled} from './game-utils/checks';
 
 const MAX_INT = 4294967295;
 
@@ -174,6 +174,35 @@ export class GameIdentityService {
 		}
 		const newPoints = Math.round(this.deps.configService.getGameConfig().pointStartAmt);
 		gameId.gamePoints = newPoints;
+		this.gameUserQueue.chain();
+		return gameId;
+	}
+
+	public adjustHorseWinnings(playerid: GameIdentity['playerid'], delta: number): GameIdentity{
+		assertGamesEnabled(this.deps.configService, 'adjustHorseWinnings');
+		assertHorseRacingEnabled(this.deps.configService, 'adjustHorseWinnings');
+
+		const amount = Math.round(delta);
+		if(amount === 0){
+			throw new AppError('adjustHorseWinnings called with near zero value', 'bug');
+		}
+
+		const gameId = this.gameUsers.get(playerid);
+		if(!gameId){
+			throw new AppError('adjust horse winnings: no matching game user found to playerid', 'internal', 'warn');
+		}
+
+		const newWinnings = gameId.horseWinnings + amount;
+		if(newWinnings >= MAX_INT){
+			gameId.horseWinnings = MAX_INT;
+		}
+		else if(newWinnings <= -MAX_INT){
+			gameId.horseWinnings = -MAX_INT;
+		}
+		else{
+			gameId.horseWinnings = newWinnings;
+		}
+
 		this.gameUserQueue.chain();
 		return gameId;
 	}

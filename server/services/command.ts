@@ -89,7 +89,8 @@ export class CommandService {
 				io,
 				args,
 				fullArgs: args.join(' '),
-				commandUser: caller
+				commandUser: caller,
+				commandName: commandName
 			});
 
 			return result;
@@ -108,12 +109,14 @@ export class CommandService {
 	}
 
 	private sendRegistrationWarning(socket: RatSocket, action: string = 'do that'): InputStatus {
-		this.deps.dispatchService.sendSystemChatPayload(socket, cType.error, `system: please use /chrat <nickname> before trying to ${action}`);
+		const error = new AppError(`please use /chrat <nickname> before trying to ${action}`, 'user');
+		this.deps.dispatchService.sendUserErrorMessage(socket, error, 'Registration Warning');
 		return clearInput;
 	}
 
 	private sendNotCommand(socket: RatSocket): InputStatus {
-		this.deps.dispatchService.sendSystemChatPayload(socket, cType.error, "system: that's not a command lol");
+		const error = new AppError("that's not a command lol", 'user');
+		this.deps.dispatchService.sendUserErrorMessage(socket, error, 'Command Service Not Command');
 		return keepInput;
 	}
 
@@ -129,7 +132,8 @@ export class CommandService {
 			return this.sendNotCommand(ctx.socket);
 		}
 		if(entry.requiresMod && notMod){
-			this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.error, 'naughty naughty', [fType.b]);
+			const error = new AppError('naughty naughty', 'user');
+			this.deps.dispatchService.sendUserErrorMessage(ctx.socket, error, 'Command Service Not Mod');
 			return clearInput;
 		}
 
@@ -334,7 +338,8 @@ export class CommandService {
 				if(!ctx.commandUser){
 					return this.sendRegistrationWarning(ctx.socket, 'set a colour');
 				}
-				this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.error, 'system: lern to speak american');
+				const error = new AppError('lern to speak american', 'user');
+				this.deps.dispatchService.sendUserErrorMessage(ctx.socket, error, 'Colour Command');
 				return keepInput;
 			}
 		};
@@ -478,7 +483,7 @@ export class CommandService {
 
 					const markovUser = this.deps.stateService.markovUser;
 					if(!markovUser){
-						throw new AppError("we couldn't find a markov bot, please try again", 'user');
+						throw new AppError("couldn't find a markov bot, please try again", 'user');
 					}
 
 					if(this.deps.stateService.markovSleep){
@@ -696,7 +701,8 @@ export class CommandService {
 				const id = Number(ctx.args[0]);
 
 				if(!ctx.args[0] || !Number.isInteger(id) || id < 0){
-					this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.error, 'system: please provide a valid message id');
+					const error = new AppError('please provide a valid message id', 'user');
+					this.deps.dispatchService.sendUserErrorMessage(ctx.socket, error, 'Delete Command');
 					return keepInput;
 				}
 
@@ -775,7 +781,7 @@ export class CommandService {
 				try{
 					const markovUser = this.deps.stateService.markovUser;
 					if(!markovUser){
-						throw new AppError("we couldn't find a markov bot", 'user');
+						throw new AppError("couldn't find a markov bot", 'user');
 					}
 					if(!ctx.commandUser){
 						throw new AppError('Undefined user in Mod Command Call', 'bug');
@@ -799,7 +805,8 @@ export class CommandService {
 			handler: (ctx): InputStatus => {
 				const markovUser = this.deps.stateService.markovUser;
 				if(!markovUser){
-					this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.error, "system: we couldn't find a markov bot");
+					const error = new AppError("couldn't find a markov bot", 'user');
+					this.deps.dispatchService.sendUserErrorMessage(ctx.socket, error, 'Bot Sleep Command');
 					return keepInput;
 				}
 
@@ -892,7 +899,7 @@ export class CommandService {
 
 					case 'export':{
 						if(!ctx.commandUser){
-							this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.error, 'system: no server stored data');
+							this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.info, 'You have no server stored data.');
 							return clearInput;
 						}
 						try{
@@ -911,11 +918,11 @@ export class CommandService {
 
 					case 'delete':{
 						if(!ctx.commandUser){
-							this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.error, 'system: no server stored data');
+							this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.info, 'You have no server stored data.');
 							return clearInput;
 						}
 						if(ctx.args[1] !== 'confirm'){
-							this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.error, "warning: this will permanently delete your account and all server-side data. type '/gdpr delete confirm' to proceed.", [fType.b]);
+							this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.info, "WARNING: this will permanently delete your account and all server-side data! type '/gdpr delete confirm' to proceed.", [fType.b]);
 							return keepInput;
 						}
 
@@ -954,7 +961,8 @@ export class CommandService {
 					}
 
 					default:{
-						this.deps.dispatchService.sendSystemChatPayload(ctx.socket, cType.error, "system: please use with 'info', 'ip', 'export' or 'delete' after /gdpr");
+						const error = new AppError("please use with 'info', 'ip', 'export' or 'delete' after /gdpr", 'user');
+						this.deps.dispatchService.sendUserErrorMessage(ctx.socket, error, 'GDPR Command');
 						return keepInput;
 					}
 				}

@@ -7,5 +7,6 @@ export type Command = {
 	args: string[];
 	fullArgs: string;
 	commandUser: Identity | null;
+	commandName: string;
 }
 export type GameCommand = Omit<Command, 'commandUser'> & { commandUser: Identity };

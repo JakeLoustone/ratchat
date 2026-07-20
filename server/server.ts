@@ -24,7 +24,7 @@ import {GameCommandService} from './services/games/game-command';
 import {CommandService} from './services/command';
 
 import {getBaseNick} from './utils/format';
-import {handleError} from './utils/errors';
+import {handleError, AppError} from './utils/errors';
 import {isValidGUID} from './utils/validate';
 
 main().catch(error => {
@@ -201,7 +201,7 @@ async function main(): Promise<void> {
 
 		try{
 			if(securityService.existsBan(socket.handshake.address)){
-				dispatchService.sendSystemChatPayload(socket, cType.error, 'You are banned.');
+				dispatchService.sendSystemChatPayload(socket, cType.info, 'You are banned.', [fType.b]);
 				socket.disconnect(true);
 				console.log('a banned user attempted to join');
 			}
@@ -264,9 +264,9 @@ async function main(): Promise<void> {
 			}
 		}
 		else {
-			dispatchService.sendSystemChatPayload(socket,cType.error,'system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one');
+			dispatchService.sendSystemChatPayload(socket,cType.info,'system: please use the /nick <nickname> to set a nickname or /import <GUID> to import one', [fType.b]);
 			//GDPR warning
-			dispatchService.sendSystemChatPayload(socket,cType.error,"be aware either command will store data regarding your session. type '/gdpr info' for more info", [fType.b]);
+			dispatchService.sendSystemChatPayload(socket,cType.info,"be aware either command will store data regarding your session. type '/gdpr info' for more info", [fType.b]);
 			dispatchService.sendSystemChatPayload(socket,cType.info,'system: feel free to use /help or /h to see all available commands. some commands will not be available until you set your nickname!');
 			dispatchService.sendSystemChatPayload(socket,cType.info,'we recommend increasing the zoom of your browser to 200% for the best viewing experience :)');
 
@@ -294,7 +294,8 @@ async function main(): Promise<void> {
 
 			//Prevent users from chatting without an identity
 			if(!user){
-				dispatchService.sendSystemChatPayload(socket, cType.error, 'system: please set your nickname with /chrat <nickname> before chatting');
+				const error = new AppError('please set your nickname with /chrat <nickname> before chatting', 'user');
+				dispatchService.sendUserErrorMessage(socket, error, 'Main Function Chat No Identity');
 				callback(clearInput);
 				return;
 			}

@@ -8,6 +8,8 @@ export type Config = ServerConfig | MarkovConfig | GameConfig;
 export type ConfigSchema = typeof ServerConfigSchema | typeof MarkovConfigSchema | typeof GameConfigSchema;
 export type ConfigParams = ServerConfigParams | MarkovConfigParams | GameConfigParams;
 
+export const MAX_INT = 4294967295;
+
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 export type ServerConfigParams = {label: typeof aType.sconfig, fallback: ServerConfig, schema: typeof ServerConfigSchema};
 export const ServerConfigSchema = z.object({
@@ -90,7 +92,7 @@ export const GameConfigSchema = z.object({
 	pointsName: z.string().min(1).max(64),
 	gameSlow: z.number().int().min(0).max(86400),
 	raceFrequency: z.number().int().min(300).max(86400),
-	horseBetBigWin: z.number().int().min(0).max(4294967295),
+	horseBetBigWin: z.number().int().min(0).max(MAX_INT),
 	...GameTypeConfigSchema,
 });
 

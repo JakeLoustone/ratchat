@@ -1,4 +1,5 @@
 import {cType, gType, ChatPayloadSchema} from '../defs/def-events';
+import {MAX_INT} from '../defs/def-config';
 import type {RatServer, RatSocket, ClientEventType, GameEventType, GameTextPayload, FormatType} from '../defs/def-events';
 import type {ToClient, ChatPayload, GamePayload, IdentityPayload, UserListPayload, EventListPayload, EmoteListPayload, DeleteMessagePayload, DeleteClientLocalDataPayload} from '../defs/def-events';
 import type {Identity} from '../defs/def-identity';
@@ -17,7 +18,6 @@ type ChatHistory = Map<ChatPayload['id'], ChatPayload>;
 
 const REDIS_HISTORY_KEY = CacheService.createRedisKey('messageHistory');
 const REDIS_COUNTER_KEY = CacheService.createRedisKey('messageCounter');
-const MAX_INT = 4294967295;
 
 export interface DispatchServiceDependencies {
 	cacheService: CacheService

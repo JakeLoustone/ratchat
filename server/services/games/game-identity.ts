@@ -1,3 +1,4 @@
+import {MAX_INT} from '../../defs/def-config';
 import {GameIdentitySchema} from '../../defs/def-identity';
 import {aType} from '../../defs/def-parse';
 import type {GameIdentity, DefaultGameIdentity} from '../../defs/def-identity';
@@ -12,8 +13,6 @@ import {assertSafeStartup, getRepairPath} from '../../utils/repair';
 import {existsFile, createJsonFile, readJsonFile, writeJsonFile} from '../../utils/serialize';
 
 import {assertGamesEnabled, assertHorseRacingEnabled, assertFishingEnabled} from './game-utils/checks';
-
-const MAX_INT = 4294967295;
 
 export interface GameIdentityServiceDependencies{
 	configService: ConfigService;

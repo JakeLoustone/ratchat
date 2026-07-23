@@ -195,6 +195,22 @@ export class StateService {
 		return structuredClone(user);
 	}
 
+	public getSocketsByPlayer(playerid: Identity['playerid']): RatSocket[] {
+		const sockets: RatSocket[] = [];
+		for(const [socketID, identity] of this.socketUsers){
+			if(identity.playerid !== playerid){
+				continue;
+			}
+
+			const foundSocket = this.deps.io.sockets.sockets.get(socketID);
+			if(foundSocket){
+				sockets.push(foundSocket);
+			}
+		}
+
+		return sockets;
+	}
+
 	public updateSocketUser(io: RatServer, socketID: RatSocket['id'], identity: Identity): void {
 		this.socketUsers.set(socketID, identity);
 

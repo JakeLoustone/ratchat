@@ -54,14 +54,11 @@ export type HorseBet = {
 } & HorseFieldEntry & {
 	stake: number;
 	prerace: boolean;
-	callback: HorseBetCallback;
 };
-export type HorseBetResult = Omit<HorseBet, 'callback'> & {
+export type HorseBetResult = HorseBet & {
 	place: number;
 	payout: number;
 };
-
-export type HorseBetCallback = (results: HorseBetResult[]) => void;
 
 export type CommentaryLine = {
 	commentary: string;
@@ -86,5 +83,4 @@ export type FishResult = FishCatch & {
 	small: boolean;
 };
 
-export type FishingCallback = 'bite' | 'expired' | 'nothing';
-export type FishingEventCallback = (playerid: GameIdentity['playerid'], event: FishingCallback) => void;
+export type FishingResult = 'bite' | 'expired' | 'nothing';

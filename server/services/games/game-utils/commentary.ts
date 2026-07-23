@@ -26,7 +26,7 @@ type HorseMovement = HorseRaceEntry & {
 const BIG = 0.2;
 const SMALL = 0.1;
 
-const blankLine: GameLine = [{text:'', color:hType.clear, format: []}];
+export const blankLine: GameLine = [{text:'', color:hType.clear, format: []}];
 
 export function createHorseNameText(horse: HorseLabel): GameText[] {
 	const nametext: GameText[] = [
@@ -42,7 +42,6 @@ export function createHorseNameText(horse: HorseLabel): GameText[] {
 
 export function createHorseOddsText(field: HorseField): GameTextPayload {
 	const gameText: GameTextPayload = [];
-	gameText.push(blankLine);
 	const sortedField = [...field].sort((a, b) => {
 		const probA = a.oddsDen / (a.oddsNum + a.oddsDen);
 		const probB = b.oddsDen / (b.oddsNum + b.oddsDen);
@@ -58,7 +57,6 @@ export function createHorseOddsText(field: HorseField): GameTextPayload {
 		];
 		gameText.push(line);
 	}
-	gameText.push(blankLine);
 	return gameText;
 }
 

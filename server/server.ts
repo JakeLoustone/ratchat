@@ -16,8 +16,9 @@ import {ModerationService} from './services/moderation';
 import {SecurityService} from './services/security';
 import {GameIdentityService} from './services/games/game-identity';
 import {IdentityService} from './services/identity';
-import {GameStateService} from './services/games/game-state';
 import {StateService} from './services/state';
+import {GameResolutionService} from './services/games/game-resolution';
+import {GameStateService} from './services/games/game-state';
 import {MarkovService} from './services/markov';
 import {MessageService} from './services/message';
 import {GameCommandService} from './services/games/game-command';
@@ -106,24 +107,35 @@ async function main(): Promise<void> {
 		usersPath: usersPath
 	});
 
-	const gameStateService = new GameStateService({
-		cacheService: cacheService,
-		configService: configService,
-		dispatchService: dispatchService,
-		gameIdentityService: gameIdentityService,
-		identityService: identityService,
-
-		fishingRecordsPath: fishingRecordsPath,
-		horseRecordsPath: horseRecordsPath,
-		io: io
-	});
-
 	const stateService = new StateService({
 		cacheService: cacheService,
 		configService: configService,
 		dispatchService: dispatchService,
 		identityService: identityService,
 
+		io: io
+	});
+
+	const gameResolutionService = new GameResolutionService({
+		configService: configService,
+		dispatchService: dispatchService,
+		gameIdentityService: gameIdentityService,
+		identityService: identityService,
+		stateService: stateService,
+
+		io: io
+	});
+
+	const gameStateService = new GameStateService({
+		cacheService: cacheService,
+		configService: configService,
+		dispatchService: dispatchService,
+		gameIdentityService: gameIdentityService,
+		identityService: identityService,
+		gameResolutionService: gameResolutionService,
+
+		fishingRecordsPath: fishingRecordsPath,
+		horseRecordsPath: horseRecordsPath,
 		io: io
 	});
 
@@ -168,8 +180,9 @@ async function main(): Promise<void> {
 		moderationService: moderationService,
 		gameIdentityService: gameIdentityService,
 		identityService: identityService,
+		gameResolutionService: gameResolutionService,
 		gameStateService: gameStateService,
-		stateService: stateService
+
 	});
 
 	const commandService = new CommandService({
@@ -179,8 +192,8 @@ async function main(): Promise<void> {
 		securityService: securityService,
 		gameIdentityService: gameIdentityService,
 		identityService: identityService,
-		gameStateService: gameStateService,
 		stateService: stateService,
+		gameStateService: gameStateService,
 		markovService: markovService,
 		messageService: messageService,
 		gameCommandService: gameCommandService

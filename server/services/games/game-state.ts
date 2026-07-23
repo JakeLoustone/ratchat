@@ -2,7 +2,7 @@ import {RatServer, fType, gType, hType} from '../../defs/def-events';
 import {aType} from '../../defs/def-parse';
 import {HorseRecordEntrySchema, FishRecordEntrySchema} from '../../defs/def-record';
 import type {GameLine, GameTextPayload} from '../../defs/def-events';
-import type {FishCatch, FishingEventCallback, FishResult, HorseBet, HorseRaceResult, HorseField, HorseBetResult} from '../../defs/def-games';
+import type {FishCatch, FishResult, HorseBet, HorseRaceResult, HorseField, HorseBetResult} from '../../defs/def-games';
 import type {GameIdentity} from '../../defs/def-identity';
 import type {LeaderboardEntry, BlackjackEntry, DuelingEntry, FishingEntry, HorseEntry} from '../../defs/def-leaderboard';
 import type {PublicLeaderboard, PublicOverallLeaderboard, PublicBlackjackLeaderboard, PublicDuelingLeaderboard, PublicFishingLeaderboard, PublicHorseLeaderboard} from '../../defs/def-leaderboard';
@@ -14,6 +14,7 @@ import {CacheService} from '../cache';
 import {DispatchService} from '../dispatch';
 import {GameIdentityService} from './game-identity';
 import {IdentityService} from '../identity';
+import {GameResolutionService} from './game-resolution';
 
 import {handleError, AppError} from '../../utils/errors';
 import {getOrdinalSuffix} from '../../utils/format';
@@ -24,7 +25,7 @@ import {assertSafeStartup, getRepairPath} from '../../utils/repair';
 import {createJsonFile, existsFile, readJsonFile, writeJsonFile} from '../../utils/serialize';
 
 import {assertFishingEnabled, assertGamesEnabled, assertHorseRacingEnabled} from './game-utils/checks';
-import {createHorseOddsText} from './game-utils/commentary';
+import {blankLine, createHorseOddsText} from './game-utils/commentary';
 import {createCatch} from './game-utils/fishing';
 import {createHorseRaceResult, createHorseBetResult} from './game-utils/horse';
 
@@ -42,7 +43,6 @@ type FishingSession = {
 	biting: boolean;
 	biteTimer: NodeJS.Timeout;
 	expireTimer: NodeJS.Timeout | null;
-	eventCallback: FishingEventCallback;
 };
 
 type HorseSession = {
@@ -82,6 +82,7 @@ export interface GameStateServiceDependencies{
 	dispatchService: DispatchService;
 	gameIdentityService: GameIdentityService;
 	identityService: IdentityService;
+	gameResolutionService: GameResolutionService;
 
 	fishingRecordsPath: string;
 	horseRecordsPath: string;
@@ -150,29 +151,20 @@ export class GameStateService {
 		return bet;
 	}
 
-	public getBetsHorseSession(playerid: GameIdentity['playerid']): Omit<HorseBet, 'callback'>[] {
+	public getBetsHorseSession(playerid: GameIdentity['playerid']): HorseBet[] {
 		assertGamesEnabled(this.deps.configService, 'getBetsHorseSession');
 		assertHorseRacingEnabled(this.deps.configService, 'getBetsHorseSession');
 		if(!this.activeRace){
 			throw new AppError('get bets horse session: called without an active session', 'bug');
 		}
 
-		const playerBets: Omit<HorseBet, 'callback'>[] = [];
+		const playerBets: HorseBet[] = [];
 		for(const bet of this.activeRace.bets){
 			if(bet.playerid !== playerid){
 				continue;
 			}
 
-			const copy = {
-				playerid: bet.playerid,
-				horseName: bet.horseName,
-				horsePost: bet.horsePost,
-				horseColor: bet.horseColor,
-				oddsNum: bet.oddsNum,
-				oddsDen: bet.oddsDen,
-				stake: bet.stake,
-				prerace: bet.prerace
-			};
+			const copy = structuredClone(bet);
 			playerBets.push(copy);
 		}
 
@@ -184,8 +176,6 @@ export class GameStateService {
 		assertHorseRacingEnabled(this.deps.configService, 'createHorseSession');
 		let session: HorseSession | null = null;
 		try{
-			const blankLine: GameLine = [{text: '', color: hType.clear, format: []}];
-
 			const raceResult = createHorseRaceResult(this.horseRecords);
 			this.raceCounter++;
 			const raceid = this.raceCounter;
@@ -274,7 +264,7 @@ export class GameStateService {
 				for(const bet of playerbets){
 					results.push(createHorseBetResult(bet, raceResult.standings));
 				}
-				playerbets[0].callback(results);
+				this.deps.gameResolutionService.resolveHorseBet(playerbets[0].playerid, results);
 
 				for(const bet of playerbets){
 					const betIndex = session.bets.indexOf(bet);
@@ -320,8 +310,6 @@ export class GameStateService {
 	}
 
 	private createHorseSessionAnnouncement(field: HorseField, raceid: number): GameTextPayload {
-		const blankLine: GameLine = [{text: '', color: hType.clear, format: []}];
-
 		const commentary: GameTextPayload = [];
 		const welcome: GameLine =[
 			{text: 'the ', color: hType.normal, format: []},
@@ -335,6 +323,7 @@ export class GameStateService {
 		commentary.push(blankLine);
 		const oddsIntro: GameLine = [{text: 'the betting line is as follows:', color: hType.normal, format: []}];
 		commentary.push(oddsIntro);
+		commentary.push(blankLine);
 		const oddsText = createHorseOddsText(field);
 		oddsText[0].push({text: ', the favorite!', color: hType.normal, format: []});
 		oddsText[oddsText.length - 1].push({text: ', the longshot!', color: hType.normal, format: []});
@@ -365,7 +354,7 @@ export class GameStateService {
 		return false;
 	}
 
-	public createFishingSession(playerid: GameIdentity['playerid'], target: string | null, callback: FishingEventCallback): void {
+	public createFishingSession(playerid: GameIdentity['playerid'], target: string | null): void {
 		assertGamesEnabled(this.deps.configService, 'createFishingSession');
 		assertFishingEnabled(this.deps.configService, 'createFishingSession');
 
@@ -392,7 +381,6 @@ export class GameStateService {
 			biting: false,
 			biteTimer: biteTimer,
 			expireTimer: null,
-			eventCallback: callback
 		};
 
 		this.activeFishing.set(playerid, session);
@@ -441,12 +429,15 @@ export class GameStateService {
 			const bestCatchDisplay = `${fishCatch.name}, ${fishCatch.weight}oz`;
 			this.deps.gameIdentityService.setFishingBestCatch(playerid, bestCatchDisplay, fishCatch.value);
 		}
+
 		const newcatch = !gameUser.fishingFishCaught.includes(fishCatch.name);
 		if(newcatch){
 			this.deps.gameIdentityService.addFishingFishCaught(gameUser.playerid, fishCatch.name);
 		}
+
 		const big = fishCatch.value > FISH_BIG_THRESHOLD;
 		const small = fishCatch.value < FISH_SMALL_THRESHOLD;
+
 		const fishResult = {
 			name: fishCatch.name,
 			flavor: fishCatch.flavor,
@@ -459,6 +450,7 @@ export class GameStateService {
 			big: big,
 			small: small
 		};
+
 		this.deps.gameIdentityService.incrementFishingCatches(gameUser.playerid);
 		return fishResult;
 	}
@@ -470,12 +462,12 @@ export class GameStateService {
 		}
 		if(!session.fish){
 			this.activeFishing.delete(playerid);
-			session.eventCallback(playerid, 'nothing');
+			this.deps.gameResolutionService.resolveFishingCatch(playerid, 'nothing');
 			return;
 		}
 
 		session.biting = true;
-		session.eventCallback(playerid, 'bite');
+		this.deps.gameResolutionService.resolveFishingCatch(playerid, 'bite');
 
 		const catchWindow = FISH_MAX_CATCH_WINDOW - ((session.fish.value / 100) * (FISH_MAX_CATCH_WINDOW - FISH_MIN_CATCH_WINDOW));
 
@@ -494,7 +486,7 @@ export class GameStateService {
 		}
 
 		this.activeFishing.delete(playerid);
-		session.eventCallback(playerid, 'expired');
+		this.deps.gameResolutionService.resolveFishingCatch(playerid, 'expired');
 	}
 
 	public getLeaderboard(): PublicOverallLeaderboard;
